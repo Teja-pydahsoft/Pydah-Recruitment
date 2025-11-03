@@ -1,0 +1,151 @@
+const mongoose = require('mongoose');
+
+const recruitmentFormSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  formType: {
+    type: String,
+    enum: ['candidate_profile', 'feedback_form'],
+    required: true,
+    default: 'candidate_profile'
+  },
+  position: {
+    type: String,
+    required: function() {
+      return this.formType === 'candidate_profile';
+    },
+    trim: true
+  },
+  department: {
+    type: String,
+    required: function() {
+      return this.formType === 'candidate_profile';
+    },
+    trim: true
+  },
+  requirements: {
+    experience: {
+      min: Number,
+      max: Number,
+      preferred: String
+    },
+    skills: [String],
+    qualifications: [String],
+    responsibilities: [String]
+  },
+  formFields: [{
+    fieldName: {
+      type: String,
+      required: true
+    },
+    fieldType: {
+      type: String,
+      enum: ['text', 'email', 'number', 'date', 'textarea', 'select', 'file', 'file_multiple', 'rating', 'yes_no', 'radio', 'checkbox'],
+      required: true
+    },
+    required: {
+      type: Boolean,
+      default: false
+    },
+    options: [String], // For select fields
+    placeholder: String,
+    weight: {
+      type: Number,
+      default: 1,
+      min: 0,
+      max: 5
+    }
+  }],
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  submissionCount: {
+    type: Number,
+    default: 0
+  },
+  uniqueLink: {
+    type: String,
+    unique: true
+  },
+  qrCode: {
+    data: String, // Base64 encoded QR code
+    url: String,  // URL to the QR code image
+    generatedAt: Date
+  }
+}, {
+  timestamps: true
+});
+
+// Generate unique link before saving
+recruitmentFormSchema.pre('save', function(next) {
+  if (!this.uniqueLink) {
+    this.uniqueLink = `form_${this.formType}_${this._id}_${Date.now()}`;
+  }
+  next();
+});
+
+// Method to generate QR code
+recruitmentFormSchema.methods.generateQRCode = async function() {
+  const QRCode = require('qrcode');
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const formUrl = `${frontendUrl}/form/${this.uniqueLink}`;
+  
+  try {
+    const qrCodeDataURL = await QRCode.toDataURL(formUrl, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    
+    this.qrCode = {
+      data: qrCodeDataURL,
+      url: formUrl,
+      generatedAt: new Date()
+    };
+    
+    return this.qrCode;
+  } catch (error) {
+    console.error('QR Code generation error:', error);
+    throw error;
+  }
+};
+
+// Method to get form statistics
+recruitmentFormSchema.methods.getStats = async function() {
+  const Candidate = mongoose.model('Candidate');
+  
+  const stats = await Candidate.aggregate([
+    { $match: { form: this._id } },
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  
+  const totalSubmissions = stats.reduce((sum, stat) => sum + stat.count, 0);
+  
+  return {
+    totalSubmissions,
+    statusBreakdown: stats
+  };
+};
+
+module.exports = mongoose.model('RecruitmentForm', recruitmentFormSchema);
