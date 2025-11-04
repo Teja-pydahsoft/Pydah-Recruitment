@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { FaFileAlt, FaUser, FaPaperPlane, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
-import api from '../services/api';
+import { FaFileAlt, FaUser, FaPaperPlane, FaCheckCircle, FaExclamationTriangle, FaUpload, FaSpinner, FaTimes, FaCloudUploadAlt } from 'react-icons/fa';
+import api, { uploadWithProgress } from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
 
 const fadeIn = keyframes`
@@ -13,6 +13,30 @@ const fadeIn = keyframes`
 const slideInUp = keyframes`
   from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
+`;
+
+const spin = keyframes`
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+`;
+
+const pulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+`;
+
+const shimmer = keyframes`
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+`;
+
+const progressFill = keyframes`
+  0% { width: 0%; }
+`;
+
+const bounce = keyframes`
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 `;
 
 const FormContainer = styled.div`
@@ -242,7 +266,7 @@ const SubmitButton = styled.button`
     left: 100%;
   }
 
-  &:hover {
+  &:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.4);
   }
@@ -256,6 +280,274 @@ const SubmitButton = styled.button`
   &:disabled:hover {
     transform: none;
     box-shadow: none;
+  }
+
+  &.processing {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    animation: ${pulse} 2s ease-in-out infinite;
+  }
+
+  &.uploading {
+    background: linear-gradient(135deg, #10b981, #059669);
+  }
+`;
+
+const FilePreviewCard = styled.div`
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.3s ease;
+  animation: ${slideInUp} 0.4s ease-out;
+
+  &:hover {
+    border-color: #0ea5e9;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.1);
+  }
+
+  &.uploading {
+    border-color: #10b981;
+    background: #f0fdf4;
+  }
+
+  &.uploaded {
+    border-color: #10b981;
+    background: #f0fdf4;
+  }
+
+  &.error {
+    border-color: #dc2626;
+    background: #fef2f2;
+  }
+`;
+
+const FileIcon = styled.div`
+  font-size: 2rem;
+  color: #64748b;
+  flex-shrink: 0;
+
+  &.uploading {
+    color: #10b981;
+    animation: ${spin} 1s linear infinite;
+  }
+
+  &.uploaded {
+    color: #10b981;
+  }
+
+  &.error {
+    color: #dc2626;
+  }
+`;
+
+const FileInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+const FileName = styled.div`
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const FileSize = styled.div`
+  font-size: 0.875rem;
+  color: #64748b;
+`;
+
+const ProgressBar = styled.div`
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+  position: relative;
+`;
+
+const ProgressFill = styled.div`
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  width: ${props => props.progress || 0}%;
+  animation: ${progressFill} 0.3s ease-out;
+
+  &.indeterminate {
+    width: 30%;
+    animation: ${shimmer} 1.5s ease-in-out infinite;
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.8), transparent);
+    background-size: 200% 100%;
+  }
+`;
+
+const StatusBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+
+  &.uploading {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  &.uploaded {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  &.error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+`;
+
+const UploadProgressContainer = styled.div`
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 2px dashed #cbd5e1;
+  animation: ${slideInUp} 0.4s ease-out;
+`;
+
+const UploadProgressTitle = styled.h4`
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const SubmissionStatus = styled.div`
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 2px solid #fbbf24;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  animation: ${slideInUp} 0.4s ease-out;
+
+  &.processing {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    border-color: #3b82f6;
+  }
+
+  &.uploading {
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+    border-color: #10b981;
+  }
+`;
+
+const StatusIcon = styled.div`
+  font-size: 2rem;
+  animation: ${spin} 1s linear infinite;
+
+  &.pulse {
+    animation: ${pulse} 2s ease-in-out infinite;
+  }
+`;
+
+const StatusText = styled.div`
+  flex: 1;
+`;
+
+const StatusTitle = styled.div`
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+`;
+
+const StatusDescription = styled.div`
+  font-size: 0.9rem;
+  color: #64748b;
+`;
+
+const SubmissionModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: ${fadeIn} 0.3s ease-out;
+  padding: 1rem;
+`;
+
+const ModalContent = styled.div`
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: ${slideInUp} 0.4s ease-out;
+  position: relative;
+`;
+
+const ModalHeader = styled.div`
+  padding: 2rem 2rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const ModalTitle = styled.h3`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const ModalBody = styled.div`
+  padding: 2rem;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #f1f5f9;
+    color: #1e293b;
   }
 `;
 
@@ -316,6 +608,9 @@ const PublicForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [submissionState, setSubmissionState] = useState('idle'); // 'idle', 'pending', 'processing', 'uploading', 'complete'
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [fileUploads, setFileUploads] = useState({}); // Track individual file uploads
 
   const fetchForm = async () => {
     try {
@@ -353,15 +648,61 @@ const PublicForm = () => {
     }));
   };
 
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const getFileIcon = (fileName) => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    return <FaFileAlt />;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSubmitting(true);
+    setSubmissionState('pending');
+    setUploadProgress(0);
+    setFileUploads({});
 
     try {
-      const hasFile = Object.values(formData).some(v => v instanceof File);
+      // Get all files from form data
+      const files = [];
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value instanceof File) {
+          files.push({ key, file: value });
+        } else if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) {
+          value.forEach((f) => files.push({ key, file: f }));
+        }
+      });
+
+      // Initialize file upload tracking
+      const initialFileUploads = {};
+      files.forEach(({ key, file }) => {
+        const fileId = `${key}-${file.name}-${file.size}`;
+        initialFileUploads[fileId] = {
+          name: file.name,
+          size: file.size,
+          status: 'pending',
+          progress: 0
+        };
+      });
+      setFileUploads(initialFileUploads);
+
+      const hasFile = files.length > 0;
 
       if (hasFile) {
+        // Set state to processing
+        setSubmissionState('processing');
+        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UI
+
+        // Set state to uploading
+        setSubmissionState('uploading');
+
         const fd = new FormData();
         // Append non-file fields into candidateData JSON
         const nonFileData = {};
@@ -377,14 +718,48 @@ const PublicForm = () => {
         fd.append('candidateData', JSON.stringify(nonFileData));
         fd.append('userDetails', JSON.stringify(userDetails));
 
-        const resp = await api.post(`/forms/public/${uniqueLink}/submit`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        // Upload with progress tracking
+        const resp = await uploadWithProgress(
+          `/forms/public/${uniqueLink}/submit`,
+          fd,
+          (progress) => {
+            setUploadProgress(progress);
+            // Update individual file progress (simulated)
+            setFileUploads(prevUploads => {
+              const updatedUploads = { ...prevUploads };
+              const fileIds = Object.keys(updatedUploads);
+              fileIds.forEach((fileId, index) => {
+                const fileProgress = Math.min(100, (progress / fileIds.length) + (index * (100 / fileIds.length)));
+                updatedUploads[fileId] = {
+                  ...updatedUploads[fileId],
+                  status: fileProgress >= 100 ? 'uploaded' : 'uploading',
+                  progress: Math.min(100, fileProgress)
+                };
+              });
+              return updatedUploads;
+            });
+          }
+        );
+
+        // Mark all files as uploaded
+        setFileUploads(prevUploads => {
+          const completedUploads = { ...prevUploads };
+          Object.keys(completedUploads).forEach((fileId) => {
+            completedUploads[fileId] = {
+              ...completedUploads[fileId],
+              status: 'uploaded',
+              progress: 100
+            };
+          });
+          return completedUploads;
         });
+
         if (resp?.data?.warnings?.length) {
           console.warn('Upload warnings:', resp.data.warnings);
           setError(resp.data.warnings.join('\n'));
         }
       } else {
+        setSubmissionState('processing');
         const resp = await api.post(`/forms/public/${uniqueLink}/submit`, {
           candidateData: formData,
           userDetails
@@ -395,9 +770,24 @@ const PublicForm = () => {
         }
       }
 
+      setSubmissionState('complete');
+      setUploadProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Show completion state briefly
       setSuccess(true);
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to submit form. Please try again.');
+      // Mark files as error
+      setFileUploads(prevUploads => {
+        const errorUploads = { ...prevUploads };
+        Object.keys(errorUploads).forEach((fileId) => {
+          errorUploads[fileId] = {
+            ...errorUploads[fileId],
+            status: 'error'
+          };
+        });
+        return errorUploads;
+      });
+      setSubmissionState('idle');
     } finally {
       setSubmitting(false);
     }
@@ -657,18 +1047,44 @@ const PublicForm = () => {
                 ))}
               </FormSection>
 
-              <SubmitButton type="submit" disabled={submitting}>
+
+              <SubmitButton 
+                type="submit" 
+                disabled={submitting}
+                className={submissionState === 'processing' ? 'processing' : submissionState === 'uploading' ? 'uploading' : ''}
+              >
                 {submitting ? (
                   <>
-                    <div style={{
-                      width: '1rem',
-                      height: '1rem',
-                      border: '2px solid rgba(255, 255, 255, 0.3)',
-                      borderTop: '2px solid white',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }}></div>
-                    Submitting Application...
+                    {submissionState === 'pending' && (
+                      <>
+                        <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                        Preparing...
+                      </>
+                    )}
+                    {submissionState === 'processing' && (
+                      <>
+                        <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                        Processing...
+                      </>
+                    )}
+                    {submissionState === 'uploading' && (
+                      <>
+                        <FaCloudUploadAlt style={{ animation: 'bounce 1s ease-in-out infinite' }} />
+                        Uploading... {uploadProgress}%
+                      </>
+                    )}
+                    {submissionState === 'complete' && (
+                      <>
+                        <FaCheckCircle />
+                        Completing...
+                      </>
+                    )}
+                    {(!submissionState || submissionState === 'idle') && (
+                      <>
+                        <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                        Submitting Application...
+                      </>
+                    )}
                   </>
                 ) : (
                   <>
@@ -681,6 +1097,131 @@ const PublicForm = () => {
           </FormBody>
         </FormCard>
       </FormWrapper>
+
+      {/* Submission Progress Modal */}
+      {(submissionState === 'pending' || submissionState === 'processing' || submissionState === 'uploading' || submissionState === 'complete') && (
+        <SubmissionModal>
+          <ModalContent>
+            <ModalHeader>
+              <ModalTitle>
+                {submissionState === 'complete' ? (
+                  <>
+                    <FaCheckCircle style={{ color: '#10b981' }} />
+                    Submission Complete!
+                  </>
+                ) : (
+                  <>
+                    <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                    Submitting Application
+                  </>
+                )}
+              </ModalTitle>
+              {submissionState === 'complete' && (
+                <CloseButton onClick={() => setSuccess(true)}>
+                  <FaTimes />
+                </CloseButton>
+              )}
+            </ModalHeader>
+            <ModalBody>
+              {/* Submission Status */}
+              {(submissionState === 'pending' || submissionState === 'processing' || submissionState === 'uploading') && (
+                <SubmissionStatus className={submissionState}>
+                  <StatusIcon className={submissionState === 'pending' ? 'pulse' : ''}>
+                    {submissionState === 'pending' && <FaSpinner />}
+                    {submissionState === 'processing' && <FaSpinner />}
+                    {submissionState === 'uploading' && <FaCloudUploadAlt />}
+                  </StatusIcon>
+                  <StatusText>
+                    <StatusTitle>
+                      {submissionState === 'pending' && 'Preparing Submission...'}
+                      {submissionState === 'processing' && 'Processing Application...'}
+                      {submissionState === 'uploading' && `Uploading Files... ${uploadProgress}%`}
+                    </StatusTitle>
+                    <StatusDescription>
+                      {submissionState === 'pending' && 'Please wait while we prepare your application for submission.'}
+                      {submissionState === 'processing' && 'Validating your information and preparing files for upload.'}
+                      {submissionState === 'uploading' && 'Your files are being uploaded to Google Drive. Please do not close this page.'}
+                    </StatusDescription>
+                  </StatusText>
+                </SubmissionStatus>
+              )}
+
+              {/* Completion Status */}
+              {submissionState === 'complete' && (
+                <SubmissionStatus className="uploading" style={{ background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)', borderColor: '#10b981' }}>
+                  <StatusIcon style={{ animation: 'none' }}>
+                    <FaCheckCircle style={{ color: '#10b981', fontSize: '2rem' }} />
+                  </StatusIcon>
+                  <StatusText>
+                    <StatusTitle style={{ color: '#065f46' }}>Application Submitted Successfully!</StatusTitle>
+                    <StatusDescription style={{ color: '#047857' }}>
+                      Your application has been submitted. You will receive further updates via email.
+                    </StatusDescription>
+                  </StatusText>
+                </SubmissionStatus>
+              )}
+
+              {/* File Upload Progress */}
+              {Object.keys(fileUploads).length > 0 && (
+                <UploadProgressContainer>
+                  <UploadProgressTitle>
+                    <FaUpload />
+                    File Upload Progress
+                  </UploadProgressTitle>
+                  {Object.entries(fileUploads).map(([fileId, fileInfo]) => (
+                    <FilePreviewCard key={fileId} className={fileInfo.status}>
+                      <FileIcon className={fileInfo.status}>
+                        {fileInfo.status === 'uploading' && <FaSpinner />}
+                        {fileInfo.status === 'uploaded' && <FaCheckCircle />}
+                        {fileInfo.status === 'error' && <FaTimes />}
+                        {(fileInfo.status === 'pending' || !['uploading', 'uploaded', 'error'].includes(fileInfo.status)) && <FaFileAlt />}
+                      </FileIcon>
+                      <FileInfo>
+                        <FileName>{fileInfo.name}</FileName>
+                        <FileSize>{formatFileSize(fileInfo.size)}</FileSize>
+                        {(fileInfo.status === 'uploading' || fileInfo.status === 'pending') && (
+                          <ProgressBar>
+                            <ProgressFill 
+                              progress={fileInfo.progress} 
+                              className={fileInfo.status === 'pending' ? 'indeterminate' : ''}
+                            />
+                          </ProgressBar>
+                        )}
+                        <StatusBadge className={fileInfo.status}>
+                          {fileInfo.status === 'pending' && (
+                            <>
+                              <FaSpinner />
+                              Waiting...
+                            </>
+                          )}
+                          {fileInfo.status === 'uploading' && (
+                            <>
+                              <FaSpinner />
+                              Uploading {fileInfo.progress}%
+                            </>
+                          )}
+                          {fileInfo.status === 'uploaded' && (
+                            <>
+                              <FaCheckCircle />
+                              Uploaded
+                            </>
+                          )}
+                          {fileInfo.status === 'error' && (
+                            <>
+                              <FaTimes />
+                              Failed
+                            </>
+                          )}
+                        </StatusBadge>
+                      </FileInfo>
+                    </FilePreviewCard>
+                  ))}
+                </UploadProgressContainer>
+              )}
+            </ModalBody>
+          </ModalContent>
+        </SubmissionModal>
+      )}
     </FormContainer>
   );
 };

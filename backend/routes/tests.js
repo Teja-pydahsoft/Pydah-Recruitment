@@ -1,11 +1,19 @@
 const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const readline = require('readline');
 const Test = require('../models/Test');
 const Candidate = require('../models/Candidate');
+const User = require('../models/User');
 const QuestionBank = require('../models/QuestionBank');
 const PreviousPaper = require('../models/PreviousPaper');
 const { authenticateToken, requireSuperAdmin } = require('../middleware/auth');
+const { sendEmail } = require('../config/email');
 
 const router = express.Router();
+const upload = multer({ dest: path.join(os.tmpdir(), 'uploads') });
 
 // Create new test (Super Admin only)
 router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
@@ -332,31 +340,96 @@ router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => 
 // Get test by unique link (for candidates)
 router.get('/take/:testLink', authenticateToken, async (req, res) => {
   try {
+    console.log(`\n=== Test Access Request ===`);
+    console.log(`Test Link: ${req.params.testLink}`);
+    console.log(`User ID: ${req.user._id}`);
+    console.log(`User Email: ${req.user.email}`);
+    console.log(`User Role: ${req.user.role}`);
+
     const test = await Test.findOne({
       testLink: req.params.testLink,
       isActive: true
     }).populate('form', 'title position department');
 
     if (!test) {
+      console.log('✗ Test not found or inactive');
       return res.status(404).json({ message: 'Test not found or inactive' });
     }
 
+    console.log(`✓ Test found: ${test.title} (ID: ${test._id})`);
+    console.log(`Test assigned candidates: ${test.candidates.length}`);
+
+    // Find candidate by user ID
+    const candidate = await Candidate.findOne({ user: req.user._id })
+      .populate('user', 'name email')
+      .populate('form', 'title position department');
+
+    if (!candidate) {
+      console.log('✗ Candidate profile not found for user:', req.user._id);
+      console.log('User details:', {
+        id: req.user._id,
+        email: req.user.email,
+        role: req.user.role
+      });
+      
+      // Check if user exists in database (should always exist since authenticateToken passed)
+      // This is just for additional verification
+
+      // Check if any candidate exists with this email
+      const candidatesByEmail = await Candidate.find()
+        .populate('user', 'email')
+        .lean();
+      
+      const candidateWithEmail = candidatesByEmail.find(c => 
+        c.user && c.user.email === req.user.email
+      );
+
+      if (candidateWithEmail) {
+        console.log('⚠ Found candidate with same email but different user ID');
+        return res.status(403).json({ 
+          message: 'Candidate profile not found. Please ensure you are logged in with the correct account that submitted the application form.' 
+        });
+      }
+
+      return res.status(403).json({ 
+        message: 'Candidate profile not found. You need to submit an application form first before taking tests. Please contact support if you have already submitted a form.' 
+      });
+    }
+
+    console.log(`✓ Candidate profile found: ${candidate._id}`);
+    console.log(`Candidate user: ${candidate.user.name} (${candidate.user.email})`);
+    console.log(`Candidate status: ${candidate.status}`);
+
     // Check if candidate is assigned to this test
     const candidateTest = test.candidates.find(
-      c => c.candidate.toString() === req.user._id.toString()
+      c => c.candidate.toString() === candidate._id.toString()
     );
 
     if (!candidateTest) {
-      return res.status(403).json({ message: 'You are not assigned to this test' });
+      console.log('✗ Candidate not assigned to this test');
+      console.log('Test candidates:', test.candidates.map(c => ({
+        candidateId: c.candidate.toString(),
+        status: c.status
+      })));
+      return res.status(403).json({ 
+        message: 'You are not assigned to this test. Please contact the administrator.' 
+      });
     }
 
+    console.log(`✓ Candidate is assigned to test (status: ${candidateTest.status})`);
+
     if (candidateTest.status === 'completed') {
+      console.log('⚠ Test already completed');
       return res.status(400).json({ message: 'You have already completed this test' });
     }
 
     if (candidateTest.status === 'expired') {
+      console.log('⚠ Test expired');
       return res.status(400).json({ message: 'This test has expired' });
     }
+
+    console.log('✓ Test access granted');
+    console.log('===================================\n');
 
     // Return test without correct answers
     const testForCandidate = {
@@ -394,9 +467,15 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Test not found' });
     }
 
+    // Find candidate by user ID
+    const candidate = await Candidate.findOne({ user: req.user._id });
+    if (!candidate) {
+      return res.status(403).json({ message: 'Candidate profile not found' });
+    }
+
     // Find candidate's test entry
     const candidateTestIndex = test.candidates.findIndex(
-      c => c.candidate.toString() === req.user._id.toString()
+      c => c.candidate.toString() === candidate._id.toString()
     );
 
     if (candidateTestIndex === -1) {
@@ -450,7 +529,6 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
     await test.save();
 
     // Update candidate's test results
-    const candidate = await Candidate.findOne({ user: req.user._id });
     if (candidate) {
       const existingResultIndex = candidate.testResults.findIndex(
         result => result.test.toString() === req.params.id
@@ -537,7 +615,13 @@ router.post('/:id/assign', authenticateToken, requireSuperAdmin, async (req, res
 router.get('/:id/results', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const test = await Test.findById(req.params.id)
-      .populate('candidates.candidate', 'name email')
+      .populate({
+        path: 'candidates.candidate',
+        populate: {
+          path: 'user',
+          select: 'name email'
+        }
+      })
       .populate('form', 'title position department');
 
     if (!test) {
@@ -549,8 +633,8 @@ router.get('/:id/results', authenticateToken, requireSuperAdmin, async (req, res
       .map(c => ({
         candidate: {
           _id: c.candidate._id,
-          name: c.candidate.name,
-          email: c.candidate.email
+          name: c.candidate.user?.name || 'Unknown',
+          email: c.candidate.user?.email || 'Unknown'
         },
         score: c.score,
         percentage: c.percentage,
@@ -605,6 +689,424 @@ router.post('/:id/suggest-next-round', authenticateToken, requireSuperAdmin, asy
   } catch (error) {
     console.error('Suggest next round error:', error);
     res.status(500).json({ message: 'Server error suggesting next round' });
+  }
+});
+
+// Conduct test from CSV upload (Super Admin only)
+router.post('/conduct-from-csv', authenticateToken, requireSuperAdmin, upload.single('csvFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'CSV file is required' });
+    }
+
+    const { candidateId, title, description, duration, passingPercentage, cutoffPercentage } = req.body;
+
+    if (!candidateId || !title || !duration) {
+      return res.status(400).json({ message: 'candidateId, title, and duration are required' });
+    }
+
+    // Get candidate and user details
+    const candidate = await Candidate.findById(candidateId).populate('user', 'name email profile').populate('form', 'title position department');
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    const user = candidate.user;
+    const phone = user.profile?.phone || '';
+
+    // Parse CSV file
+    const questions = [];
+
+    return new Promise((resolve, reject) => {
+      const fileStream = fs.createReadStream(req.file.path);
+      const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity
+      });
+
+      let isFirstLine = true;
+
+      rl.on('line', (line) => {
+        // Skip empty lines
+        if (!line.trim()) {
+          return;
+        }
+
+        if (isFirstLine) {
+          isFirstLine = false;
+          return; // Skip header
+        }
+
+        // Parse CSV - handle both comma and pipe-separated formats
+        // First try to detect delimiter by checking which one appears more often
+        const commaCount = (line.match(/,/g) || []).length;
+        const pipeCount = (line.match(/\|/g) || []).length;
+        const delimiter = pipeCount > commaCount ? '|' : ',';
+        
+        // Parse the line, handling quoted fields
+        const parts = [];
+        let currentPart = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === delimiter && !inQuotes) {
+            parts.push(currentPart.trim());
+            currentPart = '';
+          } else {
+            currentPart += char;
+          }
+        }
+        // Add the last part
+        if (currentPart.trim() || parts.length > 0) {
+          parts.push(currentPart.trim());
+        }
+
+        if (parts.length >= 6) {
+          const question = parts[0].replace(/^"|"$/g, ''); // Remove surrounding quotes
+          const optionA = parts[1].replace(/^"|"$/g, '');
+          const optionB = parts[2].replace(/^"|"$/g, '');
+          const optionC = parts[3].replace(/^"|"$/g, '');
+          const optionD = parts[4].replace(/^"|"$/g, '');
+          const answer = parts[5].trim().toUpperCase().replace(/^"|"$/g, '');
+
+          if (question && optionA && optionB && optionC && optionD && answer) {
+            // Determine correct answer index - handle single letter (A, B, C, D)
+            // Extract just the first letter and convert to uppercase
+            const answerLetter = answer.trim().charAt(0).toUpperCase();
+            let correctAnswerIndex = -1;
+            
+            if (answerLetter === 'A') correctAnswerIndex = 0;
+            else if (answerLetter === 'B') correctAnswerIndex = 1;
+            else if (answerLetter === 'C') correctAnswerIndex = 2;
+            else if (answerLetter === 'D') correctAnswerIndex = 3;
+
+            if (correctAnswerIndex >= 0) {
+              questions.push({
+                questionText: question,
+                questionType: 'mcq',
+                options: [optionA, optionB, optionC, optionD],
+                correctAnswer: correctAnswerIndex,
+                marks: 1,
+                difficulty: 'medium'
+              });
+            }
+          }
+        }
+      });
+
+      rl.on('close', async () => {
+        try {
+          // Clean up temp file
+          fs.unlinkSync(req.file.path);
+
+          if (questions.length === 0) {
+            return resolve(res.status(400).json({ message: 'No valid questions found in CSV file' }));
+          }
+
+          // Create test
+          const test = new Test({
+              title,
+              description: description || '',
+              form: candidate.form._id,
+              questions,
+              duration: Number(duration),
+              passingPercentage: Number(passingPercentage) || 50,
+              cutoffPercentage: Number(cutoffPercentage) || 60,
+              instructions: description || 'Please answer all questions carefully.',
+              candidates: [{
+                candidate: candidateId,
+                status: 'invited',
+                invitedAt: new Date()
+              }],
+              createdBy: req.user._id
+          });
+
+          await test.save();
+
+          // Ensure testLink is generated (in case pre-save hook didn't run)
+          if (!test.testLink) {
+            test.testLink = `test_${test._id}_${Date.now()}`;
+            await test.save();
+          }
+
+          // Generate full test link URL
+          const testLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/test/${test.testLink}`;
+          const username = phone || user.email;
+          const password = phone || user.email;
+
+          // Log test details for debugging
+          console.log('\n=== Test Created Successfully ===');
+          console.log(`Test ID: ${test._id}`);
+          console.log(`Test Title: ${test.title}`);
+          console.log(`Test Link: ${testLink}`);
+          console.log(`Candidate: ${user.name} (${user.email})`);
+          console.log(`Username: ${username}`);
+          console.log(`Password: ${password}`);
+          console.log(`Phone: ${phone || 'Not provided'}`);
+          console.log('===================================\n');
+
+          // Send email notification
+          const emailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
+                  Congratulations! You've been selected for the first phase of interview
+                </h2>
+                <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+                  Dear ${user.name},
+                </p>
+                <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+                  We are pleased to inform you that you have been selected for the first phase of interview with a test.
+                </p>
+                <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+                  <h3 style="color: #1e40af; margin-top: 0;">Test Details</h3>
+                  <p style="margin: 5px 0;"><strong>Test Title:</strong> ${test.title}</p>
+                  <p style="margin: 5px 0;"><strong>Duration:</strong> ${test.duration} minutes</p>
+                  ${test.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${test.description}</p>` : ''}
+                </div>
+                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                  <h3 style="color: #92400e; margin-top: 0;">Login Credentials</h3>
+                  <p style="margin: 5px 0;"><strong>Username:</strong> ${username}</p>
+                  <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>
+                </div>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${testLink}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                    Start Test
+                  </a>
+                </div>
+                <p style="color: #6b7280; font-size: 14px;">
+                  Or copy and paste this link into your browser:<br>
+                  <a href="${testLink}" style="color: #3b82f6;">${testLink}</a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+                <p style="color: #6b7280; font-size: 12px;">
+                  This is an automated message from the Faculty Recruitment System. Please do not reply to this email.
+                </p>
+              </div>
+            `;
+
+            const emailText = `
+Congratulations! You've been selected for the first phase of interview
+
+Dear ${user.name},
+
+We are pleased to inform you that you have been selected for the first phase of interview with a test.
+
+Test Details:
+- Test Title: ${test.title}
+- Duration: ${test.duration} minutes
+${test.description ? `- Description: ${test.description}` : ''}
+
+Login Credentials:
+- Username: ${username}
+- Password: ${password}
+
+Test Link: ${testLink}
+
+This is an automated message from the Faculty Recruitment System.
+            `;
+
+          try {
+            await sendEmail(user.email, `Test Invitation: ${test.title}`, emailHtml, emailText);
+          } catch (emailError) {
+            console.error('Email send error:', emailError);
+            // Don't fail the request if email fails
+          }
+
+          resolve(res.status(201).json({
+            message: 'Test created and notification sent successfully',
+            test: {
+              _id: test._id,
+              title: test.title,
+              testLink: test.testLink
+            }
+          }));
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      rl.on('error', (error) => {
+        // Clean up temp file on error
+        try {
+          if (fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+          }
+        } catch (e) {}
+        reject(error);
+      });
+    });
+  } catch (error) {
+    // Clean up temp file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {}
+    }
+    console.error('Conduct test from CSV error:', error);
+    res.status(500).json({ message: 'Server error conducting test from CSV' });
+  }
+});
+
+// Release test results and promote/reject candidates (Super Admin only)
+router.post('/:id/release-results', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { candidateId, promote, interviewDate, interviewTime, rejectReason } = req.body;
+    const test = await Test.findById(req.params.id).populate('candidates.candidate');
+    
+    if (!test) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+
+    const candidateTest = test.candidates.find(c => c.candidate._id.toString() === candidateId);
+    if (!candidateTest) {
+      return res.status(404).json({ message: 'Candidate not found in test' });
+    }
+
+    const candidate = await Candidate.findById(candidateId).populate('user', 'name email profile').populate('form', 'title position department');
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    const user = candidate.user;
+    const phone = user.profile?.phone || '';
+
+    if (promote) {
+      // Promote to interview
+      candidate.status = 'shortlisted';
+      await candidate.save();
+
+      // Send promotion email with interview schedule
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #059669; border-bottom: 2px solid #10b981; padding-bottom: 10px;">
+            Congratulations! You've passed the test
+          </h2>
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+            Dear ${user.name},
+          </p>
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+            Congratulations! You have successfully passed the test and have been selected for the interview phase.
+          </p>
+          <div style="background: #d1fae5; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #065f46; margin-top: 0;">Test Results</h3>
+            <p style="margin: 5px 0;"><strong>Score:</strong> ${candidateTest.score || 0}/${test.totalMarks}</p>
+            <p style="margin: 5px 0;"><strong>Percentage:</strong> ${candidateTest.percentage?.toFixed(1) || 0}%</p>
+            <p style="margin: 5px 0;"><strong>Status:</strong> Passed</p>
+          </div>
+          ${interviewDate ? `
+          <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #1e40af; margin-top: 0;">Interview Schedule</h3>
+            <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date(interviewDate).toLocaleDateString()}</p>
+            ${interviewTime ? `<p style="margin: 5px 0;"><strong>Time:</strong> ${interviewTime}</p>` : ''}
+          </div>
+          ` : ''}
+          <p style="color: #6b7280; font-size: 14px;">
+            You will receive further details about the interview shortly.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+          <p style="color: #6b7280; font-size: 12px;">
+            This is an automated message from the Faculty Recruitment System.
+          </p>
+        </div>
+      `;
+
+      const emailText = `
+Congratulations! You've passed the test
+
+Dear ${user.name},
+
+Congratulations! You have successfully passed the test and have been selected for the interview phase.
+
+Test Results:
+- Score: ${candidateTest.score || 0}/${test.totalMarks}
+- Percentage: ${candidateTest.percentage?.toFixed(1) || 0}%
+- Status: Passed
+
+${interviewDate ? `Interview Schedule:\n- Date: ${new Date(interviewDate).toLocaleDateString()}\n${interviewTime ? `- Time: ${interviewTime}\n` : ''}` : ''}
+
+You will receive further details about the interview shortly.
+
+This is an automated message from the Faculty Recruitment System.
+      `;
+
+      try {
+        await sendEmail(user.email, `Test Results: ${test.title}`, emailHtml, emailText);
+      } catch (emailError) {
+        console.error('Email send error:', emailError);
+      }
+    } else {
+      // Reject candidate
+      candidate.status = 'rejected';
+      await candidate.save();
+
+      // Send rejection email
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #dc2626; border-bottom: 2px solid #ef4444; padding-bottom: 10px;">
+            Test Results Update
+          </h2>
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+            Dear ${user.name},
+          </p>
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+            Thank you for taking the test. Unfortunately, we are unable to proceed with your application at this time.
+          </p>
+          <div style="background: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #991b1b; margin-top: 0;">Test Results</h3>
+            <p style="margin: 5px 0;"><strong>Score:</strong> ${candidateTest.score || 0}/${test.totalMarks}</p>
+            <p style="margin: 5px 0;"><strong>Percentage:</strong> ${candidateTest.percentage?.toFixed(1) || 0}%</p>
+            <p style="margin: 5px 0;"><strong>Status:</strong> Not Selected</p>
+            ${rejectReason ? `<p style="margin: 5px 0;"><strong>Reason:</strong> ${rejectReason}</p>` : ''}
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">
+            We appreciate your interest and wish you the best in your future endeavors.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+          <p style="color: #6b7280; font-size: 12px;">
+            This is an automated message from the Faculty Recruitment System.
+          </p>
+        </div>
+      `;
+
+      const emailText = `
+Test Results Update
+
+Dear ${user.name},
+
+Thank you for taking the test. Unfortunately, we are unable to proceed with your application at this time.
+
+Test Results:
+- Score: ${candidateTest.score || 0}/${test.totalMarks}
+- Percentage: ${candidateTest.percentage?.toFixed(1) || 0}%
+- Status: Not Selected
+${rejectReason ? `- Reason: ${rejectReason}\n` : ''}
+
+We appreciate your interest and wish you the best in your future endeavors.
+
+This is an automated message from the Faculty Recruitment System.
+      `;
+
+      try {
+        await sendEmail(user.email, `Test Results: ${test.title}`, emailHtml, emailText);
+      } catch (emailError) {
+        console.error('Email send error:', emailError);
+      }
+    }
+
+    res.json({
+      message: promote ? 'Results released and candidate promoted to interview' : 'Results released and candidate rejected',
+      candidate: {
+        _id: candidate._id,
+        status: candidate.status
+      }
+    });
+  } catch (error) {
+    console.error('Release results error:', error);
+    res.status(500).json({ message: 'Server error releasing results' });
   }
 });
 

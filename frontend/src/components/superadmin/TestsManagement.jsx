@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Alert, Badge, Tabs, Tab, Form, Modal, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Card, Table, Button, Alert, Badge, Tabs, Tab, Form, Modal, Spinner, Image } from 'react-bootstrap';
+import { FaDownload, FaUpload, FaUser, FaFileCsv } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -16,10 +17,31 @@ const TestsManagement = () => {
   const [uploadPaper, setUploadPaper] = useState({ title: '', description: '', year: '', subject: '', topic: '', questionsJson: '' });
   const [prevPapers, setPrevPapers] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
+  const [candidates, setCandidates] = useState([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [showConductTestModal, setShowConductTestModal] = useState(false);
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [csvFile, setCsvFile] = useState(null);
+  const [testDetails, setTestDetails] = useState({ title: '', description: '', duration: 60, passingPercentage: 50, cutoffPercentage: 60 });
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     fetchTests();
+    fetchApprovedCandidates();
   }, []);
+
+  const fetchApprovedCandidates = async () => {
+    setCandidatesLoading(true);
+    try {
+      const response = await api.get('/candidates');
+      const approvedCandidates = response.data.candidates.filter(c => c.status === 'approved');
+      setCandidates(approvedCandidates);
+    } catch (error) {
+      console.error('Candidates fetch error:', error);
+    } finally {
+      setCandidatesLoading(false);
+    }
+  };
 
   const fetchTests = async () => {
     try {
@@ -104,6 +126,114 @@ const TestsManagement = () => {
     }
   };
 
+  const downloadCSVTemplate = () => {
+    // Proper CSV format with separate columns: Question, A, B, C, D, Answer
+    const csvContent = `Question,A,B,C,D,Answer
+"What is the next number in the sequence: 2, 4, 8, 16, ?",24,32,30,28,B
+"If a train travels 120 km in 2 hours, what is its speed?",40 km/h,50 km/h,60 km/h,70 km/h,C`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'test_question_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCSVUpload = async () => {
+    // Clear previous messages
+    setError('');
+    setSuccessMessage('');
+
+    // Validate required fields
+    if (!selectedCandidate) {
+      setError('Please select a candidate');
+      return;
+    }
+
+    if (!testDetails.title || !testDetails.title.trim()) {
+      setError('Test Title is required');
+      return;
+    }
+
+    if (!testDetails.duration || testDetails.duration <= 0) {
+      setError('Duration must be greater than 0');
+      return;
+    }
+
+    if (!testDetails.passingPercentage || testDetails.passingPercentage < 0 || testDetails.passingPercentage > 100) {
+      setError('Passing Percentage must be between 0 and 100');
+      return;
+    }
+
+    if (!testDetails.cutoffPercentage || testDetails.cutoffPercentage < 0 || testDetails.cutoffPercentage > 100) {
+      setError('Cutoff Percentage must be between 0 and 100');
+      return;
+    }
+
+    if (!csvFile) {
+      setError('Please upload a CSV file');
+      return;
+    }
+
+    // Validate file type
+    if (!csvFile.name.toLowerCase().endsWith('.csv')) {
+      setError('Please upload a valid CSV file');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('csvFile', csvFile);
+      formData.append('candidateId', selectedCandidate._id);
+      formData.append('title', testDetails.title.trim());
+      formData.append('description', testDetails.description.trim() || '');
+      formData.append('duration', testDetails.duration.toString());
+      formData.append('passingPercentage', testDetails.passingPercentage.toString());
+      formData.append('cutoffPercentage', testDetails.cutoffPercentage.toString());
+
+      const response = await api.post('/tests/conduct-from-csv', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      // Success - show message and reset form
+      setSuccessMessage(`Test "${testDetails.title}" has been created and notification sent to ${selectedCandidate.user?.name || 'the candidate'}`);
+      
+      // Reset form
+      setShowConductTestModal(false);
+      setCsvFile(null);
+      setTestDetails({ title: '', description: '', duration: 60, passingPercentage: 50, cutoffPercentage: 60 });
+      setSelectedCandidate(null);
+      
+      // Refresh data
+      fetchTests();
+      fetchApprovedCandidates();
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    } catch (err) {
+      console.error('CSV upload error:', err);
+      const errorMsg = err.response?.data?.message || 'Failed to create test and send notification. Please try again.';
+      setError(errorMsg);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openConductTestModal = (candidate) => {
+    setSelectedCandidate(candidate);
+    setError(''); // Clear any previous errors
+    setSuccessMessage(''); // Clear any previous success messages
+    setCsvFile(null); // Reset file
+    setTestDetails({ title: '', description: '', duration: 60, passingPercentage: 50, cutoffPercentage: 60 }); // Reset form
+    setShowConductTestModal(true);
+  };
+
   if (loading) {
     return <LoadingSpinner message="Loading tests..." />;
   }
@@ -131,7 +261,97 @@ const TestsManagement = () => {
         </Row>
       )}
 
-      <Tabs defaultActiveKey="tests" className="mb-3">
+      {successMessage && (
+        <Row className="mb-3">
+          <Col>
+            <Alert variant="success" dismissible onClose={() => setSuccessMessage('')}>
+              {successMessage}
+            </Alert>
+          </Col>
+        </Row>
+      )}
+
+      <Tabs defaultActiveKey="candidates" className="mb-3">
+        <Tab eventKey="candidates" title="Approved Candidates">
+          <Row>
+            <Col>
+              <Card>
+                <Card.Header>
+                  <h5>Approved Candidates for Testing</h5>
+                </Card.Header>
+                <Card.Body>
+                  {candidatesLoading ? (
+                    <div className="text-center py-4">
+                      <Spinner animation="border" />
+                    </div>
+                  ) : candidates.length === 0 ? (
+                    <Alert variant="info">No approved candidates available for testing.</Alert>
+                  ) : (
+                    <Table striped bordered hover responsive>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '60px' }}>Photo</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Position</th>
+                          <th>Department</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {candidates.map((candidate) => (
+                          <tr key={candidate._id}>
+                            <td className="text-center">
+                              {candidate.passportPhotoUrl ? (
+                                <Image
+                                  src={candidate.passportPhotoUrl}
+                                  alt={candidate.user.name}
+                                  roundedCircle
+                                  style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div 
+                                style={{ 
+                                  width: '40px', 
+                                  height: '40px', 
+                                  borderRadius: '50%', 
+                                  background: '#e2e8f0',
+                                  display: candidate.passportPhotoUrl ? 'none' : 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  margin: '0 auto'
+                                }}
+                              >
+                                <FaUser style={{ color: '#64748b' }} />
+                              </div>
+                            </td>
+                            <td>{candidate.user.name}</td>
+                            <td>{candidate.user.email}</td>
+                            <td>{candidate.form.position}</td>
+                            <td>{candidate.form.department}</td>
+                            <td>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => openConductTestModal(candidate)}
+                              >
+                                Conduct Test
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  )}
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+        </Tab>
         <Tab eventKey="tests" title="All Tests">
           <Row>
             <Col>
@@ -373,6 +593,149 @@ const TestsManagement = () => {
           </Card>
         </Tab>
       </Tabs>
+
+      {/* Conduct Test Modal */}
+      <Modal
+        show={showConductTestModal}
+        onHide={() => {
+          setShowConductTestModal(false);
+          setError('');
+          setCsvFile(null);
+          setTestDetails({ title: '', description: '', duration: 60, passingPercentage: 50, cutoffPercentage: 60 });
+          setSelectedCandidate(null);
+        }}
+        size="lg"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Conduct Test - {selectedCandidate?.user?.name}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {error && (
+            <Alert variant="danger" className="mb-3" dismissible onClose={() => setError('')}>
+              {error}
+            </Alert>
+          )}
+          <Form>
+            <Row className="mb-3">
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>Test Title <span className="text-danger">*</span></Form.Label>
+                  <Form.Control
+                    value={testDetails.title}
+                    onChange={(e) => setTestDetails({ ...testDetails, title: e.target.value })}
+                    placeholder="e.g., Technical Assessment Test"
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>Duration (minutes) <span className="text-danger">*</span></Form.Label>
+                  <Form.Control
+                    type="number"
+                    value={testDetails.duration}
+                    onChange={(e) => setTestDetails({ ...testDetails, duration: Number(e.target.value) })}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+            <Form.Group className="mb-3">
+              <Form.Label>Description</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                value={testDetails.description}
+                onChange={(e) => setTestDetails({ ...testDetails, description: e.target.value })}
+                placeholder="Test description and instructions..."
+              />
+            </Form.Group>
+            <Row className="mb-3">
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>Passing Percentage <span className="text-danger">*</span></Form.Label>
+                  <Form.Control
+                    type="number"
+                    value={testDetails.passingPercentage}
+                    onChange={(e) => setTestDetails({ ...testDetails, passingPercentage: Number(e.target.value) })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>Cutoff Percentage <span className="text-danger">*</span></Form.Label>
+                  <Form.Control
+                    type="number"
+                    value={testDetails.cutoffPercentage}
+                    onChange={(e) => setTestDetails({ ...testDetails, cutoffPercentage: Number(e.target.value) })}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <hr className="my-4" />
+
+            <div className="mb-3">
+              <h6>Question Paper Upload</h6>
+              <div className="d-flex gap-2 mb-3">
+                <Button variant="outline-primary" onClick={downloadCSVTemplate}>
+                  <FaDownload className="me-2" />
+                  Download CSV Template
+                </Button>
+              </div>
+              <Form.Group>
+                <Form.Label>Upload CSV File <span className="text-danger">*</span></Form.Label>
+                <Form.Control
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCsvFile(e.target.files[0])}
+                />
+                <Form.Text className="text-muted">
+                  Format: Question, A, B, C, D, Answer (comma-separated CSV) or pipe-separated (|)
+                </Form.Text>
+              </Form.Group>
+            </div>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowConductTestModal(false);
+              setError('');
+              setCsvFile(null);
+              setTestDetails({ title: '', description: '', duration: 60, passingPercentage: 50, cutoffPercentage: 60 });
+              setSelectedCandidate(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleCSVUpload}
+            disabled={
+              actionLoading || 
+              !csvFile || 
+              !testDetails.title?.trim() || 
+              !testDetails.duration || 
+              !testDetails.passingPercentage || 
+              !testDetails.cutoffPercentage || 
+              !selectedCandidate
+            }
+          >
+            {actionLoading ? (
+              <>
+                <Spinner as="span" animation="border" size="sm" className="me-2" />
+                Creating Test & Sending Notification...
+              </>
+            ) : (
+              <>
+                <FaUpload className="me-2" />
+                Create Test & Send Notification
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };

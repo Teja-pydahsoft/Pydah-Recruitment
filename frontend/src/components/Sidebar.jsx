@@ -435,10 +435,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     super_admin: [
       { path: '/super-admin', icon: FaUserTie, label: 'Dashboard' },
       { path: '/super-admin/creation', icon: FaFileAlt, label: 'Form Creation' },
-      { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
+      { path: '/super-admin/submissions', icon: FaFileAlt, label: 'Form Submissions' },
       { path: '/super-admin/tests', icon: FaClipboardList, label: 'Test Management' },
       { path: '/super-admin/users', icon: FaUserTie, label: 'Panel Members' },
       { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Scheduling' },
+      { path: '/super-admin/test-results', icon: FaClipboardCheck, label: 'Test Results' },
+      { path: '/super-admin/interview-feedback', icon: FaChartBar, label: 'Interview Feedback' },
+      { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
     ],
     panel_member: [
       { path: '/panel-member', icon: FaHome, label: 'Dashboard' },

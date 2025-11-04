@@ -10,6 +10,19 @@ const api = axios.create({
   },
 });
 
+// Helper function to create an upload request with progress tracking
+export const uploadWithProgress = (url, formData, onUploadProgress) => {
+  return api.post(url, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (progressEvent) => {
+      if (onUploadProgress && progressEvent.total) {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        onUploadProgress(percentCompleted);
+      }
+    }
+  });
+};
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {

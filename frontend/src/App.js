@@ -9,6 +9,7 @@ import SuperAdminDashboard from './components/SuperAdminDashboard';
 import PanelMemberDashboard from './components/PanelMemberDashboard';
 import CandidateDashboard from './components/CandidateDashboard';
 import PublicForm from './components/PublicForm';
+import TakeTest from './components/TakeTest';
 import Sidebar from './components/Sidebar';
 import LoadingSpinner from './components/LoadingSpinner';
 
@@ -76,6 +77,7 @@ function App() {
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/form/:uniqueLink" element={<PublicForm />} />
+            <Route path="/test/:testLink" element={<TakeTest />} />
 
             {/* Protected Routes */}
             <Route

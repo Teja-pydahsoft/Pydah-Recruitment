@@ -11,9 +11,29 @@ router.get('/', authenticateToken, requireSuperAdmin, async (req, res) => {
     const candidates = await Candidate.find({})
       .populate('user', 'name email')
       .populate('form', 'title position department')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    // Add passport photo URL to each candidate
+    const candidatesWithPhoto = candidates.map(candidate => {
+      // Convert Map to object if needed
+      const appData = candidate.applicationData instanceof Map 
+        ? Object.fromEntries(candidate.applicationData)
+        : candidate.applicationData || {};
+      
+      const passportPhoto = appData.passportPhoto || 
+                           candidate.documents?.find(d => 
+                             d && (d.name?.toLowerCase().includes('photo') || 
+                             d.name?.toLowerCase().includes('passport'))
+                           )?.url;
+      return {
+        ...candidate,
+        applicationData: appData,
+        passportPhotoUrl: passportPhoto
+      };
+    });
 
-    res.json({ candidates });
+    res.json({ candidates: candidatesWithPhoto });
   } catch (error) {
     console.error('Candidates fetch error:', error);
     res.status(500).json({ message: 'Server error fetching candidates' });
@@ -53,7 +73,14 @@ router.get('/:id', authenticateToken, async (req, res) => {
         name: candidate.user.name,
         email: candidate.user.email,
         phone: candidate.user.profile?.phone,
-        applicationData: candidate.applicationData
+        applicationData: candidate.applicationData instanceof Map 
+          ? Object.fromEntries(candidate.applicationData)
+          : candidate.applicationData || {},
+        documents: candidate.documents || [],
+        passportPhoto: (candidate.applicationData instanceof Map 
+          ? candidate.applicationData.get('passportPhoto')
+          : candidate.applicationData?.passportPhoto) || 
+          candidate.documents?.find(d => d && (d.name?.toLowerCase().includes('photo') || d.name?.toLowerCase().includes('passport')))?.url
       },
 
       // Tab 2: Test Results & Evaluation Summary

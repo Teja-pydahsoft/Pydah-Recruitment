@@ -33,11 +33,17 @@ const sendEmail = async (to, subject, html, text = '') => {
       text
     };
 
+    console.log('\n--- Sending Email ---');
+    console.log(`From: ${mailOptions.from}`);
+    console.log(`To: ${to}`);
+    console.log(`Subject: ${subject}`);
+    console.log('--- --- ---\n');
+
     const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent:', info.messageId);
+    console.log(`✓ Email sent successfully! Message ID: ${info.messageId}\n`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error('✗ Email send error:', error);
     throw error;
   }
 };

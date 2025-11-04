@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Form, Image } from 'react-bootstrap';
+import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form } from 'react-bootstrap';
 import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser } from 'react-icons/fa';
-import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
-const CandidatesManagement = () => {
-  // const { user } = useAuth(); // Temporarily unused for ESLint compliance
+const CandidateManagement = () => {
   const [candidates, setCandidates] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -25,7 +23,9 @@ const CandidatesManagement = () => {
   const fetchCandidates = async () => {
     try {
       const response = await api.get('/candidates');
-      setCandidates(response.data.candidates);
+      // Filter only approved candidates (for test management)
+      const approvedCandidates = response.data.candidates.filter(c => c.status === 'approved');
+      setCandidates(approvedCandidates);
     } catch (error) {
       setError('Failed to fetch candidates');
       console.error('Candidates fetch error:', error);
@@ -34,8 +34,9 @@ const CandidatesManagement = () => {
     }
   };
 
-  const openAssignTestModal = async () => {
+  const openAssignTestModal = async (candidateId) => {
     setAssignModalOpen(true);
+    setSelectedCandidate({ _id: candidateId });
     try {
       const resp = await api.get('/tests');
       setAvailableTests(resp.data.tests || []);
@@ -56,6 +57,7 @@ const CandidatesManagement = () => {
       });
       setAssignModalOpen(false);
       setSelectedTestId('');
+      fetchCandidates();
     } catch (err) {
       console.error('Assign test error:', err);
       setError('Failed to assign test');
@@ -78,34 +80,6 @@ const CandidatesManagement = () => {
     }
   };
 
-  const updateCandidateStatus = async (candidateId, status) => {
-    try {
-      await api.put(`/candidates/${candidateId}/status`, { status });
-      // Update local state
-      setCandidates(candidates.map(c =>
-        c._id === candidateId ? { ...c, status } : c
-      ));
-      if (selectedCandidate && selectedCandidate._id === candidateId) {
-        setSelectedCandidate({ ...selectedCandidate, status });
-      }
-    } catch (error) {
-      setError('Failed to update candidate status');
-      console.error('Status update error:', error);
-    }
-  };
-
-  const setFinalDecision = async (candidateId, decision, notes) => {
-    try {
-      await api.put(`/candidates/${candidateId}/final-decision`, { decision, notes });
-      // Refresh candidates list
-      fetchCandidates();
-      setShowProfileModal(false);
-    } catch (error) {
-      setError('Failed to record final decision');
-      console.error('Final decision error:', error);
-    }
-  };
-
   const getStatusBadge = (status) => {
     const variants = {
       pending: 'secondary',
@@ -122,19 +96,10 @@ const CandidatesManagement = () => {
     const documents = candidate.personalDetails?.documents || [];
     const passportPhoto = candidate.personalDetails?.passportPhoto;
     
-    // Separate documents by type
     const resume = documents.find(d => d.name?.toLowerCase().includes('resume') || d.name?.toLowerCase().includes('cv'));
     const certificates = documents.filter(d => 
       d.name?.toLowerCase().includes('certificate') || 
       d.name?.toLowerCase().includes('certification')
-    );
-    const otherDocs = documents.filter(d => 
-      !d.name?.toLowerCase().includes('resume') && 
-      !d.name?.toLowerCase().includes('cv') && 
-      !d.name?.toLowerCase().includes('certificate') &&
-      !d.name?.toLowerCase().includes('certification') &&
-      !d.name?.toLowerCase().includes('photo') &&
-      !d.name?.toLowerCase().includes('passport')
     );
 
     return (
@@ -153,9 +118,6 @@ const CandidatesManagement = () => {
                       alt="Profile Photo" 
                       rounded 
                       style={{ maxWidth: '150px', maxHeight: '150px', objectFit: 'cover' }}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
                     />
                   </div>
                 )}
@@ -173,7 +135,6 @@ const CandidatesManagement = () => {
               <Card.Body style={{ maxHeight: '400px', overflowY: 'auto' }}>
                 {Object.keys(applicationData).length > 0 ? (
                   Object.entries(applicationData).map(([key, value]) => {
-                    // Skip file URLs, show them in documents section
                     if (typeof value === 'string' && (value.startsWith('http') || value.startsWith('https'))) {
                       return null;
                     }
@@ -192,7 +153,6 @@ const CandidatesManagement = () => {
           </Col>
         </Row>
 
-        {/* Documents Section */}
         <Row className="mb-4">
           <Col md={12}>
             <Card>
@@ -200,7 +160,6 @@ const CandidatesManagement = () => {
                 <h5>Documents</h5>
               </Card.Header>
               <Card.Body>
-                {/* Resume */}
                 {resume && (
                   <div className="mb-3">
                     <h6><FaFilePdf className="me-2" />Resume</h6>
@@ -216,20 +175,10 @@ const CandidatesManagement = () => {
                         <FaExternalLinkAlt className="me-1" />
                         View
                       </Button>
-                      <Button 
-                        variant="outline-secondary" 
-                        size="sm"
-                        href={resume.url} 
-                        download
-                      >
-                        <FaDownload className="me-1" />
-                        Download
-                      </Button>
                     </div>
                   </div>
                 )}
 
-                {/* Certificates */}
                 {certificates.length > 0 && (
                   <div className="mb-3">
                     <h6><FaFileImage className="me-2" />Certificates ({certificates.length})</h6>
@@ -238,71 +187,20 @@ const CandidatesManagement = () => {
                         <div key={index} className="border rounded p-2" style={{ minWidth: '200px' }}>
                           <div className="d-flex align-items-center justify-content-between">
                             <span className="text-truncate" style={{ maxWidth: '150px' }}>{cert.name}</span>
-                            <div>
-                              <Button 
-                                variant="outline-primary" 
-                                size="sm"
-                                href={cert.url} 
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="me-1"
-                              >
-                                <FaExternalLinkAlt />
-                              </Button>
-                              <Button 
-                                variant="outline-secondary" 
-                                size="sm"
-                                href={cert.url} 
-                                download
-                              >
-                                <FaDownload />
-                              </Button>
-                            </div>
+                            <Button 
+                              variant="outline-primary" 
+                              size="sm"
+                              href={cert.url} 
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <FaExternalLinkAlt />
+                            </Button>
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
-
-                {/* Other Documents */}
-                {otherDocs.length > 0 && (
-                  <div className="mb-3">
-                    <h6>Other Documents ({otherDocs.length})</h6>
-                    <div className="d-flex flex-wrap gap-2">
-                      {otherDocs.map((doc, index) => (
-                        <div key={index} className="border rounded p-2" style={{ minWidth: '200px' }}>
-                          <div className="d-flex align-items-center justify-content-between">
-                            <span className="text-truncate" style={{ maxWidth: '150px' }}>{doc.name}</span>
-                            <div>
-                              <Button 
-                                variant="outline-primary" 
-                                size="sm"
-                                href={doc.url} 
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="me-1"
-                              >
-                                <FaExternalLinkAlt />
-                              </Button>
-                              <Button 
-                                variant="outline-secondary" 
-                                size="sm"
-                                href={doc.url} 
-                                download
-                              >
-                                <FaDownload />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {!resume && certificates.length === 0 && otherDocs.length === 0 && (
-                  <p className="text-muted">No documents available</p>
                 )}
               </Card.Body>
             </Card>
@@ -445,8 +343,8 @@ const CandidatesManagement = () => {
     <Container>
       <Row className="mb-4">
         <Col>
-          <h2>Applications Management</h2>
-          <p>Step 2: Review candidate applications and advance qualified profiles to testing phase.</p>
+          <h2>Candidate Management</h2>
+          <p>Manage approved candidates and assign tests. View test results and interview feedback.</p>
         </Col>
       </Row>
 
@@ -464,89 +362,83 @@ const CandidatesManagement = () => {
         <Col>
           <Card>
             <Card.Header>
-              <h5>All Candidates</h5>
+              <h5>Approved Candidates</h5>
             </Card.Header>
             <Card.Body>
-              <Table striped bordered hover responsive>
-                <thead>
-                  <tr>
-                    <th style={{ width: '60px' }}>Photo</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Position</th>
-                    <th>Department</th>
-                    <th>Status</th>
-                    <th>Applied Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {candidates.map((candidate) => (
-                    <tr key={candidate._id}>
-                      <td className="text-center">
-                        {candidate.passportPhotoUrl ? (
-                          <Image
-                            src={candidate.passportPhotoUrl}
-                            alt={candidate.user.name}
-                            roundedCircle
-                            style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'flex';
-                            }}
-                          />
-                        ) : null}
-                        <div 
-                          style={{ 
-                            width: '40px', 
-                            height: '40px', 
-                            borderRadius: '50%', 
-                            background: '#e2e8f0',
-                            display: candidate.passportPhotoUrl ? 'none' : 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            margin: '0 auto'
-                          }}
-                        >
-                          <FaUser style={{ color: '#64748b' }} />
-                        </div>
-                      </td>
-                      <td>{candidate.user.name}</td>
-                      <td>{candidate.user.email}</td>
-                      <td>{candidate.form.position}</td>
-                      <td>{candidate.form.department}</td>
-                      <td>{getStatusBadge(candidate.status)}</td>
-                      <td>{new Date(candidate.createdAt).toLocaleDateString()}</td>
-                      <td>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          className="me-2"
-                          onClick={() => fetchCandidateProfile(candidate._id)}
-                          disabled={profileLoading}
-                        >
-                          {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View Profile'}
-                        </Button>
-                        <Button
-                          variant="success"
-                          size="sm"
-                          className="me-2"
-                          onClick={() => updateCandidateStatus(candidate._id, 'approved')}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => updateCandidateStatus(candidate._id, 'rejected')}
-                        >
-                          Reject
-                        </Button>
-                      </td>
+              {candidates.length === 0 ? (
+                <Alert variant="info">No approved candidates yet.</Alert>
+              ) : (
+                <Table striped bordered hover responsive>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '60px' }}>Photo</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Position</th>
+                      <th>Department</th>
+                      <th>Status</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </Table>
+                  </thead>
+                  <tbody>
+                    {candidates.map((candidate) => (
+                      <tr key={candidate._id}>
+                        <td className="text-center">
+                          {candidate.passportPhotoUrl ? (
+                            <Image
+                              src={candidate.passportPhotoUrl}
+                              alt={candidate.user.name}
+                              roundedCircle
+                              style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            style={{ 
+                              width: '40px', 
+                              height: '40px', 
+                              borderRadius: '50%', 
+                              background: '#e2e8f0',
+                              display: candidate.passportPhotoUrl ? 'none' : 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              margin: '0 auto'
+                            }}
+                          >
+                            <FaUser style={{ color: '#64748b' }} />
+                          </div>
+                        </td>
+                        <td>{candidate.user.name}</td>
+                        <td>{candidate.user.email}</td>
+                        <td>{candidate.form.position}</td>
+                        <td>{candidate.form.department}</td>
+                        <td>{getStatusBadge(candidate.status)}</td>
+                        <td>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="me-2"
+                            onClick={() => fetchCandidateProfile(candidate._id)}
+                            disabled={profileLoading}
+                          >
+                            {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View Profile'}
+                          </Button>
+                          <Button
+                            variant="success"
+                            size="sm"
+                            onClick={() => openAssignTestModal(candidate._id)}
+                          >
+                            Assign Test
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
             </Card.Body>
           </Card>
         </Col>
@@ -561,7 +453,7 @@ const CandidatesManagement = () => {
       >
         <Modal.Header closeButton>
           <Modal.Title>
-            Candidate Profile - {selectedCandidate?.personalDetails.name}
+            Candidate Profile - {selectedCandidate?.personalDetails?.name}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -580,35 +472,6 @@ const CandidatesManagement = () => {
           )}
         </Modal.Body>
         <Modal.Footer>
-          {selectedCandidate && (
-            <>
-              <Button
-                variant="primary"
-                className="me-2"
-                onClick={openAssignTestModal}
-              >
-                Conduct Test
-              </Button>
-              <Button
-                variant="success"
-                onClick={() => setFinalDecision(selectedCandidate._id, 'selected', 'Selected for the position')}
-              >
-                Select Candidate
-              </Button>
-              <Button
-                variant="warning"
-                onClick={() => setFinalDecision(selectedCandidate._id, 'on_hold', 'Placed on hold for further consideration')}
-              >
-                Put On Hold
-              </Button>
-              <Button
-                variant="danger"
-                onClick={() => setFinalDecision(selectedCandidate._id, 'rejected', 'Not selected for the position')}
-              >
-                Reject Candidate
-              </Button>
-            </>
-          )}
           <Button variant="secondary" onClick={() => setShowProfileModal(false)}>
             Close
           </Button>
@@ -644,4 +507,5 @@ const CandidatesManagement = () => {
   );
 };
 
-export default CandidatesManagement;
+export default CandidateManagement;
+
