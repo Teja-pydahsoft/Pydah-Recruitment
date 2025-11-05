@@ -39,7 +39,16 @@ const candidateSchema = new mongoose.Schema({
       questionId: String,
       answer: mongoose.Schema.Types.Mixed,
       isCorrect: Boolean,
-      marks: Number
+      marks: Number,
+      timeTaken: Number, // Time taken in seconds for this question
+      answeredAt: Date, // When this question was answered
+      screenshot: String // URL to screenshot captured during test
+    }],
+    startedAt: Date, // When test was started
+    screenshots: [{
+      timestamp: Date,
+      url: String,
+      description: String // e.g., "Question 1", "Test start", "Test submission"
     }]
   }],
   interviewFeedback: [{

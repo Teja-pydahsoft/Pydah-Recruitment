@@ -27,7 +27,7 @@ app.use('/api/candidates', require('./routes/candidates'));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    message: 'Faculty Recruitment API is running',
+    message: 'Staff Recruitment API is running',
     timestamp: new Date().toISOString()
   });
 });

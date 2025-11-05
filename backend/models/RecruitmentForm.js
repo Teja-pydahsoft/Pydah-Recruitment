@@ -16,6 +16,13 @@ const recruitmentFormSchema = new mongoose.Schema({
     required: true,
     default: 'candidate_profile'
   },
+  formCategory: {
+    type: String,
+    enum: ['teaching', 'non_teaching'],
+    required: function() {
+      return this.formType === 'candidate_profile';
+    }
+  },
   position: {
     type: String,
     required: function() {
@@ -55,17 +62,30 @@ const recruitmentFormSchema = new mongoose.Schema({
       default: false
     },
     options: [String], // For select fields
-    placeholder: String,
-    weight: {
-      type: Number,
-      default: 1,
-      min: 0,
-      max: 5
-    }
+    placeholder: String
   }],
   isActive: {
     type: Boolean,
     default: true
+  },
+  closingDate: {
+    type: Date,
+    required: function() {
+      return this.formType === 'candidate_profile';
+    }
+  },
+  vacancies: {
+    type: Number,
+    required: function() {
+      return this.formType === 'candidate_profile';
+    },
+    min: 0,
+    default: 1
+  },
+  filledVacancies: {
+    type: Number,
+    default: 0,
+    min: 0
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -94,8 +114,30 @@ recruitmentFormSchema.pre('save', function(next) {
   if (!this.uniqueLink) {
     this.uniqueLink = `form_${this.formType}_${this._id}_${Date.now()}`;
   }
+  
+  // Auto-disable form if closing date has passed
+  if (this.closingDate && new Date(this.closingDate) < new Date() && this.isActive) {
+    this.isActive = false;
+  }
+  
   next();
 });
+
+// Check and update form status based on closing date (static method for periodic checks)
+recruitmentFormSchema.statics.checkClosingDates = async function() {
+  const now = new Date();
+  const result = await this.updateMany(
+    {
+      closingDate: { $lt: now },
+      isActive: true,
+      formType: 'candidate_profile'
+    },
+    {
+      $set: { isActive: false }
+    }
+  );
+  return result;
+};
 
 // Method to generate QR code
 recruitmentFormSchema.methods.generateQRCode = async function() {

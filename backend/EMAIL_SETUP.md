@@ -1,6 +1,6 @@
 # Email Configuration Guide
 
-This guide will help you set up email notifications for the Faculty Recruitment System.
+This guide will help you set up email notifications for the Staff Recruitment System.
 
 ## Required Environment Variables
 
@@ -38,7 +38,7 @@ Since you're using Gmail, you need to create an **App Password** (not your regul
 3. Click on **App passwords**
 4. You might be asked to sign in again
 5. Select **Mail** as the app and **Other (Custom name)** as the device
-6. Enter a name like "Faculty Recruitment System" and click **Generate**
+6. Enter a name like "Staff Recruitment System" and click **Generate**
 7. Google will show you a 16-character password (like: `abcd efgh ijkl mnop`)
 8. **Copy this password** - you won't be able to see it again!
 

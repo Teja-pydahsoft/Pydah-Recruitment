@@ -585,7 +585,7 @@ const Login = () => {
           <Logo>
             <UserIcon />
           </Logo>
-          <Title>Faculty Recruitment System</Title>
+          <Title>Staff Recruitment System</Title>
           <Subtitle>Please sign in to continue</Subtitle>
         </Header>
 

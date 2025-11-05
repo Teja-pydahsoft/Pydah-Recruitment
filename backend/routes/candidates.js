@@ -10,7 +10,7 @@ router.get('/', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const candidates = await Candidate.find({})
       .populate('user', 'name email')
-      .populate('form', 'title position department')
+      .populate('form', 'title position department formCategory')
       .sort({ createdAt: -1 })
       .lean();
     
@@ -141,16 +141,26 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.put('/:id/status', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { status } = req.body;
-    const candidate = await Candidate.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    ).populate('user', 'name email')
-     .populate('form', 'title position department');
+    const candidate = await Candidate.findById(req.params.id)
+      .populate('user', 'name email role');
 
     if (!candidate) {
       return res.status(404).json({ message: 'Candidate not found' });
     }
+
+    // Update candidate status
+    candidate.status = status;
+    await candidate.save();
+
+    // Ensure user has candidate role when approved
+    if (status === 'approved' && candidate.user && candidate.user.role !== 'candidate') {
+      const User = require('../models/User');
+      await User.findByIdAndUpdate(candidate.user._id, { role: 'candidate' });
+      console.log(`✅ Updated user ${candidate.user.email} role to candidate`);
+    }
+
+    // Populate form for response
+    await candidate.populate('form', 'title position department');
 
     res.json({
       message: 'Candidate status updated successfully',
@@ -182,6 +192,18 @@ router.put('/:id/final-decision', authenticateToken, requireSuperAdmin, async (r
     // Update candidate status based on final decision
     if (decision === 'selected') {
       candidate.status = 'selected';
+      
+      // Decrease vacancies count when candidate is selected
+      const RecruitmentForm = require('../models/RecruitmentForm');
+      const form = await RecruitmentForm.findById(candidate.form);
+      if (form && form.vacancies) {
+        // Check if vacancies are not already filled
+        if (form.filledVacancies < form.vacancies) {
+          form.filledVacancies = (form.filledVacancies || 0) + 1;
+          await form.save();
+          console.log(`✅ Vacancy filled for form ${form._id}. Now ${form.filledVacancies}/${form.vacancies} filled.`);
+        }
+      }
     } else if (decision === 'rejected') {
       candidate.status = 'rejected';
     } else {

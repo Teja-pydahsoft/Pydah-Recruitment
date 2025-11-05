@@ -13,36 +13,58 @@ const router = express.Router();
 // Create new recruitment form (Super Admin only)
 router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const { title, description, formType, position, department, requirements, formFields } = req.body;
+    console.log('\n📝 [FORM CREATION] Request received from:', req.user.email);
+    console.log('📝 [FORM CREATION] Request body:', {
+      title: req.body.title,
+      formType: req.body.formType,
+      formCategory: req.body.formCategory,
+      position: req.body.position,
+      department: req.body.department,
+      formFieldsCount: req.body.formFields?.length || 0
+    });
+
+    const { title, description, formType, formCategory, position, department, closingDate, vacancies, requirements, formFields } = req.body;
 
     const form = new RecruitmentForm({
       title,
       description,
       formType: formType || 'candidate_profile',
+      formCategory: formType === 'candidate_profile' ? formCategory : undefined,
       position: formType === 'candidate_profile' ? position : undefined,
       department: formType === 'candidate_profile' ? department : undefined,
+      closingDate: formType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,
+      vacancies: formType === 'candidate_profile' && vacancies ? parseInt(vacancies) : undefined,
+      filledVacancies: 0,
       requirements,
       formFields,
       createdBy: req.user._id
     });
 
     await form.save();
+    console.log('✅ [FORM CREATION] Form created successfully:', form._id);
+    console.log('✅ [FORM CREATION] Form title:', form.title);
+    console.log('✅ [FORM CREATION] Form category:', form.formCategory || 'N/A');
 
     // Generate QR code
     try {
+      console.log('📱 [FORM CREATION] Generating QR code...');
       await form.generateQRCode();
       await form.save();
+      console.log('✅ [FORM CREATION] QR code generated successfully');
+      console.log('✅ [FORM CREATION] Unique link:', form.uniqueLink);
     } catch (qrError) {
-      console.error('QR Code generation failed:', qrError);
+      console.error('❌ [FORM CREATION] QR Code generation failed:', qrError);
       // Continue without QR code - don't fail form creation
     }
 
+    console.log('✅ [FORM CREATION] Form creation completed successfully\n');
     res.status(201).json({
       message: 'Recruitment form created successfully',
       form
     });
   } catch (error) {
-    console.error('Form creation error:', error);
+    console.error('❌ [FORM CREATION] Error:', error.message);
+    console.error('❌ [FORM CREATION] Stack:', error.stack);
     res.status(500).json({ message: 'Server error creating form' });
   }
 });
@@ -50,83 +72,83 @@ router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
 // Get all forms (Super Admin only)
 router.get('/', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
+    console.log('\n📋 [FORMS FETCH] Request received from:', req.user.email);
+    console.log('📋 [FORMS FETCH] Fetching all forms...');
+    
     const forms = await RecruitmentForm.find({})
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
 
+    console.log('✅ [FORMS FETCH] Found', forms.length, 'forms');
+    console.log('✅ [FORMS FETCH] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory || 'N/A' })));
+    console.log('✅ [FORMS FETCH] Request completed\n');
+    
     res.json({ forms });
   } catch (error) {
-    console.error('Forms fetch error:', error);
+    console.error('❌ [FORMS FETCH] Error:', error.message);
     res.status(500).json({ message: 'Server error fetching forms' });
   }
 });
 
-// Get form by ID
-router.get('/:id', authenticateToken, async (req, res) => {
+// Get forms by type (Super Admin only) - MUST BE BEFORE /:id route
+router.get('/type/:formType', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const form = await RecruitmentForm.findById(req.params.id)
-      .populate('createdBy', 'name email');
-
-    if (!form) {
-      return res.status(404).json({ message: 'Form not found' });
+    const { formType } = req.params;
+    console.log('\n📋 [FORMS BY TYPE] Request received from:', req.user.email);
+    console.log('📋 [FORMS BY TYPE] Form type:', formType);
+    
+    if (!['candidate_profile', 'feedback_form'].includes(formType)) {
+      console.error('❌ [FORMS BY TYPE] Invalid form type:', formType);
+      return res.status(400).json({ message: 'Invalid form type' });
     }
 
-    // Only super admin or form creator can view full details
-    if (req.user.role !== 'super_admin' && form.createdBy._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+    const forms = await RecruitmentForm.find({ formType })
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
 
-    res.json({ form });
+    console.log('✅ [FORMS BY TYPE] Found', forms.length, 'forms of type:', formType);
+    console.log('✅ [FORMS BY TYPE] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory || 'N/A' })));
+    console.log('✅ [FORMS BY TYPE] Request completed\n');
+    
+    res.json({ forms });
   } catch (error) {
-    console.error('Form fetch error:', error);
-    res.status(500).json({ message: 'Server error fetching form' });
+    console.error('❌ [FORMS BY TYPE] Error:', error.message);
+    res.status(500).json({ message: 'Server error fetching forms by type' });
   }
 });
 
-// Update form (Super Admin only)
-router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+// Get forms by category (Teaching/Non-Teaching) (Super Admin only) - MUST BE BEFORE /:id route
+router.get('/category/:formCategory', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const { title, description, formType, position, department, requirements, formFields, isActive } = req.body;
-
-    const form = await RecruitmentForm.findByIdAndUpdate(
-      req.params.id,
-      {
-        title,
-        description,
-        formType,
-        position: formType === 'candidate_profile' ? position : undefined,
-        department: formType === 'candidate_profile' ? department : undefined,
-        requirements,
-        formFields,
-        isActive
-      },
-      { new: true, runValidators: true }
-    ).populate('createdBy', 'name email');
-
-    if (!form) {
-      return res.status(404).json({ message: 'Form not found' });
+    const { formCategory } = req.params;
+    console.log('\n📋 [FORMS BY CATEGORY] Request received from:', req.user.email);
+    console.log('📋 [FORMS BY CATEGORY] Form category:', formCategory);
+    
+    if (!['teaching', 'non_teaching'].includes(formCategory)) {
+      console.error('❌ [FORMS BY CATEGORY] Invalid form category:', formCategory);
+      return res.status(400).json({ message: 'Invalid form category' });
     }
 
-    // Regenerate QR code if form URL might have changed
-    try {
-      await form.generateQRCode();
-      await form.save();
-    } catch (qrError) {
-      console.error('QR Code regeneration failed:', qrError);
-    }
+    const forms = await RecruitmentForm.find({ 
+      formType: 'candidate_profile',
+      formCategory 
+    })
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
 
-    res.json({
-      message: 'Form updated successfully',
-      form
-    });
+    console.log('✅ [FORMS BY CATEGORY] Found', forms.length, 'forms for category:', formCategory);
+    console.log('✅ [FORMS BY CATEGORY] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory })));
+    console.log('✅ [FORMS BY CATEGORY] Request completed\n');
+    
+    res.json({ forms });
   } catch (error) {
-    console.error('Form update error:', error);
-    res.status(500).json({ message: 'Server error updating form' });
+    console.error('❌ [FORMS BY CATEGORY] Error:', error.message);
+    res.status(500).json({ message: 'Server error fetching forms by category' });
   }
 });
 
-// Delete form (Super Admin only)
-router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+// Get form statistics (Super Admin only) - MUST BE BEFORE /:id route
+router.get('/:id/stats', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const form = await RecruitmentForm.findById(req.params.id);
 
@@ -134,9 +156,160 @@ router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => 
       return res.status(404).json({ message: 'Form not found' });
     }
 
+    const stats = await form.getStats();
+
+    res.json({
+      formId: form._id,
+      formType: form.formType,
+      title: form.title,
+      ...stats,
+      createdAt: form.createdAt,
+      lastModified: form.updatedAt
+    });
+  } catch (error) {
+    console.error('Form stats error:', error);
+    res.status(500).json({ message: 'Server error fetching form statistics' });
+  }
+});
+
+// Get form with QR code info (Super Admin only) - MUST BE BEFORE /:id route
+router.get('/:id/qr-code', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const form = await RecruitmentForm.findById(req.params.id);
+
+    if (!form) {
+      return res.status(404).json({ message: 'Form not found' });
+    }
+
+    res.json({
+      form: {
+        _id: form._id,
+        title: form.title,
+        formType: form.formType,
+        uniqueLink: form.uniqueLink,
+        qrCode: form.qrCode,
+        isActive: form.isActive
+      }
+    });
+  } catch (error) {
+    console.error('QR code fetch error:', error);
+    res.status(500).json({ message: 'Server error fetching QR code' });
+  }
+});
+
+// Get form by ID - MUST BE AFTER all specific routes
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    console.log('\n📋 [FORM FETCH BY ID] Request received from:', req.user.email);
+    console.log('📋 [FORM FETCH BY ID] Form ID:', req.params.id);
+
+    const form = await RecruitmentForm.findById(req.params.id)
+      .populate('createdBy', 'name email');
+
+    if (!form) {
+      console.error('❌ [FORM FETCH BY ID] Form not found:', req.params.id);
+      return res.status(404).json({ message: 'Form not found' });
+    }
+
+    // Only super admin or form creator can view full details
+    if (req.user.role !== 'super_admin' && form.createdBy._id.toString() !== req.user._id.toString()) {
+      console.error('❌ [FORM FETCH BY ID] Access denied for user:', req.user.email);
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    console.log('✅ [FORM FETCH BY ID] Form found:', form.title);
+    console.log('✅ [FORM FETCH BY ID] Form category:', form.formCategory || 'N/A');
+    console.log('✅ [FORM FETCH BY ID] Form fields count:', form.formFields?.length || 0);
+    console.log('✅ [FORM FETCH BY ID] Request completed\n');
+
+    res.json({ form });
+  } catch (error) {
+    console.error('❌ [FORM FETCH BY ID] Error:', error.message);
+    res.status(500).json({ message: 'Server error fetching form' });
+  }
+});
+
+// Update form (Super Admin only)
+router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('\n📝 [FORM UPDATE] Request received from:', req.user.email);
+    console.log('📝 [FORM UPDATE] Form ID:', req.params.id);
+    console.log('📝 [FORM UPDATE] Update data:', {
+      title: req.body.title,
+      formType: req.body.formType,
+      formCategory: req.body.formCategory,
+      isActive: req.body.isActive
+    });
+
+    const { title, description, formType, formCategory, position, department, closingDate, vacancies, requirements, formFields, isActive } = req.body;
+
+    const updateData = {
+      title,
+      description,
+      formType,
+      formCategory: formType === 'candidate_profile' ? formCategory : undefined,
+      position: formType === 'candidate_profile' ? position : undefined,
+      department: formType === 'candidate_profile' ? department : undefined,
+      closingDate: formType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,
+      vacancies: formType === 'candidate_profile' && vacancies ? parseInt(vacancies) : undefined,
+      requirements,
+      formFields,
+      isActive
+    };
+
+    const form = await RecruitmentForm.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('createdBy', 'name email');
+
+    if (!form) {
+      console.error('❌ [FORM UPDATE] Form not found:', req.params.id);
+      return res.status(404).json({ message: 'Form not found' });
+    }
+
+    console.log('✅ [FORM UPDATE] Form updated successfully:', form._id);
+
+    // Regenerate QR code if form URL might have changed
+    try {
+      console.log('📱 [FORM UPDATE] Regenerating QR code...');
+      await form.generateQRCode();
+      await form.save();
+      console.log('✅ [FORM UPDATE] QR code regenerated successfully');
+    } catch (qrError) {
+      console.error('❌ [FORM UPDATE] QR Code regeneration failed:', qrError);
+    }
+
+    console.log('✅ [FORM UPDATE] Request completed\n');
+    res.json({
+      message: 'Form updated successfully',
+      form
+    });
+  } catch (error) {
+    console.error('❌ [FORM UPDATE] Error:', error.message);
+    res.status(500).json({ message: 'Server error updating form' });
+  }
+});
+
+// Delete form (Super Admin only)
+router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('\n🗑️  [FORM DELETE] Request received from:', req.user.email);
+    console.log('🗑️  [FORM DELETE] Form ID:', req.params.id);
+
+    const form = await RecruitmentForm.findById(req.params.id);
+
+    if (!form) {
+      console.error('❌ [FORM DELETE] Form not found:', req.params.id);
+      return res.status(404).json({ message: 'Form not found' });
+    }
+
+    console.log('🗑️  [FORM DELETE] Form found:', form.title);
+
     // Check if form has submissions
     const submissionCount = await Candidate.countDocuments({ form: req.params.id });
     if (submissionCount > 0) {
+      console.error('❌ [FORM DELETE] Cannot delete form with', submissionCount, 'submissions');
       return res.status(400).json({
         message: 'Cannot delete form with existing submissions',
         submissionCount
@@ -144,10 +317,12 @@ router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => 
     }
 
     await RecruitmentForm.findByIdAndDelete(req.params.id);
+    console.log('✅ [FORM DELETE] Form deleted successfully:', req.params.id);
+    console.log('✅ [FORM DELETE] Request completed\n');
 
     res.json({ message: 'Form deleted successfully' });
   } catch (error) {
-    console.error('Form deletion error:', error);
+    console.error('❌ [FORM DELETE] Error:', error.message);
     res.status(500).json({ message: 'Server error deleting form' });
   }
 });
@@ -156,12 +331,21 @@ router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => 
 router.get('/public/:uniqueLink', async (req, res) => {
   try {
     const form = await RecruitmentForm.findOne({
-      uniqueLink: req.params.uniqueLink,
-      isActive: true
+      uniqueLink: req.params.uniqueLink
     });
 
     if (!form) {
-      return res.status(404).json({ message: 'Form not found or inactive' });
+      return res.status(404).json({ message: 'Form not found' });
+    }
+
+    // Check if form is active and closing date hasn't passed
+    const now = new Date();
+    const isClosed = form.closingDate && new Date(form.closingDate) < now;
+    
+    if (!form.isActive || isClosed) {
+      return res.status(404).json({ 
+        message: isClosed ? 'Form submission deadline has passed' : 'Form is not currently active' 
+      });
     }
 
     res.json({
@@ -169,8 +353,13 @@ router.get('/public/:uniqueLink', async (req, res) => {
         _id: form._id,
         title: form.title,
         description: form.description,
+        formType: form.formType,
+        formCategory: form.formCategory,
         position: form.position,
         department: form.department,
+        closingDate: form.closingDate,
+        vacancies: form.vacancies,
+        filledVacancies: form.filledVacancies,
         requirements: form.requirements,
         formFields: form.formFields
       }
@@ -210,16 +399,40 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
     }
 
     // Create or find user (candidate)
-    let user = await require('../models/User').findOne({ email: userDetails.email });
+    // If user exists, update their role to candidate if it's not already
+    const User = require('../models/User');
+    let user = await User.findOne({ email: userDetails.email.toLowerCase().trim() });
 
     if (!user) {
-      user = new (require('../models/User'))({
+      // Set password to email for candidates (they can change it later)
+      // This allows them to login with their email as both username and password
+      const password = userDetails.email.toLowerCase().trim();
+      
+      user = new User({
         name: userDetails.name,
-        email: userDetails.email,
-        password: Math.random().toString(36),
+        email: userDetails.email.toLowerCase().trim(),
+        password: password, // Will be hashed by pre-save hook
         role: 'candidate'
       });
       await user.save();
+      console.log(`✅ Created new candidate user: ${user.email} with password set to email`);
+    } else {
+      // If user exists but doesn't have candidate role, update it
+      if (user.role !== 'candidate') {
+        console.log(`⚠️ User ${user.email} exists with role ${user.role}, updating to candidate role`);
+        user.role = 'candidate';
+        await user.save();
+      }
+      
+      // If user exists but password might be wrong (random password), reset it to email
+      // This helps when users created from forms try to login
+      const testPassword = await user.comparePassword(userDetails.email.toLowerCase().trim());
+      if (!testPassword) {
+        console.log(`⚠️ User ${user.email} password doesn't match email, resetting password to email`);
+        user.password = userDetails.email.toLowerCase().trim();
+        await user.save();
+        console.log(`✅ Reset password for user: ${user.email}`);
+      }
     }
 
     const documents = [];
@@ -398,95 +611,33 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
   }
 });
 
-// Get form statistics (Super Admin only)
-router.get('/:id/stats', authenticateToken, requireSuperAdmin, async (req, res) => {
-  try {
-    const form = await RecruitmentForm.findById(req.params.id);
-
-    if (!form) {
-      return res.status(404).json({ message: 'Form not found' });
-    }
-
-    const stats = await form.getStats();
-
-    res.json({
-      formId: form._id,
-      formType: form.formType,
-      title: form.title,
-      ...stats,
-      createdAt: form.createdAt,
-      lastModified: form.updatedAt
-    });
-  } catch (error) {
-    console.error('Form stats error:', error);
-    res.status(500).json({ message: 'Server error fetching form statistics' });
-  }
-});
-
 // Regenerate QR code (Super Admin only)
 router.post('/:id/qr-code', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
+    console.log('\n📱 [QR CODE REGENERATE] Request received from:', req.user.email);
+    console.log('📱 [QR CODE REGENERATE] Form ID:', req.params.id);
+    
     const form = await RecruitmentForm.findById(req.params.id);
 
     if (!form) {
+      console.error('❌ [QR CODE REGENERATE] Form not found:', req.params.id);
       return res.status(404).json({ message: 'Form not found' });
     }
 
     await form.generateQRCode();
     await form.save();
 
+    console.log('✅ [QR CODE REGENERATE] QR code regenerated successfully');
+    console.log('✅ [QR CODE REGENERATE] Unique link:', form.uniqueLink);
+    console.log('✅ [QR CODE REGENERATE] Request completed\n');
+
     res.json({
       message: 'QR code generated successfully',
       qrCode: form.qrCode
     });
   } catch (error) {
-    console.error('QR code generation error:', error);
+    console.error('❌ [QR CODE REGENERATE] Error:', error.message);
     res.status(500).json({ message: 'Server error generating QR code' });
-  }
-});
-
-// Get forms by type (Super Admin only)
-router.get('/type/:formType', authenticateToken, requireSuperAdmin, async (req, res) => {
-  try {
-    const { formType } = req.params;
-    
-    if (!['candidate_profile', 'feedback_form'].includes(formType)) {
-      return res.status(400).json({ message: 'Invalid form type' });
-    }
-
-    const forms = await RecruitmentForm.find({ formType })
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 });
-
-    res.json({ forms });
-  } catch (error) {
-    console.error('Forms by type fetch error:', error);
-    res.status(500).json({ message: 'Server error fetching forms by type' });
-  }
-});
-
-// Get form with QR code info (Super Admin only)
-router.get('/:id/qr-code', authenticateToken, requireSuperAdmin, async (req, res) => {
-  try {
-    const form = await RecruitmentForm.findById(req.params.id);
-
-    if (!form) {
-      return res.status(404).json({ message: 'Form not found' });
-    }
-
-    res.json({
-      form: {
-        _id: form._id,
-        title: form.title,
-        formType: form.formType,
-        uniqueLink: form.uniqueLink,
-        qrCode: form.qrCode,
-        isActive: form.isActive
-      }
-    });
-  } catch (error) {
-    console.error('QR code fetch error:', error);
-    res.status(500).json({ message: 'Server error fetching QR code' });
   }
 });
 

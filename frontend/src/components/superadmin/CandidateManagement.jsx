@@ -96,57 +96,98 @@ const CandidateManagement = () => {
     const documents = candidate.personalDetails?.documents || [];
     const passportPhoto = candidate.personalDetails?.passportPhoto;
     
+    // Get phone number - check application data for mobile number if phone not provided
+    const phone = candidate.personalDetails.phone || 
+                  applicationData.mobileNumber || 
+                  applicationData.mobile || 
+                  applicationData.phone ||
+                  'Not provided';
+    
+    // Fields to exclude from Application Form Details (already shown in Personal Information)
+    const excludedFields = ['name', 'fullName', 'email', 'phone', 'mobileNumber', 'mobile', 'passportPhoto'];
+    
     const resume = documents.find(d => d.name?.toLowerCase().includes('resume') || d.name?.toLowerCase().includes('cv'));
     const certificates = documents.filter(d => 
       d.name?.toLowerCase().includes('certificate') || 
       d.name?.toLowerCase().includes('certification')
     );
 
+    // Filter application data to exclude duplicate fields
+    const filteredApplicationData = Object.entries(applicationData).filter(([key]) => {
+      const lowerKey = key.toLowerCase();
+      return !excludedFields.some(excluded => lowerKey.includes(excluded.toLowerCase()));
+    });
+
     return (
       <div>
         <Row className="mb-4">
           <Col md={6}>
-            <Card>
-              <Card.Header>
-                <h5>Personal Information</h5>
+            <Card className="shadow-sm">
+              <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Personal Information</h5>
               </Card.Header>
-              <Card.Body>
+              <Card.Body style={{ backgroundColor: '#ffffff' }}>
                 {passportPhoto && (
                   <div className="text-center mb-3">
                     <Image 
                       src={passportPhoto} 
                       alt="Profile Photo" 
                       rounded 
-                      style={{ maxWidth: '150px', maxHeight: '150px', objectFit: 'cover' }}
+                      style={{ 
+                        maxWidth: '150px', 
+                        maxHeight: '150px', 
+                        objectFit: 'cover',
+                        border: '3px solid #e9ecef',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                      }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
                     />
                   </div>
                 )}
-                <p><strong>Name:</strong> {candidate.personalDetails.name}</p>
-                <p><strong>Email:</strong> {candidate.personalDetails.email}</p>
-                <p><strong>Phone:</strong> {candidate.personalDetails.phone || 'Not provided'}</p>
+                <p style={{ marginBottom: '0.75rem' }}>
+                  <strong style={{ color: '#495057', minWidth: '100px', display: 'inline-block' }}>Name:</strong> 
+                  <span style={{ color: '#212529' }}> {candidate.personalDetails.name}</span>
+                </p>
+                <p style={{ marginBottom: '0.75rem' }}>
+                  <strong style={{ color: '#495057', minWidth: '100px', display: 'inline-block' }}>Email:</strong> 
+                  <span style={{ color: '#212529' }}> {candidate.personalDetails.email}</span>
+                </p>
+                <p style={{ marginBottom: '0.75rem' }}>
+                  <strong style={{ color: '#495057', minWidth: '100px', display: 'inline-block' }}>Phone:</strong> 
+                  <span style={{ color: phone === 'Not provided' ? '#6c757d' : '#212529' }}> {phone}</span>
+                </p>
               </Card.Body>
             </Card>
           </Col>
           <Col md={6}>
-            <Card>
-              <Card.Header>
-                <h5>Application Form Details</h5>
+            <Card className="shadow-sm">
+              <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Application Form Details</h5>
               </Card.Header>
-              <Card.Body style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {Object.keys(applicationData).length > 0 ? (
-                  Object.entries(applicationData).map(([key, value]) => {
+              <Card.Body style={{ maxHeight: '400px', overflowY: 'auto', backgroundColor: '#ffffff' }}>
+                {filteredApplicationData.length > 0 ? (
+                  filteredApplicationData.map(([key, value]) => {
                     if (typeof value === 'string' && (value.startsWith('http') || value.startsWith('https'))) {
                       return null;
                     }
+                    if (value === null || value === undefined || value === '') {
+                      return null;
+                    }
                     return (
-                      <p key={key}>
-                        <strong>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong>{' '}
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                      <p key={key} style={{ marginBottom: '0.75rem' }}>
+                        <strong style={{ color: '#495057', minWidth: '150px', display: 'inline-block' }}>
+                          {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                        </strong>{' '}
+                        <span style={{ color: '#212529' }}>
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        </span>
                       </p>
                     );
                   })
                 ) : (
-                  <p className="text-muted">No application data available</p>
+                  <p className="text-muted">No additional application data available</p>
                 )}
               </Card.Body>
             </Card>
@@ -155,25 +196,38 @@ const CandidateManagement = () => {
 
         <Row className="mb-4">
           <Col md={12}>
-            <Card>
-              <Card.Header>
-                <h5>Documents</h5>
+            <Card className="shadow-sm">
+              <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Documents</h5>
               </Card.Header>
-              <Card.Body>
+              <Card.Body style={{ backgroundColor: '#ffffff' }}>
                 {resume && (
-                  <div className="mb-3">
-                    <h6><FaFilePdf className="me-2" />Resume</h6>
+                  <div className="mb-3 p-3" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                    <h6 style={{ color: '#495057', marginBottom: '0.75rem' }}>
+                      <FaFilePdf className="me-2" style={{ color: '#dc3545' }} />Resume
+                    </h6>
                     <div className="d-flex align-items-center gap-2">
-                      <span>{resume.name}</span>
+                      <span style={{ color: '#212529', flex: 1 }}>{resume.name}</span>
                       <Button 
                         variant="outline-primary" 
                         size="sm"
                         href={resume.url} 
                         target="_blank"
                         rel="noopener noreferrer"
+                        style={{ borderRadius: '6px' }}
                       >
                         <FaExternalLinkAlt className="me-1" />
                         View
+                      </Button>
+                      <Button 
+                        variant="outline-secondary" 
+                        size="sm"
+                        href={resume.url} 
+                        download
+                        style={{ borderRadius: '6px' }}
+                      >
+                        <FaDownload className="me-1" />
+                        Download
                       </Button>
                     </div>
                   </div>
@@ -181,18 +235,30 @@ const CandidateManagement = () => {
 
                 {certificates.length > 0 && (
                   <div className="mb-3">
-                    <h6><FaFileImage className="me-2" />Certificates ({certificates.length})</h6>
+                    <h6 style={{ color: '#495057', marginBottom: '0.75rem' }}>
+                      <FaFileImage className="me-2" style={{ color: '#0d6efd' }} />Certificates ({certificates.length})
+                    </h6>
                     <div className="d-flex flex-wrap gap-2">
                       {certificates.map((cert, index) => (
-                        <div key={index} className="border rounded p-2" style={{ minWidth: '200px' }}>
+                        <div 
+                          key={index} 
+                          className="border rounded p-2" 
+                          style={{ 
+                            minWidth: '200px', 
+                            backgroundColor: '#f8f9fa',
+                            border: '1px solid #dee2e6',
+                            borderRadius: '8px'
+                          }}
+                        >
                           <div className="d-flex align-items-center justify-content-between">
-                            <span className="text-truncate" style={{ maxWidth: '150px' }}>{cert.name}</span>
+                            <span className="text-truncate" style={{ maxWidth: '150px', color: '#212529' }}>{cert.name}</span>
                             <Button 
                               variant="outline-primary" 
                               size="sm"
                               href={cert.url} 
                               target="_blank"
                               rel="noopener noreferrer"
+                              style={{ borderRadius: '6px' }}
                             >
                               <FaExternalLinkAlt />
                             </Button>
@@ -387,12 +453,22 @@ const CandidateManagement = () => {
                           {candidate.passportPhotoUrl ? (
                             <Image
                               src={candidate.passportPhotoUrl}
-                              alt={candidate.user.name}
+                              alt={candidate.user?.name || 'Candidate'}
                               roundedCircle
-                              style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                              style={{ 
+                                width: '40px', 
+                                height: '40px', 
+                                objectFit: 'cover',
+                                border: '2px solid #e2e8f0',
+                                display: 'block',
+                                margin: '0 auto'
+                              }}
                               onError={(e) => {
                                 e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
+                                const placeholder = e.target.nextElementSibling;
+                                if (placeholder) {
+                                  placeholder.style.display = 'flex';
+                                }
                               }}
                             />
                           ) : null}
@@ -405,10 +481,11 @@ const CandidateManagement = () => {
                               display: candidate.passportPhotoUrl ? 'none' : 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              margin: '0 auto'
+                              margin: '0 auto',
+                              border: '2px solid #cbd5e1'
                             }}
                           >
-                            <FaUser style={{ color: '#64748b' }} />
+                            <FaUser style={{ color: '#64748b', fontSize: '18px' }} />
                           </div>
                         </td>
                         <td>{candidate.user.name}</td>
@@ -450,16 +527,39 @@ const CandidateManagement = () => {
         onHide={() => setShowProfileModal(false)}
         size="xl"
         centered
+        style={{ zIndex: 1050 }}
       >
-        <Modal.Header closeButton>
-          <Modal.Title>
+        <Modal.Header 
+          closeButton 
+          style={{ 
+            backgroundColor: '#f8f9fa', 
+            borderBottom: '2px solid #dee2e6',
+            padding: '1.25rem 1.5rem'
+          }}
+        >
+          <Modal.Title style={{ color: '#212529', fontWeight: '700', fontSize: '1.5rem' }}>
             Candidate Profile - {selectedCandidate?.personalDetails?.name}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+        <Modal.Body 
+          style={{ 
+            maxHeight: '70vh', 
+            overflowY: 'auto',
+            backgroundColor: '#f8fafc',
+            padding: '1.5rem'
+          }}
+        >
           {selectedCandidate && (
-            <Tabs defaultActiveKey="personal" className="mb-3">
-              <Tab eventKey="personal" title="Personal & Form Details">
+            <Tabs 
+              defaultActiveKey="personal" 
+              className="mb-3"
+              style={{ borderBottom: '2px solid #dee2e6' }}
+            >
+              <Tab 
+                eventKey="personal" 
+                title="Personal & Form Details"
+                style={{ paddingTop: '1rem' }}
+              >
                 {renderPersonalDetailsTab(selectedCandidate)}
               </Tab>
               <Tab eventKey="tests" title="Test Results">
@@ -471,8 +571,12 @@ const CandidateManagement = () => {
             </Tabs>
           )}
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowProfileModal(false)}>
+        <Modal.Footer style={{ backgroundColor: '#f8f9fa', borderTop: '2px solid #dee2e6' }}>
+          <Button 
+            variant="secondary" 
+            onClick={() => setShowProfileModal(false)}
+            style={{ borderRadius: '6px', padding: '0.5rem 1.5rem' }}
+          >
             Close
           </Button>
         </Modal.Footer>

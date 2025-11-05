@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck } from 'react-bootstrap';
+import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form } from 'react-bootstrap';
 import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaCheckCircle, FaTimes } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
 const FormSubmissions = () => {
-  const [candidates, setCandidates] = useState([]);
+  const [allCandidates, setAllCandidates] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -13,6 +13,8 @@ const FormSubmissions = () => {
   const [error, setError] = useState('');
   const [selectedCandidates, setSelectedCandidates] = useState(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('teaching');
+  const [selectedJobRole, setSelectedJobRole] = useState('all');
 
   useEffect(() => {
     fetchCandidates();
@@ -21,9 +23,9 @@ const FormSubmissions = () => {
   const fetchCandidates = async () => {
     try {
       const response = await api.get('/candidates');
-      // Filter only pending candidates
-      const pendingCandidates = response.data.candidates.filter(c => c.status === 'pending');
-      setCandidates(pendingCandidates);
+      // Get all candidates with their form details
+      const candidatesWithForms = response.data.candidates;
+      setAllCandidates(candidatesWithForms);
     } catch (error) {
       setError('Failed to fetch form submissions');
       console.error('Candidates fetch error:', error);
@@ -31,6 +33,52 @@ const FormSubmissions = () => {
       setLoading(false);
     }
   };
+
+  // Get filtered candidates based on active tab and job role
+  const getFilteredCandidates = () => {
+    let filtered = allCandidates.filter(c => {
+      // Filter by form category
+      if (activeTab === 'teaching') {
+        return c.form?.formCategory === 'teaching';
+      } else if (activeTab === 'non_teaching') {
+        return c.form?.formCategory === 'non_teaching';
+      }
+      return true; // 'all' tab
+    });
+
+    // Filter by job role (position/department)
+    if (selectedJobRole !== 'all' && selectedJobRole) {
+      filtered = filtered.filter(c => {
+        const jobRole = `${c.form?.position || ''} - ${c.form?.department || ''}`;
+        return jobRole === selectedJobRole;
+      });
+    }
+
+    return filtered;
+  };
+
+  // Get unique job roles for the current tab
+  const getJobRoles = () => {
+    let candidates = allCandidates.filter(c => {
+      if (activeTab === 'teaching') {
+        return c.form?.formCategory === 'teaching';
+      } else if (activeTab === 'non_teaching') {
+        return c.form?.formCategory === 'non_teaching';
+      }
+      return true;
+    });
+
+    const roles = new Set();
+    candidates.forEach(c => {
+      if (c.form?.position && c.form?.department) {
+        roles.add(`${c.form.position} - ${c.form.department}`);
+      }
+    });
+
+    return Array.from(roles).sort();
+  };
+
+  const candidates = getFilteredCandidates();
 
   const fetchCandidateProfile = async (candidateId) => {
     setProfileLoading(true);
@@ -49,6 +97,10 @@ const FormSubmissions = () => {
   const handleApprove = async (candidateId) => {
     try {
       await api.put(`/candidates/${candidateId}/status`, { status: 'approved' });
+      // Update selected candidate if modal is open
+      if (selectedCandidate && (selectedCandidate._id === candidateId || selectedCandidate.candidate?._id === candidateId)) {
+        setSelectedCandidate({ ...selectedCandidate, status: 'approved' });
+      }
       fetchCandidates();
       setSelectedCandidates(new Set());
     } catch (error) {
@@ -60,6 +112,10 @@ const FormSubmissions = () => {
   const handleReject = async (candidateId) => {
     try {
       await api.put(`/candidates/${candidateId}/status`, { status: 'rejected' });
+      // Update selected candidate if modal is open
+      if (selectedCandidate && (selectedCandidate._id === candidateId || selectedCandidate.candidate?._id === candidateId)) {
+        setSelectedCandidate({ ...selectedCandidate, status: 'rejected' });
+      }
       fetchCandidates();
       setSelectedCandidates(new Set());
     } catch (error) {
@@ -335,6 +391,45 @@ const FormSubmissions = () => {
         </Col>
       </Row>
 
+      {/* Category Tabs */}
+      <Row className="mb-3">
+        <Col>
+          <Card>
+            <Card.Header>
+              <Tabs activeKey={activeTab} onSelect={(k) => { setActiveTab(k); setSelectedJobRole('all'); }} className="mb-0">
+                <Tab eventKey="teaching" title="Teaching Positions" />
+                <Tab eventKey="non_teaching" title="Non-Teaching Positions" />
+                <Tab eventKey="all" title="All Submissions" />
+              </Tabs>
+            </Card.Header>
+            <Card.Body>
+              <Row className="align-items-center">
+                <Col md={4}>
+                  <Form.Group>
+                    <Form.Label>Filter by Job Role:</Form.Label>
+                    <Form.Select
+                      value={selectedJobRole}
+                      onChange={(e) => setSelectedJobRole(e.target.value)}
+                    >
+                      <option value="all">All Job Roles</option>
+                      {getJobRoles().map((role, idx) => (
+                        <option key={idx} value={role}>{role}</option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+                <Col md={8} className="text-end">
+                  <Alert variant="info" className="mb-0">
+                    Showing <strong>{candidates.length}</strong> candidate(s) for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'All'} positions
+                    {selectedJobRole !== 'all' && ` - ${selectedJobRole}`}
+                  </Alert>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
       {error && (
         <Row className="mb-3">
           <Col>
@@ -388,11 +483,15 @@ const FormSubmissions = () => {
           <Card>
             <Card.Header>
               <div className="d-flex align-items-center justify-content-between">
-                <h5 className="mb-0">Pending Submissions</h5>
+                <h5 className="mb-0">
+                  Submissions
+                  {activeTab === 'teaching' && ' - Teaching'}
+                  {activeTab === 'non_teaching' && ' - Non-Teaching'}
+                </h5>
                 {candidates.length > 0 && (
                   <FormCheck
                     type="checkbox"
-                    checked={selectedCandidates.size === candidates.length}
+                    checked={selectedCandidates.size === candidates.length && candidates.length > 0}
                     onChange={handleSelectAll}
                     label="Select All"
                   />
@@ -401,7 +500,10 @@ const FormSubmissions = () => {
             </Card.Header>
             <Card.Body>
               {candidates.length === 0 ? (
-                <Alert variant="info">No pending submissions at the moment.</Alert>
+                <Alert variant="info">
+                  No submissions found for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'this category'}
+                  {selectedJobRole !== 'all' && ` in ${selectedJobRole}`}.
+                </Alert>
               ) : (
                 <Table striped bordered hover responsive>
                   <thead>
@@ -412,6 +514,7 @@ const FormSubmissions = () => {
                       <th>Email</th>
                       <th>Position</th>
                       <th>Department</th>
+                      <th>Category</th>
                       <th>Applied Date</th>
                       <th>Actions</th>
                     </tr>
@@ -454,10 +557,15 @@ const FormSubmissions = () => {
                             <FaUser style={{ color: '#64748b' }} />
                           </div>
                         </td>
-                        <td>{candidate.user.name}</td>
-                        <td>{candidate.user.email}</td>
-                        <td>{candidate.form.position}</td>
-                        <td>{candidate.form.department}</td>
+                        <td>{candidate.user?.name || 'N/A'}</td>
+                        <td>{candidate.user?.email || 'N/A'}</td>
+                        <td>{candidate.form?.position || 'N/A'}</td>
+                        <td>{candidate.form?.department || 'N/A'}</td>
+                        <td>{candidate.form?.formCategory && (
+                          <Badge bg={candidate.form.formCategory === 'teaching' ? 'primary' : 'secondary'} className="me-1">
+                            {candidate.form.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
+                          </Badge>
+                        )}</td>
                         <td>{new Date(candidate.createdAt).toLocaleDateString()}</td>
                         <td>
                           <Button
@@ -519,13 +627,16 @@ const FormSubmissions = () => {
           )}
         </Modal.Body>
         <Modal.Footer>
-          {selectedCandidate && (
+          {selectedCandidate && (selectedCandidate.status === 'pending' || !selectedCandidate.status) && (
             <>
               <Button
                 variant="success"
                 onClick={() => {
-                  handleApprove(selectedCandidate._id);
-                  setShowProfileModal(false);
+                  const candidateId = selectedCandidate._id || selectedCandidate.candidate?._id;
+                  if (candidateId) {
+                    handleApprove(candidateId);
+                    setShowProfileModal(false);
+                  }
                 }}
               >
                 <FaCheckCircle className="me-1" />
@@ -534,14 +645,22 @@ const FormSubmissions = () => {
               <Button
                 variant="danger"
                 onClick={() => {
-                  handleReject(selectedCandidate._id);
-                  setShowProfileModal(false);
+                  const candidateId = selectedCandidate._id || selectedCandidate.candidate?._id;
+                  if (candidateId) {
+                    handleReject(candidateId);
+                    setShowProfileModal(false);
+                  }
                 }}
               >
                 <FaTimes className="me-1" />
                 Reject
               </Button>
             </>
+          )}
+          {selectedCandidate && selectedCandidate.status && selectedCandidate.status !== 'pending' && (
+            <Badge bg={selectedCandidate.status === 'approved' ? 'success' : selectedCandidate.status === 'rejected' ? 'danger' : 'secondary'} className="me-2" style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
+              {selectedCandidate.status === 'approved' ? '✓ Approved' : selectedCandidate.status === 'rejected' ? '✗ Rejected' : selectedCandidate.status}
+            </Badge>
           )}
           <Button variant="secondary" onClick={() => setShowProfileModal(false)}>
             Close

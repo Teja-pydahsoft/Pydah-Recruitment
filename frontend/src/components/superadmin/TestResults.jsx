@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner } from 'react-bootstrap';
-import { FaCheckCircle, FaTimes, FaCalendarAlt } from 'react-icons/fa';
+import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner, Image, Tabs, Tab } from 'react-bootstrap';
+import { FaCheckCircle, FaTimes, FaCalendarAlt, FaEye, FaCheck, FaClock, FaUser, FaCamera } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -16,6 +16,9 @@ const TestResults = () => {
   const [interviewTime, setInterviewTime] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [detailedResult, setDetailedResult] = useState(null);
+  const [showDetailedModal, setShowDetailedModal] = useState(false);
+  const [loadingDetailed, setLoadingDetailed] = useState(false);
 
   useEffect(() => {
     fetchTests();
@@ -47,6 +50,20 @@ const TestResults = () => {
       console.error('Test results fetch error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleViewResults = async (testId, candidateId) => {
+    setLoadingDetailed(true);
+    setShowDetailedModal(true);
+    try {
+      const response = await api.get(`/tests/${testId}/results/${candidateId}`);
+      setDetailedResult(response.data);
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to fetch detailed results');
+      setShowDetailedModal(false);
+    } finally {
+      setLoadingDetailed(false);
     }
   };
 
@@ -170,6 +187,15 @@ const TestResults = () => {
                               </td>
                               <td>{result.completedAt ? new Date(result.completedAt).toLocaleString() : 'N/A'}</td>
                               <td>
+                                <Button
+                                  variant="info"
+                                  size="sm"
+                                  className="me-2"
+                                  onClick={() => handleViewResults(test._id, result.candidate._id)}
+                                >
+                                  <FaEye className="me-1" />
+                                  View Results
+                                </Button>
                                 <Button
                                   variant="primary"
                                   size="sm"

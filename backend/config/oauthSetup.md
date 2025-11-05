@@ -9,7 +9,7 @@ Since you don't have Google Workspace Admin access, we'll use OAuth 2.0 instead 
 3. Click **+ CREATE CREDENTIALS** > **OAuth client ID**
 4. If prompted, configure OAuth consent screen:
    - User Type: **External** (for personal accounts)
-   - App name: **Faculty Recruitment System**
+   - App name: **Staff Recruitment System**
    - User support email: Your email
    - Developer contact: Your email
    - Click **Save and Continue**
@@ -20,7 +20,7 @@ Since you don't have Google Workspace Admin access, we'll use OAuth 2.0 instead 
    - Click **Back to Dashboard**
 5. Back in Credentials:
    - Application type: **Web application**
-   - Name: **Faculty Recruitment Web Client**
+   - Name: **Staff Recruitment Web Client**
    - Authorized redirect URIs: `http://localhost:5000/api/drive/oauth/callback`
    - Click **Create**
 6. **Download the JSON file** - Save it as `backend/config/oauth-credentials.json`

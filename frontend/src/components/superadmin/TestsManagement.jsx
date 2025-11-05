@@ -13,9 +13,6 @@ const TestsManagement = () => {
   const [bankLoading, setBankLoading] = useState(false);
   const [topicFilter, setTopicFilter] = useState('');
   const [newQuestion, setNewQuestion] = useState({ topic: '', subTopic: '', questionText: '', options: ['', ''], correctAnswer: 0, difficulty: 'medium', tags: '' });
-  const [createTest, setCreateTest] = useState({ title: '', description: '', form: '', duration: 60, passingPercentage: 50, cutoffPercentage: 60, questionIds: [] });
-  const [uploadPaper, setUploadPaper] = useState({ title: '', description: '', year: '', subject: '', topic: '', questionsJson: '' });
-  const [prevPapers, setPrevPapers] = useState([]);
   const [actionLoading, setActionLoading] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
@@ -67,14 +64,6 @@ const TestsManagement = () => {
     }
   };
 
-  const fetchPrevPapers = async () => {
-    try {
-      const response = await api.get('/tests'); // placeholder: reuse tests list for now
-      setPrevPapers([]);
-    } catch (error) {
-      console.error('Prev papers fetch error:', error);
-    }
-  };
 
   const addBankQuestion = async () => {
     setActionLoading(true);
@@ -95,36 +84,6 @@ const TestsManagement = () => {
     }
   };
 
-  const createTestFromBank = async () => {
-    setActionLoading(true);
-    try {
-      const payload = { ...createTest };
-      const res = await api.post('/tests/create-from-bank', payload);
-      setCreateTest({ title: '', description: '', form: '', duration: 60, passingPercentage: 50, cutoffPercentage: 60, questionIds: [] });
-      fetchTests();
-    } catch (err) {
-      console.error('Create test from bank error:', err);
-      setError(err.response?.data?.message || 'Failed to create test');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const uploadPreviousPaper = async () => {
-    setActionLoading(true);
-    try {
-      const { title, description, year, subject, topic, questionsJson } = uploadPaper;
-      const questions = JSON.parse(questionsJson);
-      await api.post('/tests/previous-papers/upload', { title, description, year, subject, topic, questions });
-      setUploadPaper({ title: '', description: '', year: '', subject: '', topic: '', questionsJson: '' });
-      fetchPrevPapers();
-    } catch (err) {
-      console.error('Upload paper error:', err);
-      setError(err.response?.data?.message || 'Failed to upload previous paper');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const downloadCSVTemplate = () => {
     // Proper CSV format with separate columns: Question, A, B, C, D, Answer
@@ -245,7 +204,7 @@ const TestsManagement = () => {
           <div className="d-flex justify-content-between align-items-center">
             <div>
               <h2>Tests Management</h2>
-              <p>Create tests from question bank or upload previous papers. Configure cutoff.</p>
+              <p>Manage tests and conduct assessments for approved candidates. Configure cutoff and pass percentages.</p>
             </div>
           </div>
         </Col>
@@ -487,110 +446,6 @@ const TestsManagement = () => {
               </Card>
             </Col>
           </Row>
-        </Tab>
-        <Tab eventKey="create" title="Create Test from Bank" onEnter={fetchBank}>
-          <Card>
-            <Card.Body>
-              <Form>
-                <Row>
-                  <Col md={6}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Title</Form.Label>
-                      <Form.Control value={createTest.title} onChange={(e) => setCreateTest({ ...createTest, title: e.target.value })} />
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Form ID</Form.Label>
-                      <Form.Control value={createTest.form} onChange={(e) => setCreateTest({ ...createTest, form: e.target.value })} placeholder="RecruitmentForm ID" />
-                    </Form.Group>
-                  </Col>
-                </Row>
-                <Form.Group className="mb-2">
-                  <Form.Label>Description</Form.Label>
-                  <Form.Control as="textarea" rows={2} value={createTest.description} onChange={(e) => setCreateTest({ ...createTest, description: e.target.value })} />
-                </Form.Group>
-                <Row>
-                  <Col md={3}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Duration (min)</Form.Label>
-                      <Form.Control type="number" value={createTest.duration} onChange={(e) => setCreateTest({ ...createTest, duration: Number(e.target.value) })} />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Passing %</Form.Label>
-                      <Form.Control type="number" value={createTest.passingPercentage} onChange={(e) => setCreateTest({ ...createTest, passingPercentage: Number(e.target.value) })} />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Cutoff %</Form.Label>
-                      <Form.Control type="number" value={createTest.cutoffPercentage} onChange={(e) => setCreateTest({ ...createTest, cutoffPercentage: Number(e.target.value) })} />
-                    </Form.Group>
-                  </Col>
-                </Row>
-                <Form.Group className="mb-3">
-                  <Form.Label>Select Questions</Form.Label>
-                  <div style={{ maxHeight: '30vh', overflowY: 'auto', border: '1px solid #eee', borderRadius: 4, padding: 8 }}>
-                    {bankQuestions.map(q => (
-                      <Form.Check key={q._id} type="checkbox" id={`q-${q._id}`} label={`${q.topic}: ${q.questionText}`} checked={createTest.questionIds.includes(q._id)} onChange={(e) => {
-                        const next = new Set(createTest.questionIds);
-                        if (e.target.checked) next.add(q._id); else next.delete(q._id);
-                        setCreateTest({ ...createTest, questionIds: Array.from(next) });
-                      }} />
-                    ))}
-                  </div>
-                </Form.Group>
-                <Button onClick={createTestFromBank} disabled={actionLoading || createTest.questionIds.length === 0}>
-                  {actionLoading ? 'Creating...' : 'Create Test'}
-                </Button>
-              </Form>
-            </Card.Body>
-          </Card>
-        </Tab>
-        <Tab eventKey="upload" title="Upload Previous Paper">
-          <Card>
-            <Card.Body>
-              <Form>
-                <Row>
-                  <Col md={6}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Title</Form.Label>
-                      <Form.Control value={uploadPaper.title} onChange={(e) => setUploadPaper({ ...uploadPaper, title: e.target.value })} />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Year</Form.Label>
-                      <Form.Control value={uploadPaper.year} onChange={(e) => setUploadPaper({ ...uploadPaper, year: e.target.value })} />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Subject</Form.Label>
-                      <Form.Control value={uploadPaper.subject} onChange={(e) => setUploadPaper({ ...uploadPaper, subject: e.target.value })} />
-                    </Form.Group>
-                  </Col>
-                </Row>
-                <Row>
-                  <Col md={6}>
-                    <Form.Group className="mb-2">
-                      <Form.Label>Topic</Form.Label>
-                      <Form.Control value={uploadPaper.topic} onChange={(e) => setUploadPaper({ ...uploadPaper, topic: e.target.value })} />
-                    </Form.Group>
-                  </Col>
-                </Row>
-                <Form.Group className="mb-3">
-                  <Form.Label>Questions JSON</Form.Label>
-                  <Form.Control as="textarea" rows={8} placeholder='[ { "questionText": "...", "options": ["A","B","C","D"], "correctAnswer": 0 } ]' value={uploadPaper.questionsJson} onChange={(e) => setUploadPaper({ ...uploadPaper, questionsJson: e.target.value })} />
-                </Form.Group>
-                <Button onClick={uploadPreviousPaper} disabled={actionLoading}>
-                  {actionLoading ? 'Uploading...' : 'Upload'}
-                </Button>
-              </Form>
-            </Card.Body>
-          </Card>
         </Tab>
       </Tabs>
 

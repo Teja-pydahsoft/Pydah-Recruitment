@@ -234,6 +234,68 @@ router.post('/previous-papers/upload', authenticateToken, requireSuperAdmin, asy
   }
 });
 
+// Get assigned tests for candidate (Candidate only)
+router.get('/assigned', authenticateToken, async (req, res) => {
+  try {
+    // Only candidates can access their assigned tests
+    if (req.user.role !== 'candidate') {
+      return res.status(403).json({ 
+        message: 'Access denied. Only candidates can view their assigned tests.' 
+      });
+    }
+
+    // Find candidate by user ID
+    const candidate = await Candidate.findOne({ user: req.user._id });
+
+    if (!candidate) {
+      return res.status(404).json({ 
+        message: 'Candidate profile not found. Please ensure you have submitted an application form.' 
+      });
+    }
+
+    // Find all tests where this candidate is assigned
+    const tests = await Test.find({
+      'candidates.candidate': candidate._id,
+      isActive: true
+    })
+      .populate('form', 'title position department')
+      .select('title description duration instructions testLink scheduledDate scheduledTime candidates')
+      .lean();
+
+    // Map tests to include candidate-specific status
+    const assignedTests = tests.map(test => {
+      const candidateTest = test.candidates.find(
+        c => c.candidate.toString() === candidate._id.toString()
+      );
+      
+      return {
+        _id: test._id,
+        title: test.title,
+        description: test.description,
+        duration: test.duration,
+        instructions: test.instructions,
+        testLink: test.testLink,
+        scheduledDate: test.scheduledDate,
+        scheduledTime: test.scheduledTime,
+        form: test.form,
+        status: candidateTest?.status || 'pending',
+        invitedAt: candidateTest?.invitedAt,
+        completedAt: candidateTest?.completedAt,
+        score: candidateTest?.score,
+        percentage: candidateTest?.percentage
+      };
+    });
+
+    res.json({
+      message: 'Assigned tests fetched successfully',
+      tests: assignedTests
+    });
+  } catch (error) {
+    console.error('Fetch assigned tests error:', error);
+    res.status(500).json({ message: 'Server error fetching assigned tests' });
+  }
+});
+
 // Get all tests (Super Admin only)
 router.get('/', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
@@ -337,7 +399,7 @@ router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => 
   }
 });
 
-// Get test by unique link (for candidates)
+// Get test by unique link (for candidates only)
 router.get('/take/:testLink', authenticateToken, async (req, res) => {
   try {
     console.log(`\n=== Test Access Request ===`);
@@ -345,6 +407,14 @@ router.get('/take/:testLink', authenticateToken, async (req, res) => {
     console.log(`User ID: ${req.user._id}`);
     console.log(`User Email: ${req.user.email}`);
     console.log(`User Role: ${req.user.role}`);
+
+    // Only candidates can access tests
+    if (req.user.role !== 'candidate') {
+      console.log(`✗ Access denied: User role is ${req.user.role}, only candidates can access tests`);
+      return res.status(403).json({ 
+        message: 'Access denied. Only candidates can access tests. Please log in with a candidate account.' 
+      });
+    }
 
     const test = await Test.findOne({
       testLink: req.params.testLink,
@@ -372,9 +442,6 @@ router.get('/take/:testLink', authenticateToken, async (req, res) => {
         role: req.user.role
       });
       
-      // Check if user exists in database (should always exist since authenticateToken passed)
-      // This is just for additional verification
-
       // Check if any candidate exists with this email
       const candidatesByEmail = await Candidate.find()
         .populate('user', 'email')
@@ -460,7 +527,7 @@ router.get('/take/:testLink', authenticateToken, async (req, res) => {
 // Submit test answers
 router.post('/:id/submit', authenticateToken, async (req, res) => {
   try {
-    const { answers } = req.body;
+    const { answers, screenshots, startedAt } = req.body;
     const test = await Test.findById(req.params.id);
 
     if (!test) {
@@ -511,9 +578,13 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
       }
 
       return {
-        ...answer,
+        questionId: answer.questionId,
+        answer: answer.answer,
         isCorrect,
-        marks
+        marks,
+        timeTaken: answer.timeTaken || 0, // Time taken in seconds
+        answeredAt: answer.answeredAt ? new Date(answer.answeredAt) : new Date(),
+        screenshot: answer.screenshot || null // Screenshot URL if available
       };
     });
 
@@ -541,7 +612,9 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
         percentage,
         status: passed ? 'passed' : 'failed',
         submittedAt: new Date(),
-        answers: processedAnswers
+        startedAt: startedAt ? new Date(startedAt) : new Date(),
+        answers: processedAnswers,
+        screenshots: screenshots || [] // Array of screenshots with timestamps
       };
 
       if (existingResultIndex >= 0) {
@@ -608,6 +681,115 @@ router.post('/:id/assign', authenticateToken, requireSuperAdmin, async (req, res
   } catch (error) {
     console.error('Test assignment error:', error);
     res.status(500).json({ message: 'Server error assigning test' });
+  }
+});
+
+// Get detailed test results for a specific candidate (Super Admin only)
+router.get('/:testId/results/:candidateId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { testId, candidateId } = req.params;
+    
+    const test = await Test.findById(testId)
+      .populate('form', 'title position department');
+    
+    if (!test) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+
+    const candidate = await Candidate.findById(candidateId)
+      .populate('user', 'name email')
+      .populate('form', 'title position department');
+
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    // Find the test result for this candidate
+    const testResult = candidate.testResults.find(
+      result => result.test.toString() === testId
+    );
+
+    if (!testResult) {
+      return res.status(404).json({ message: 'Test result not found for this candidate' });
+    }
+
+    // Get candidate photo from application data
+    const applicationData = candidate.applicationData instanceof Map 
+      ? Object.fromEntries(candidate.applicationData)
+      : candidate.applicationData || {};
+    
+    const passportPhoto = applicationData.passportPhoto || 
+      candidate.documents?.find(d => 
+        d && (d.name?.toLowerCase().includes('photo') || d.name?.toLowerCase().includes('passport'))
+      )?.url;
+
+    // Map answers with question details
+    const detailedAnswers = testResult.answers.map(answer => {
+      const question = test.questions.find(q => q._id.toString() === answer.questionId);
+      return {
+        questionId: answer.questionId,
+        questionText: question?.questionText || 'Question not found',
+        questionType: question?.questionType || 'mcq',
+        options: question?.options || [],
+        correctAnswer: question?.correctAnswer,
+        candidateAnswer: answer.answer,
+        isCorrect: answer.isCorrect,
+        marks: answer.marks || 0,
+        questionMarks: question?.marks || 0,
+        timeTaken: answer.timeTaken || 0, // Time taken in seconds
+        answeredAt: answer.answeredAt,
+        screenshot: answer.screenshot || null
+      };
+    });
+
+    // Calculate total time taken
+    const totalTimeTaken = testResult.answers.reduce((sum, ans) => sum + (ans.timeTaken || 0), 0);
+    const testDuration = testResult.startedAt && testResult.submittedAt
+      ? Math.floor((new Date(testResult.submittedAt) - new Date(testResult.startedAt)) / 1000)
+      : totalTimeTaken;
+
+    res.json({
+      test: {
+        _id: test._id,
+        title: test.title,
+        description: test.description,
+        duration: test.duration,
+        totalMarks: test.totalMarks,
+        passingPercentage: test.passingPercentage,
+        cutoffPercentage: test.cutoffPercentage,
+        questions: test.questions.map(q => ({
+          _id: q._id,
+          questionText: q.questionText,
+          questionType: q.questionType,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          marks: q.marks
+        }))
+      },
+      candidate: {
+        _id: candidate._id,
+        name: candidate.user.name,
+        email: candidate.user.email,
+        photo: passportPhoto,
+        form: candidate.form
+      },
+      result: {
+        score: testResult.score || 0,
+        totalScore: testResult.totalScore || test.totalMarks,
+        percentage: testResult.percentage || 0,
+        status: testResult.status,
+        passed: testResult.status === 'passed',
+        startedAt: testResult.startedAt,
+        submittedAt: testResult.submittedAt,
+        testDuration: testDuration, // Total time taken in seconds
+        totalTimeTaken: totalTimeTaken, // Sum of individual question times
+        answers: detailedAnswers,
+        screenshots: testResult.screenshots || []
+      }
+    });
+  } catch (error) {
+    console.error('Detailed test results fetch error:', error);
+    res.status(500).json({ message: 'Server error fetching detailed test results' });
   }
 });
 
@@ -883,7 +1065,7 @@ router.post('/conduct-from-csv', authenticateToken, requireSuperAdmin, upload.si
                 </p>
                 <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
                 <p style="color: #6b7280; font-size: 12px;">
-                  This is an automated message from the Faculty Recruitment System. Please do not reply to this email.
+                  This is an automated message from the Staff Recruitment System. Please do not reply to this email.
                 </p>
               </div>
             `;
@@ -1009,7 +1191,7 @@ router.post('/:id/release-results', authenticateToken, requireSuperAdmin, async 
           </p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
           <p style="color: #6b7280; font-size: 12px;">
-            This is an automated message from the Faculty Recruitment System.
+            This is an automated message from the Staff Recruitment System.
           </p>
         </div>
       `;
@@ -1067,7 +1249,7 @@ This is an automated message from the Faculty Recruitment System.
           </p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
           <p style="color: #6b7280; font-size: 12px;">
-            This is an automated message from the Faculty Recruitment System.
+            This is an automated message from the Staff Recruitment System.
           </p>
         </div>
       `;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { FaFileAlt, FaUser, FaPaperPlane, FaCheckCircle, FaExclamationTriangle, FaUpload, FaSpinner, FaTimes, FaCloudUploadAlt } from 'react-icons/fa';
+import { FaFileAlt, FaUser, FaPaperPlane, FaCheckCircle, FaExclamationTriangle, FaUpload, FaSpinner, FaTimes, FaCloudUploadAlt, FaBriefcase, FaCalendarAlt, FaInfoCircle, FaClock } from 'react-icons/fa';
 import api, { uploadWithProgress } from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -132,6 +132,78 @@ const SectionTitle = styled.h3`
     background: linear-gradient(135deg, #0ea5e9, #0284c7);
     border-radius: 2px;
   }
+`;
+
+const JobDetailsCard = styled.div`
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+`;
+
+const JobDetailRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 8px;
+  border-left: 3px solid #0ea5e9;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const JobDetailLabel = styled.span`
+  font-weight: 600;
+  color: #475569;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const JobDetailValue = styled.span`
+  color: #1e293b;
+  flex: 1;
+`;
+
+const RequirementsList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0 0;
+  
+  li {
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+    
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: #0ea5e9;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+  }
+`;
+
+const ClosingDateBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: ${props => props.isUrgent ? '#fef2f2' : '#f0fdf4'};
+  border: 1px solid ${props => props.isUrgent ? '#fecaca' : '#bbf7d0'};
+  border-radius: 8px;
+  color: ${props => props.isUrgent ? '#dc2626' : '#16a34a'};
+  font-weight: 600;
+  margin-top: 0.5rem;
 `;
 
 const FormSection = styled.div`
@@ -615,16 +687,28 @@ const PublicForm = () => {
   const fetchForm = async () => {
     try {
       const response = await api.get(`/forms/public/${uniqueLink}`);
-      setForm(response.data.form);
+      const formData = response.data.form;
+      setForm(formData);
+
+      // Check if form is closed
+      if (formData.closingDate) {
+        const closingDate = new Date(formData.closingDate);
+        const now = new Date();
+        if (closingDate < now) {
+          setError('Form submission deadline has passed. This form is no longer accepting applications.');
+          setLoading(false);
+          return;
+        }
+      }
 
       // Initialize form data
       const initialData = {};
-      response.data.form.formFields.forEach(field => {
+      formData.formFields.forEach(field => {
         initialData[field.fieldName] = '';
       });
       setFormData(initialData);
     } catch (error) {
-      setError('Form not found or no longer available.');
+      setError(error.response?.data?.message || 'Form not found or no longer available.');
     } finally {
       setLoading(false);
     }
@@ -996,6 +1080,152 @@ const PublicForm = () => {
             )}
 
             <form onSubmit={handleSubmit}>
+              {/* Job Details Section */}
+              {form.formType === 'candidate_profile' && (
+                <FormSection>
+                  <SectionTitle>
+                    <FaBriefcase />
+                    Job Details
+                  </SectionTitle>
+                  <JobDetailsCard>
+                    {form.position && (
+                      <JobDetailRow>
+                        <JobDetailLabel>
+                          <FaBriefcase />
+                          {form.formCategory === 'teaching' ? 'Department' : 'Position'}
+                        </JobDetailLabel>
+                        <JobDetailValue>{form.position}</JobDetailValue>
+                      </JobDetailRow>
+                    )}
+                    {form.department && (
+                      <JobDetailRow>
+                        <JobDetailLabel>
+                          <FaInfoCircle />
+                          {form.formCategory === 'teaching' ? 'Subject' : 'Department'}
+                        </JobDetailLabel>
+                        <JobDetailValue>{form.department}</JobDetailValue>
+                      </JobDetailRow>
+                    )}
+                    {form.description && (
+                      <JobDetailRow>
+                        <JobDetailLabel>
+                          <FaInfoCircle />
+                          Description
+                        </JobDetailLabel>
+                        <JobDetailValue>{form.description}</JobDetailValue>
+                      </JobDetailRow>
+                    )}
+                    {form.requirements && (
+                      <>
+                        {form.requirements.experience && (form.requirements.experience.min || form.requirements.experience.max) && (
+                          <JobDetailRow>
+                            <JobDetailLabel>
+                              <FaInfoCircle />
+                              Experience
+                            </JobDetailLabel>
+                            <JobDetailValue>
+                              {form.requirements.experience.min || 0} - {form.requirements.experience.max || 'N/A'} years
+                              {form.requirements.experience.preferred && ` (${form.requirements.experience.preferred})`}
+                            </JobDetailValue>
+                          </JobDetailRow>
+                        )}
+                        {form.requirements.qualifications && form.requirements.qualifications.length > 0 && (
+                          <JobDetailRow>
+                            <JobDetailLabel>
+                              <FaInfoCircle />
+                              Qualifications
+                            </JobDetailLabel>
+                            <JobDetailValue>
+                              <RequirementsList>
+                                {form.requirements.qualifications.map((qual, idx) => (
+                                  <li key={idx}>{qual}</li>
+                                ))}
+                              </RequirementsList>
+                            </JobDetailValue>
+                          </JobDetailRow>
+                        )}
+                        {form.requirements.skills && form.requirements.skills.length > 0 && (
+                          <JobDetailRow>
+                            <JobDetailLabel>
+                              <FaInfoCircle />
+                              Skills
+                            </JobDetailLabel>
+                            <JobDetailValue>
+                              <RequirementsList>
+                                {form.requirements.skills.map((skill, idx) => (
+                                  <li key={idx}>{skill}</li>
+                                ))}
+                              </RequirementsList>
+                            </JobDetailValue>
+                          </JobDetailRow>
+                        )}
+                        {form.requirements.responsibilities && form.requirements.responsibilities.length > 0 && (
+                          <JobDetailRow>
+                            <JobDetailLabel>
+                              <FaInfoCircle />
+                              Responsibilities
+                            </JobDetailLabel>
+                            <JobDetailValue>
+                              <RequirementsList>
+                                {form.requirements.responsibilities.map((resp, idx) => (
+                                  <li key={idx}>{resp}</li>
+                                ))}
+                              </RequirementsList>
+                            </JobDetailValue>
+                          </JobDetailRow>
+                        )}
+                      </>
+                    )}
+                    {form.vacancies && (
+                      <JobDetailRow>
+                        <JobDetailLabel>
+                          <FaBriefcase />
+                          Vacancies
+                        </JobDetailLabel>
+                        <JobDetailValue>
+                          {form.filledVacancies || 0} / {form.vacancies} positions filled
+                          {form.filledVacancies >= form.vacancies && (
+                            <ClosingDateBadge isUrgent={true}>
+                              <FaClock />
+                              All positions filled
+                            </ClosingDateBadge>
+                          )}
+                        </JobDetailValue>
+                      </JobDetailRow>
+                    )}
+                    {form.closingDate && (
+                      <JobDetailRow>
+                        <JobDetailLabel>
+                          <FaCalendarAlt />
+                          Closing Date
+                        </JobDetailLabel>
+                        <JobDetailValue>
+                          {new Date(form.closingDate).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                          {(() => {
+                            const closingDate = new Date(form.closingDate);
+                            const now = new Date();
+                            const daysLeft = Math.ceil((closingDate - now) / (1000 * 60 * 60 * 24));
+                            if (daysLeft <= 3 && daysLeft > 0) {
+                              return (
+                                <ClosingDateBadge isUrgent={daysLeft <= 1}>
+                                  <FaClock />
+                                  {daysLeft === 1 ? '1 day left!' : `${daysLeft} days left`}
+                                </ClosingDateBadge>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </JobDetailValue>
+                      </JobDetailRow>
+                    )}
+                  </JobDetailsCard>
+                </FormSection>
+              )}
+
               {/* User Details Section */}
               <FormSection>
                 <SectionTitle>
@@ -1050,7 +1280,7 @@ const PublicForm = () => {
 
               <SubmitButton 
                 type="submit" 
-                disabled={submitting}
+                disabled={submitting || (form?.closingDate && new Date(form.closingDate) < new Date())}
                 className={submissionState === 'processing' ? 'processing' : submissionState === 'uploading' ? 'uploading' : ''}
               >
                 {submitting ? (

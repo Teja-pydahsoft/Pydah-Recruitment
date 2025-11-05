@@ -69,6 +69,120 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Get panel member dashboard statistics
+router.get('/panel-member/stats', authenticateToken, requirePanelMember, async (req, res) => {
+  try {
+    console.log('📊 [PANEL MEMBER STATS] Fetching stats for panel member:', req.user.email);
+    
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // Get total interviews assigned to this panel member
+    const totalInterviews = await Interview.countDocuments({
+      'panelMembers.panelMember': req.user._id
+    });
+
+    // Get interviews this week
+    const interviewsThisWeek = await Interview.countDocuments({
+      'panelMembers.panelMember': req.user._id,
+      createdAt: { $gte: startOfWeek }
+    });
+
+    // Get feedback given count
+    const candidates = await Candidate.find({
+      'interviewFeedback.panelMember': req.user._id
+    });
+    
+    const feedbackGiven = candidates.reduce((count, candidate) => {
+      return count + candidate.interviewFeedback.filter(
+        f => f.panelMember.toString() === req.user._id.toString()
+      ).length;
+    }, 0);
+
+    // Calculate completion rate
+    const completedInterviews = await Interview.countDocuments({
+      'panelMembers.panelMember': req.user._id,
+      'candidates.status': 'completed'
+    });
+
+    const completionRate = totalInterviews > 0 
+      ? Math.round((completedInterviews / totalInterviews) * 100) 
+      : 0;
+
+    const stats = {
+      totalInterviews,
+      interviewsThisWeek,
+      feedbackGiven,
+      completionRate
+    };
+
+    console.log('✅ [PANEL MEMBER STATS] Stats retrieved:', stats);
+
+    res.json(stats);
+  } catch (error) {
+    console.error('❌ [PANEL MEMBER STATS] Error:', error);
+    res.status(500).json({ message: 'Server error fetching panel member stats' });
+  }
+});
+
+// Get upcoming interviews for panel member
+router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, async (req, res) => {
+  try {
+    console.log('📅 [PANEL MEMBER UPCOMING] Fetching upcoming interviews for panel member:', req.user.email);
+    
+    const now = new Date();
+    
+    // Get interviews where this panel member is assigned
+    const interviews = await Interview.find({
+      'panelMembers.panelMember': req.user._id
+    })
+      .populate('form', 'title position department')
+      .populate('candidates.candidate', 'name email')
+      .populate('panelMembers.panelMember', 'name email')
+      .sort({ createdAt: -1 });
+
+    // Filter and format upcoming interviews
+    const upcomingInterviews = [];
+    
+    for (const interview of interviews) {
+      for (const candidateEntry of interview.candidates) {
+        if (candidateEntry.scheduledDate) {
+          const scheduledDate = new Date(candidateEntry.scheduledDate);
+          if (candidateEntry.scheduledTime) {
+            const [hours, minutes] = candidateEntry.scheduledTime.split(':');
+            scheduledDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          }
+          
+          // Include interviews that are scheduled or upcoming
+          if (scheduledDate >= now || candidateEntry.status !== 'completed') {
+            upcomingInterviews.push({
+              _id: interview._id,
+              title: interview.title,
+              candidate: candidateEntry.candidate,
+              form: interview.form,
+              scheduledAt: scheduledDate,
+              status: candidateEntry.status || 'scheduled',
+              meetingLink: candidateEntry.meetingLink
+            });
+          }
+        }
+      }
+    }
+
+    // Sort by scheduled date
+    upcomingInterviews.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+
+    console.log('✅ [PANEL MEMBER UPCOMING] Found', upcomingInterviews.length, 'upcoming interviews');
+
+    res.json({ interviews: upcomingInterviews });
+  } catch (error) {
+    console.error('❌ [PANEL MEMBER UPCOMING] Error:', error);
+    res.status(500).json({ message: 'Server error fetching upcoming interviews' });
+  }
+});
+
 // Get interview by ID
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
@@ -480,7 +594,7 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdmin, a
           </p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
           <p style="color: #6b7280; font-size: 12px;">
-            This is an automated message from the Faculty Recruitment System.
+            This is an automated message from the Staff Recruitment System.
           </p>
         </div>
       `;

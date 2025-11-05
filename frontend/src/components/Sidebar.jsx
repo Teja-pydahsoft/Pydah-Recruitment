@@ -12,9 +12,6 @@ import {
   FaBars,
   FaTimes,
   FaUser,
-  FaBell,
-  FaEnvelope,
-  FaTasks,
   FaClipboardCheck,
   FaHome
 } from 'react-icons/fa';
@@ -448,7 +445,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/panel-member/interviews', icon: FaCalendarAlt, label: 'My Interviews', badge: notifications.interviews },
       { path: '/panel-member/feedback', icon: FaClipboardCheck, label: 'Feedback & Evaluations', badge: notifications.feedback },
       { path: '/panel-member/reports', icon: FaChartBar, label: 'Reports & Analytics' },
-      { path: '/panel-member/tasks', icon: FaTasks, label: 'My Tasks' },
       { path: '/panel-member/profile', icon: FaUser, label: 'Profile Settings' },
     ],
     candidate: [
@@ -471,7 +467,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         <SidebarHeader $isOpen={isOpen}>
           <Logo>
             <LogoIcon />
-            <LogoText $isOpen={isOpen}>FRS</LogoText>
+            <LogoText $isOpen={isOpen}>SRS</LogoText>
           </Logo>
           <ToggleButton onClick={toggleSidebar}>
             {isOpen ? <FaTimes /> : <FaBars />}
@@ -518,18 +514,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               </UserDetails>
             </UserInfo>
 
-            {user?.role === 'panel_member' && isOpen && (
-              <QuickActions $isOpen={isOpen}>
-                <QuickActionButton>
-                  <FaBell />
-                  <span>Alerts</span>
-                </QuickActionButton>
-                <QuickActionButton>
-                  <FaEnvelope />
-                  <span>Messages</span>
-                </QuickActionButton>
-              </QuickActions>
-            )}
 
             <LogoutButton onClick={handleLogout} $isOpen={isOpen}>
               <FaSignOutAlt />

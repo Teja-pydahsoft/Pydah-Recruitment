@@ -32,7 +32,7 @@ const NavigationBar = () => {
       <Container>
         <Navbar.Brand href={getDashboardPath()} className="d-flex align-items-center">
           <FaUserTie className="me-2 text-primary" size={24} />
-          <span className="fw-bold">Faculty Recruitment System</span>
+          <span className="fw-bold">Staff Recruitment System</span>
         </Navbar.Brand>
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">

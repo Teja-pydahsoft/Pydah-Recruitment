@@ -1,5 +1,5 @@
 {
-  "name": "faculty-recruitment-backend",
+  "name": "staff-recruitment-backend",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
@@ -10,7 +10,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Backend API for Faculty Recruitment System",
+    "description": "Backend API for Staff Recruitment System",
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",

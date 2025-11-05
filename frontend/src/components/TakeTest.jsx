@@ -139,6 +139,9 @@ const TakeTest = () => {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [needsLogin, setNeedsLogin] = useState(false);
+  const [questionStartTimes, setQuestionStartTimes] = useState({});
+  const [testStartTime, setTestStartTime] = useState(null);
+  const [screenshots, setScreenshots] = useState([]);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -177,12 +180,19 @@ const TakeTest = () => {
     try {
       const response = await api.get(`/tests/take/${testLink}`);
       setTest(response.data.test);
-      // Initialize answers object
+      // Initialize answers object and question start times
       const initialAnswers = {};
+      const initialStartTimes = {};
       response.data.test.questions.forEach((q) => {
         initialAnswers[q._id] = null;
+        initialStartTimes[q._id] = Date.now();
       });
       setAnswers(initialAnswers);
+      setQuestionStartTimes(initialStartTimes);
+      setTestStartTime(Date.now());
+      
+      // Capture initial screenshot when test starts
+      captureScreenshot('Test started');
     } catch (error) {
       setError(error.response?.data?.message || 'Test not found or you are not authorized to take this test.');
     } finally {
@@ -190,11 +200,57 @@ const TakeTest = () => {
     }
   };
 
-  const handleAnswerSelect = (questionId, answer) => {
+  // Capture screenshot using html2canvas
+  const captureScreenshot = async (description) => {
+    try {
+      // Dynamic import to avoid loading issues
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(document.body, {
+        allowTaint: true,
+        useCORS: true,
+        logging: false,
+        scale: 0.5 // Reduce size for better performance
+      });
+      
+      const screenshotDataUrl = canvas.toDataURL('image/png');
+      
+      // Convert to blob and upload if needed, or store as data URL
+      // For now, we'll send it as base64 in the submission
+      setScreenshots(prev => [...prev, {
+        timestamp: new Date(),
+        dataUrl: screenshotDataUrl,
+        description: description
+      }]);
+      
+      return screenshotDataUrl;
+    } catch (error) {
+      console.error('Screenshot capture error:', error);
+      return null;
+    }
+  };
+
+  const handleAnswerSelect = async (questionId, answer) => {
+    // Calculate time taken for previous answer if exists
+    const startTime = questionStartTimes[questionId] || Date.now();
+    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+    
     setAnswers((prev) => ({
       ...prev,
       [questionId]: answer
     }));
+    
+    // Capture screenshot when answering a question
+    await captureScreenshot(`Question ${test.questions.findIndex(q => q._id === questionId) + 1} answered`);
+    
+    // Update start time for next question (if any)
+    const currentQuestionIndex = test.questions.findIndex(q => q._id === questionId);
+    if (currentQuestionIndex < test.questions.length - 1) {
+      const nextQuestionId = test.questions[currentQuestionIndex + 1]._id;
+      setQuestionStartTimes(prev => ({
+        ...prev,
+        [nextQuestionId]: Date.now()
+      }));
+    }
   };
 
   const formatTime = (seconds) => {
@@ -213,12 +269,38 @@ const TakeTest = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const answersArray = Object.entries(answers).map(([questionId, answer]) => ({
-        questionId,
-        answer: answer !== null ? answer : -1
+      // Capture final screenshot before submission
+      await captureScreenshot('Test submission');
+      
+      // Prepare answers with timestamps and screenshots
+      const answersArray = Object.entries(answers).map(([questionId, answer]) => {
+        const startTime = questionStartTimes[questionId] || testStartTime;
+        const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+        const questionScreenshot = screenshots.find(s => 
+          s.description.includes(`Question ${test.questions.findIndex(q => q._id === questionId) + 1}`)
+        );
+        
+        return {
+          questionId,
+          answer: answer !== null ? answer : -1,
+          timeTaken: timeTaken,
+          answeredAt: new Date().toISOString(),
+          screenshot: questionScreenshot?.dataUrl || null
+        };
+      });
+
+      // Prepare screenshots array
+      const screenshotsArray = screenshots.map(s => ({
+        timestamp: s.timestamp.toISOString(),
+        url: s.dataUrl, // In production, upload to server and get URL
+        description: s.description
       }));
 
-      await api.post(`/tests/${test._id}/submit`, { answers: answersArray });
+      await api.post(`/tests/${test._id}/submit`, {
+        answers: answersArray,
+        screenshots: screenshotsArray,
+        startedAt: testStartTime ? new Date(testStartTime).toISOString() : new Date().toISOString()
+      });
       setSubmitted(true);
       setShowSubmitModal(false);
     } catch (error) {

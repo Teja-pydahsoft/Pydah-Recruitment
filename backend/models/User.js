@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema({
   profile: {
     phone: String,
     department: String,
+    designation: String,
     experience: Number,
     skills: [String]
   }

@@ -211,7 +211,8 @@ const UsersManagement = () => {
     email: '',
     password: '',
     profile: {
-      phone: ''
+      phone: '',
+      designation: ''
     }
   });
 
@@ -252,12 +253,24 @@ const UsersManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Clean profile object - remove empty strings
+      const cleanedProfile = Object.fromEntries(
+        Object.entries(formData.profile).filter(([_, value]) => value !== '' && value != null)
+      );
+
       const submitData = {
-        ...formData,
-        role: 'panel_member'
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: 'panel_member',
+        profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined
       };
 
       if (editingMember) {
+        // Remove password from update if it's empty
+        if (!submitData.password) {
+          delete submitData.password;
+        }
         await api.put(`/auth/panel-members/${editingMember._id}`, submitData);
       } else {
         await api.post('/auth/register', submitData);
@@ -269,6 +282,8 @@ const UsersManagement = () => {
       fetchPanelMembers();
     } catch (error) {
       console.error('Error saving panel member:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to save panel member';
+      alert(errorMessage);
     }
   };
 
@@ -279,7 +294,8 @@ const UsersManagement = () => {
       email: member.email,
       password: '',
       profile: {
-        phone: member.profile?.phone || ''
+        phone: member.profile?.phone || '',
+        designation: member.profile?.designation || ''
       }
     });
     setShowModal(true);
@@ -311,7 +327,8 @@ const UsersManagement = () => {
       email: '',
       password: '',
       profile: {
-        phone: ''
+        phone: '',
+        designation: ''
       }
     });
   };
@@ -339,6 +356,7 @@ const UsersManagement = () => {
           <tr>
             <Th>Name</Th>
             <Th>Email</Th>
+            <Th>Designation</Th>
             <Th>Department</Th>
             <Th>Status</Th>
             <Th>Actions</Th>
@@ -349,6 +367,7 @@ const UsersManagement = () => {
             <tr key={member._id}>
               <Td>{member.name}</Td>
               <Td>{member.email}</Td>
+              <Td>{member.profile?.designation || 'N/A'}</Td>
               <Td>{member.profile?.department || 'N/A'}</Td>
               <Td>
                 <span style={{
@@ -363,13 +382,13 @@ const UsersManagement = () => {
                   Edit
                 </ActionButton>
                 <ActionButton
-                  danger
+                  danger={true}
                   onClick={() => handleStatusToggle(member._id, member.isActive)}
                 >
                   {member.isActive ? 'Deactivate' : 'Activate'}
                 </ActionButton>
                 <ActionButton
-                  danger
+                  danger={true}
                   onClick={() => handleDelete(member._id)}
                 >
                   Delete
@@ -440,6 +459,17 @@ const UsersManagement = () => {
                 />
               </FormGroup>
 
+              <FormGroup>
+                <Label htmlFor="profile.designation">Designation</Label>
+                <Input
+                  type="text"
+                  id="profile.designation"
+                  name="profile.designation"
+                  value={formData.profile.designation}
+                  onChange={handleInputChange}
+                  placeholder="e.g., Professor, HR Manager"
+                />
+              </FormGroup>
 
               <ButtonGroup>
                 <CancelButton type="button" onClick={() => setShowModal(false)}>

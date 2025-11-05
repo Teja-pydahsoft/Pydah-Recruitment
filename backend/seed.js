@@ -83,64 +83,124 @@ const seedCandidateRegistrationForm = async () => {
     return;
   }
 
-  const existing = await RecruitmentForm.findOne({ title: 'Candidate Registration (Teaching & Non-Teaching)' });
-  if (existing) {
-    console.log('Candidate Registration form already exists. Skipping.');
-    return;
+  // Seed Teaching Form
+  const existingTeaching = await RecruitmentForm.findOne({ title: 'Teaching Staff Registration Form' });
+  if (!existingTeaching) {
+    const teachingFormFields = [
+      // Basic Information
+      { fieldName: 'fullName', fieldType: 'text', required: true, placeholder: 'Your full name' },
+      { fieldName: 'gender', fieldType: 'radio', required: true, options: ['Male', 'Female', 'Other'] },
+      { fieldName: 'dateOfBirth', fieldType: 'date', required: true },
+      { fieldName: 'email', fieldType: 'email', required: true, placeholder: 'you@example.com' },
+      { fieldName: 'mobileNumber', fieldType: 'text', required: true, placeholder: '10-digit mobile number' },
+      { fieldName: 'address', fieldType: 'textarea', required: true, placeholder: 'Full postal address' },
+      { fieldName: 'aadhaarNumber', fieldType: 'text', required: true, placeholder: 'Aadhaar Number' },
+      
+      // Application Details
+      { fieldName: 'department', fieldType: 'select', required: true, options: ['CSE', 'ECE', 'MECH', 'Civil', 'EEE'] },
+      { fieldName: 'designation', fieldType: 'select', required: true, options: ['Assistant Professor', 'Associate Professor', 'Professor'] },
+      { fieldName: 'preferredLocation', fieldType: 'text', required: false, placeholder: 'Preferred location (optional)' },
+      
+      // Academic Qualifications
+      { fieldName: 'highestQualification', fieldType: 'select', required: true, options: ['Ph.D.', 'M.Tech', 'M.E.', 'M.Sc.', 'B.Tech', 'B.E.'] },
+      { fieldName: 'specialization', fieldType: 'text', required: true, placeholder: 'Subject / Field' },
+      { fieldName: 'universityCollege', fieldType: 'text', required: true, placeholder: 'University / College' },
+      { fieldName: 'yearOfPassing', fieldType: 'number', required: true, placeholder: 'Year of passing' },
+      { fieldName: 'percentageCgpa', fieldType: 'number', required: true, placeholder: 'Percentage or CGPA' },
+      
+      // Experience Details
+      { fieldName: 'totalExperienceYears', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
+      { fieldName: 'teachingExperience', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
+      { fieldName: 'previousInstitutionCompany', fieldType: 'text', required: true, placeholder: 'Previous Institution/Company' },
+      { fieldName: 'lastDesignation', fieldType: 'text', required: true, placeholder: 'Last Designation' },
+      { fieldName: 'fromDate', fieldType: 'date', required: false },
+      { fieldName: 'toDate', fieldType: 'date', required: false },
+      
+      // Documents Upload
+      { fieldName: 'resume', fieldType: 'file', required: true },
+      { fieldName: 'passportPhoto', fieldType: 'file', required: true },
+      { fieldName: 'certificates', fieldType: 'file_multiple', required: false },
+      
+      // Declaration
+      { fieldName: 'declarationAgreed', fieldType: 'checkbox', required: true, options: ['I hereby declare that all information provided is true.'] }
+    ];
+
+    const teachingForm = new RecruitmentForm({
+      title: 'Teaching Staff Registration Form',
+      description: 'Registration form for teaching positions',
+      formType: 'candidate_profile',
+      formCategory: 'teaching',
+      position: 'Teaching Staff',
+      department: 'Various',
+      formFields: teachingFormFields,
+      createdBy: superAdmin._id
+    });
+
+    await teachingForm.save();
+    try { await teachingForm.generateQRCode(); await teachingForm.save(); } catch {}
+    console.log('✅ Seeded Teaching Staff Registration form with unique link:', teachingForm.uniqueLink);
+  } else {
+    console.log('Teaching Staff Registration form already exists. Skipping.');
   }
 
-  const formFields = [
-    // Basic Information
-    { fieldName: 'fullName', fieldType: 'text', required: true, placeholder: 'Your full name' },
-    { fieldName: 'gender', fieldType: 'radio', required: true, options: ['Male', 'Female', 'Other'] },
-    { fieldName: 'dateOfBirth', fieldType: 'date', required: true },
-    { fieldName: 'email', fieldType: 'email', required: true, placeholder: 'you@example.com' },
-    { fieldName: 'mobileNumber', fieldType: 'text', required: true, placeholder: '10-digit mobile number' },
-    { fieldName: 'address', fieldType: 'textarea', required: true, placeholder: 'Full postal address' },
-    { fieldName: 'aadhaarNumber', fieldType: 'text', required: true, placeholder: 'Aadhaar Number' },
+  // Seed Non-Teaching Form
+  const existingNonTeaching = await RecruitmentForm.findOne({ title: 'Non-Teaching Staff Registration Form' });
+  if (!existingNonTeaching) {
+    const nonTeachingFormFields = [
+      // Basic Information
+      { fieldName: 'fullName', fieldType: 'text', required: true, placeholder: 'Your full name' },
+      { fieldName: 'gender', fieldType: 'radio', required: true, options: ['Male', 'Female', 'Other'] },
+      { fieldName: 'dateOfBirth', fieldType: 'date', required: true },
+      { fieldName: 'email', fieldType: 'email', required: true, placeholder: 'you@example.com' },
+      { fieldName: 'mobileNumber', fieldType: 'text', required: true, placeholder: '10-digit mobile number' },
+      { fieldName: 'address', fieldType: 'textarea', required: true, placeholder: 'Full postal address' },
+      { fieldName: 'aadhaarNumber', fieldType: 'text', required: true, placeholder: 'Aadhaar Number' },
+      
+      // Application Details
+      { fieldName: 'department', fieldType: 'select', required: true, options: ['Admin', 'Accounts', 'Library', 'HR', 'IT', 'Maintenance'] },
+      { fieldName: 'designation', fieldType: 'select', required: true, options: ['Clerk', 'Accountant', 'Librarian', 'Administrative Assistant', 'IT Support', 'Other'] },
+      { fieldName: 'preferredLocation', fieldType: 'text', required: false, placeholder: 'Preferred location (optional)' },
+      
+      // Academic Qualifications
+      { fieldName: 'highestQualification', fieldType: 'select', required: true, options: ['Ph.D.', 'Masters', 'Bachelors', 'Diploma', '12th', '10th'] },
+      { fieldName: 'specialization', fieldType: 'text', required: true, placeholder: 'Subject / Field' },
+      { fieldName: 'universityCollege', fieldType: 'text', required: true, placeholder: 'University / College' },
+      { fieldName: 'yearOfPassing', fieldType: 'number', required: true, placeholder: 'Year of passing' },
+      { fieldName: 'percentageCgpa', fieldType: 'number', required: true, placeholder: 'Percentage or CGPA' },
+      
+      // Experience Details
+      { fieldName: 'totalExperienceYears', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
+      { fieldName: 'previousInstitutionCompany', fieldType: 'text', required: true, placeholder: 'Previous Institution/Company' },
+      { fieldName: 'lastDesignation', fieldType: 'text', required: true, placeholder: 'Last Designation' },
+      { fieldName: 'fromDate', fieldType: 'date', required: false },
+      { fieldName: 'toDate', fieldType: 'date', required: false },
+      
+      // Documents Upload
+      { fieldName: 'resume', fieldType: 'file', required: true },
+      { fieldName: 'passportPhoto', fieldType: 'file', required: true },
+      { fieldName: 'certificates', fieldType: 'file_multiple', required: false },
+      
+      // Declaration
+      { fieldName: 'declarationAgreed', fieldType: 'checkbox', required: true, options: ['I hereby declare that all information provided is true.'] }
+    ];
 
-    // Application Details
-    { fieldName: 'applyingFor', fieldType: 'select', required: true, options: ['Teaching', 'Non-Teaching'] },
-    { fieldName: 'department', fieldType: 'select', required: true, options: ['CSE', 'ECE', 'MECH', 'Admin', 'Accounts', 'Library'] },
-    { fieldName: 'designation', fieldType: 'text', required: true, placeholder: 'e.g., Assistant Professor, Clerk' },
-    { fieldName: 'preferredLocation', fieldType: 'text', required: false, placeholder: 'Preferred location (optional)' },
+    const nonTeachingForm = new RecruitmentForm({
+      title: 'Non-Teaching Staff Registration Form',
+      description: 'Registration form for non-teaching positions',
+      formType: 'candidate_profile',
+      formCategory: 'non_teaching',
+      position: 'Non-Teaching Staff',
+      department: 'Various',
+      formFields: nonTeachingFormFields,
+      createdBy: superAdmin._id
+    });
 
-    // Academic Qualifications (Teaching)
-    { fieldName: 'highestQualification', fieldType: 'text', required: true, placeholder: 'e.g., Ph.D., M.Tech, MBA' },
-    { fieldName: 'specialization', fieldType: 'text', required: true, placeholder: 'Subject / Field' },
-    { fieldName: 'universityCollege', fieldType: 'text', required: true, placeholder: 'University / College' },
-    { fieldName: 'yearOfPassing', fieldType: 'number', required: true },
-    { fieldName: 'percentageCgpa', fieldType: 'number', required: true },
-
-    // Experience Details
-    { fieldName: 'totalExperienceYears', fieldType: 'number', required: true },
-    { fieldName: 'previousInstitutionCompany', fieldType: 'text', required: true },
-    { fieldName: 'lastDesignation', fieldType: 'text', required: true },
-    { fieldName: 'fromDate', fieldType: 'date', required: false },
-    { fieldName: 'toDate', fieldType: 'date', required: false },
-
-    // Documents Upload
-    { fieldName: 'resume', fieldType: 'file', required: true },
-    { fieldName: 'passportPhoto', fieldType: 'file', required: true },
-    { fieldName: 'certificates', fieldType: 'file_multiple', required: false },
-
-    // Declaration
-    { fieldName: 'declarationAgreed', fieldType: 'checkbox', required: true, options: ['I hereby declare that all information provided is true.'] }
-  ];
-
-  const form = new RecruitmentForm({
-    title: 'Candidate Registration (Teaching & Non-Teaching)',
-    description: 'Unified candidate registration for teaching and non-teaching applicants',
-    formType: 'candidate_profile',
-    position: 'Various',
-    department: 'Multiple',
-    formFields,
-    createdBy: superAdmin._id
-  });
-
-  await form.save();
-  try { await form.generateQRCode(); await form.save(); } catch {}
-  console.log('Seeded Candidate Registration form with unique link:', form.uniqueLink);
+    await nonTeachingForm.save();
+    try { await nonTeachingForm.generateQRCode(); await nonTeachingForm.save(); } catch {}
+    console.log('✅ Seeded Non-Teaching Staff Registration form with unique link:', nonTeachingForm.uniqueLink);
+  } else {
+    console.log('Non-Teaching Staff Registration form already exists. Skipping.');
+  }
 };
 
 // Run seeding

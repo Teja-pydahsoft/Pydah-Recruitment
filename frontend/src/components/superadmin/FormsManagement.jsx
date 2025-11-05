@@ -7,7 +7,8 @@ import LoadingSpinner from '../LoadingSpinner';
 const FormsManagement = () => {
   // const { user } = useAuth(); // Temporarily unused for ESLint compliance
   const [forms, setForms] = useState([]);
-  const [candidateForms, setCandidateForms] = useState([]);
+  const [teachingForms, setTeachingForms] = useState([]);
+  const [nonTeachingForms, setNonTeachingForms] = useState([]);
   const [feedbackForms, setFeedbackForms] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -16,15 +17,19 @@ const FormsManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('teaching');
+  const [editingForm, setEditingForm] = useState(null);
 
   // Form creation state
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     formType: 'candidate_profile',
+    formCategory: 'teaching', // 'teaching' or 'non_teaching'
     position: '',
     department: '',
+    closingDate: '',
+    vacancies: 1,
     requirements: {
       experience: { min: 0, max: 0, preferred: '' },
       skills: [],
@@ -40,14 +45,16 @@ const FormsManagement = () => {
   
     const fetchForms = async () => {
       try {
-        const [allFormsResponse, candidateFormsResponse, feedbackFormsResponse] = await Promise.all([
+        const [allFormsResponse, teachingFormsResponse, nonTeachingFormsResponse, feedbackFormsResponse] = await Promise.all([
           api.get('/forms'),
-          api.get('/forms/type/candidate_profile'),
+          api.get('/forms/category/teaching'),
+          api.get('/forms/category/non_teaching'),
           api.get('/forms/type/feedback_form')
         ]);
         
         setForms(allFormsResponse.data.forms);
-        setCandidateForms(candidateFormsResponse.data.forms);
+        setTeachingForms(teachingFormsResponse.data.forms);
+        setNonTeachingForms(nonTeachingFormsResponse.data.forms);
         setFeedbackForms(feedbackFormsResponse.data.forms);
       } catch (error) {
         setError('Failed to fetch forms');
@@ -61,25 +68,75 @@ const FormsManagement = () => {
       e.preventDefault();
       setSubmitting(true);
       setError('');
-  
+
       try {
         const formSubmissionData = {
           ...formData,
-          // Only include position and department for candidate profile forms
+          // Only include position, department, closingDate, vacancies, and formCategory for candidate profile forms
           position: formData.formType === 'candidate_profile' ? formData.position : undefined,
-          department: formData.formType === 'candidate_profile' ? formData.department : undefined
+          department: formData.formType === 'candidate_profile' ? formData.department : undefined,
+          closingDate: formData.formType === 'candidate_profile' && formData.closingDate ? formData.closingDate : undefined,
+          vacancies: formData.formType === 'candidate_profile' ? formData.vacancies : undefined,
+          formCategory: formData.formType === 'candidate_profile' ? formData.formCategory : undefined
         };
-  
-        await api.post('/forms', formSubmissionData);
-        setSuccess('Form created successfully!');
+
+        if (editingForm) {
+          // Update existing form
+          await api.put(`/forms/${editingForm._id}`, formSubmissionData);
+          setSuccess('Form updated successfully!');
+        } else {
+          // Create new form
+          await api.post('/forms', formSubmissionData);
+          setSuccess('Form created successfully!');
+        }
+
         setShowCreateModal(false);
+        setEditingForm(null);
         resetFormData();
         fetchForms();
       } catch (error) {
-        setError(error.response?.data?.message || 'Failed to create form');
-        console.error('Form creation error:', error);
+        const errorMessage = error.response?.data?.message || error.message || (editingForm ? 'Failed to update form' : 'Failed to create form');
+        setError(errorMessage);
+        console.error('Form creation/update error:', error);
+        console.error('Error details:', error.response?.data);
       } finally {
         setSubmitting(false);
+      }
+    };
+
+    const handleEditForm = async (form) => {
+      try {
+        // Fetch full form details
+        const response = await api.get(`/forms/${form._id}`);
+        const fullForm = response.data.form;
+
+        // Populate form data with existing form values
+        const closingDateValue = fullForm.closingDate 
+          ? new Date(fullForm.closingDate).toISOString().split('T')[0]
+          : '';
+        setFormData({
+          title: fullForm.title || '',
+          description: fullForm.description || '',
+          formType: fullForm.formType || 'candidate_profile',
+          formCategory: fullForm.formCategory || 'teaching',
+          position: fullForm.position || '',
+          department: fullForm.department || '',
+          closingDate: closingDateValue,
+          vacancies: fullForm.vacancies || 1,
+          requirements: fullForm.requirements || {
+            experience: { min: 0, max: 0, preferred: '' },
+            skills: [],
+            qualifications: [],
+            responsibilities: []
+          },
+          formFields: fullForm.formFields || []
+        });
+
+        setEditingForm(fullForm);
+        setShowCreateModal(true);
+      } catch (error) {
+        setError('Failed to load form for editing');
+        console.error('Error loading form:', error);
       }
     };
   
@@ -88,8 +145,11 @@ const FormsManagement = () => {
         title: '',
         description: '',
         formType: 'candidate_profile',
+        formCategory: 'teaching',
         position: '',
         department: '',
+        closingDate: '',
+        vacancies: 1,
         requirements: {
           experience: { min: 0, max: 0, preferred: '' },
           skills: [],
@@ -98,6 +158,101 @@ const FormsManagement = () => {
         },
         formFields: []
       });
+    };
+
+    // Load default template for Teaching form
+    const loadTeachingTemplate = () => {
+      setFormData(prev => ({
+        ...prev,
+        formCategory: 'teaching',
+        title: prev.title || 'Teaching Staff Registration Form',
+        description: prev.description || 'Registration form for teaching positions',
+        formFields: [
+          // Basic Information
+          { fieldName: 'fullName', fieldType: 'text', required: true, placeholder: 'Your full name' },
+          { fieldName: 'gender', fieldType: 'radio', required: true, options: ['Male', 'Female', 'Other'] },
+          { fieldName: 'dateOfBirth', fieldType: 'date', required: true },
+          { fieldName: 'email', fieldType: 'email', required: true, placeholder: 'you@example.com' },
+          { fieldName: 'mobileNumber', fieldType: 'text', required: true, placeholder: '10-digit mobile number' },
+          { fieldName: 'address', fieldType: 'textarea', required: true, placeholder: 'Full postal address' },
+          { fieldName: 'aadhaarNumber', fieldType: 'text', required: true, placeholder: 'Aadhaar Number' },
+          
+          // Application Details
+          { fieldName: 'department', fieldType: 'select', required: true, options: ['CSE', 'ECE', 'MECH', 'Civil', 'EEE'] },
+          { fieldName: 'designation', fieldType: 'select', required: true, options: ['Assistant Professor', 'Associate Professor', 'Professor'] },
+          { fieldName: 'preferredLocation', fieldType: 'text', required: false, placeholder: 'Preferred location (optional)' },
+          
+          // Academic Qualifications
+          { fieldName: 'highestQualification', fieldType: 'select', required: true, options: ['Ph.D.', 'M.Tech', 'M.E.', 'M.Sc.', 'B.Tech', 'B.E.'] },
+          { fieldName: 'specialization', fieldType: 'text', required: true, placeholder: 'Subject / Field' },
+          { fieldName: 'universityCollege', fieldType: 'text', required: true, placeholder: 'University / College' },
+          { fieldName: 'yearOfPassing', fieldType: 'number', required: true, placeholder: 'Year of passing' },
+          { fieldName: 'percentageCgpa', fieldType: 'number', required: true, placeholder: 'Percentage or CGPA' },
+          
+          // Experience Details
+          { fieldName: 'totalExperienceYears', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
+          { fieldName: 'teachingExperience', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
+          { fieldName: 'previousInstitutionCompany', fieldType: 'text', required: true, placeholder: 'Previous Institution/Company' },
+          { fieldName: 'lastDesignation', fieldType: 'text', required: true, placeholder: 'Last Designation' },
+          { fieldName: 'fromDate', fieldType: 'date', required: false },
+          { fieldName: 'toDate', fieldType: 'date', required: false },
+          
+          // Documents Upload
+          { fieldName: 'resume', fieldType: 'file', required: true },
+          { fieldName: 'passportPhoto', fieldType: 'file', required: true },
+          { fieldName: 'certificates', fieldType: 'file_multiple', required: false },
+          
+          // Declaration
+          { fieldName: 'declarationAgreed', fieldType: 'checkbox', required: true, options: ['I hereby declare that all information provided is true.'] }
+        ]
+      }));
+    };
+
+    // Load default template for Non-Teaching form
+    const loadNonTeachingTemplate = () => {
+      setFormData(prev => ({
+        ...prev,
+        formCategory: 'non_teaching',
+        title: prev.title || 'Non-Teaching Staff Registration Form',
+        description: prev.description || 'Registration form for non-teaching positions',
+        formFields: [
+          // Basic Information
+          { fieldName: 'fullName', fieldType: 'text', required: true, placeholder: 'Your full name' },
+          { fieldName: 'gender', fieldType: 'radio', required: true, options: ['Male', 'Female', 'Other'] },
+          { fieldName: 'dateOfBirth', fieldType: 'date', required: true },
+          { fieldName: 'email', fieldType: 'email', required: true, placeholder: 'you@example.com' },
+          { fieldName: 'mobileNumber', fieldType: 'text', required: true, placeholder: '10-digit mobile number' },
+          { fieldName: 'address', fieldType: 'textarea', required: true, placeholder: 'Full postal address' },
+          { fieldName: 'aadhaarNumber', fieldType: 'text', required: true, placeholder: 'Aadhaar Number' },
+          
+          // Application Details
+          { fieldName: 'department', fieldType: 'select', required: true, options: ['Admin', 'Accounts', 'Library', 'HR', 'IT', 'Maintenance'] },
+          { fieldName: 'designation', fieldType: 'select', required: true, options: ['Clerk', 'Accountant', 'Librarian', 'Administrative Assistant', 'IT Support', 'Other'] },
+          { fieldName: 'preferredLocation', fieldType: 'text', required: false, placeholder: 'Preferred location (optional)' },
+          
+          // Academic Qualifications
+          { fieldName: 'highestQualification', fieldType: 'select', required: true, options: ['Ph.D.', 'Masters', 'Bachelors', 'Diploma', '12th', '10th'] },
+          { fieldName: 'specialization', fieldType: 'text', required: true, placeholder: 'Subject / Field' },
+          { fieldName: 'universityCollege', fieldType: 'text', required: true, placeholder: 'University / College' },
+          { fieldName: 'yearOfPassing', fieldType: 'number', required: true, placeholder: 'Year of passing' },
+          { fieldName: 'percentageCgpa', fieldType: 'number', required: true, placeholder: 'Percentage or CGPA' },
+          
+          // Experience Details
+          { fieldName: 'totalExperienceYears', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
+          { fieldName: 'previousInstitutionCompany', fieldType: 'text', required: true, placeholder: 'Previous Institution/Company' },
+          { fieldName: 'lastDesignation', fieldType: 'text', required: true, placeholder: 'Last Designation' },
+          { fieldName: 'fromDate', fieldType: 'date', required: false },
+          { fieldName: 'toDate', fieldType: 'date', required: false },
+          
+          // Documents Upload
+          { fieldName: 'resume', fieldType: 'file', required: true },
+          { fieldName: 'passportPhoto', fieldType: 'file', required: true },
+          { fieldName: 'certificates', fieldType: 'file_multiple', required: false },
+          
+          // Declaration
+          { fieldName: 'declarationAgreed', fieldType: 'checkbox', required: true, options: ['I hereby declare that all information provided is true.'] }
+        ]
+      }));
     };
   
     const handleDeleteForm = async (formId) => {
@@ -157,8 +312,7 @@ const FormsManagement = () => {
           fieldType: 'text',
           required: false,
           options: [],
-          placeholder: '',
-          weight: 1
+          placeholder: ''
         }]
       }));
     };
@@ -194,13 +348,24 @@ const FormsManagement = () => {
   
     const getCurrentForms = () => {
       switch (activeTab) {
-        case 'candidate':
-          return candidateForms;
+        case 'teaching':
+          return teachingForms;
+        case 'non_teaching':
+          return nonTeachingForms;
         case 'feedback':
           return feedbackForms;
         default:
           return forms;
       }
+    };
+
+    const getFormCategoryBadge = (form) => {
+      if (form.formType === 'candidate_profile' && form.formCategory) {
+        const category = form.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching';
+        const variant = form.formCategory === 'teaching' ? 'primary' : 'secondary';
+        return <Badge bg={variant} className="me-1">{category}</Badge>;
+      }
+      return null;
     };
 
   if (loading) {
@@ -237,9 +402,10 @@ const FormsManagement = () => {
           <Card>
             <Card.Header>
               <Tabs activeKey={activeTab} onSelect={setActiveTab} className="mb-0">
-                <Tab eventKey="all" title="All Forms" />
-                <Tab eventKey="candidate" title="Candidate Profiles" />
+                <Tab eventKey="teaching" title="Teaching Forms" />
+                <Tab eventKey="non_teaching" title="Non-Teaching Forms" />
                 <Tab eventKey="feedback" title="Feedback Forms" />
+                <Tab eventKey="all" title="All Forms" />
               </Tabs>
             </Card.Header>
             <Card.Body>
@@ -279,12 +445,27 @@ const FormsManagement = () => {
                           <Badge bg="info">N/A</Badge>
                         )}
                       </td>
-                      <td>{getFormTypeBadge(form.formType)}</td>
+                      <td>
+                        <div className="d-flex align-items-center gap-2">
+                          {getFormCategoryBadge(form)}
+                          {getFormTypeBadge(form.formType)}
+                        </div>
+                      </td>
                       <td>{form.submissionCount}</td>
                       <td>{getStatusBadge(form.isActive)}</td>
                       <td>{new Date(form.createdAt).toLocaleDateString()}</td>
                       <td>
                         <div className="d-flex flex-wrap gap-1">
+                          {form.formType === 'candidate_profile' && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              className="me-1"
+                              onClick={() => handleEditForm(form)}
+                            >
+                              Edit
+                            </Button>
+                          )}
                           <Button
                             variant="info"
                             size="sm"
@@ -326,8 +507,10 @@ const FormsManagement = () => {
                 <div className="text-center py-4">
                   <p className="text-muted">
                     {activeTab === 'all' ? 'No forms found.' :
-                     activeTab === 'candidate' ? 'No candidate profile forms found.' :
-                     'No feedback forms found.'}
+                     activeTab === 'teaching' ? 'No teaching forms found.' :
+                     activeTab === 'non_teaching' ? 'No non-teaching forms found.' :
+                     activeTab === 'feedback' ? 'No feedback forms found.' :
+                     'No forms found.'}
                   </p>
                 </div>
               )}
@@ -339,107 +522,329 @@ const FormsManagement = () => {
       {/* Create Form Modal */}
       <Modal
         show={showCreateModal}
-        onHide={() => setShowCreateModal(false)}
-        size="lg"
+        onHide={() => {
+          setShowCreateModal(false);
+          setEditingForm(null);
+          resetFormData();
+        }}
+        size="xl"
         centered
+        className="form-modal"
       >
-        <Modal.Header closeButton>
-          <Modal.Title>Create New Recruitment Form</Modal.Title>
+        <Modal.Header 
+          closeButton 
+          style={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            border: 'none',
+            padding: '1.5rem'
+          }}
+        >
+          <Modal.Title style={{ fontSize: '1.5rem', fontWeight: 600 }}>
+            {editingForm ? '✏️ Edit Recruitment Form' : '➕ Create New Recruitment Form'}
+          </Modal.Title>
         </Modal.Header>
-        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-          <Form onSubmit={handleCreateForm}>
-                      <Row>
-                        <Col md={8}>
-                          <Form.Group className="mb-3">
-                            <Form.Label>Form Title *</Form.Label>
-                            <Form.Control
-                              type="text"
-                              value={formData.title}
-                              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                              required
-                            />
-                          </Form.Group>
-                        </Col>
-                        <Col md={4}>
-                          <Form.Group className="mb-3">
-                            <Form.Label>Form Type *</Form.Label>
-                            <Form.Select
-                              value={formData.formType}
-                              onChange={(e) => setFormData(prev => ({
-                                ...prev,
-                                formType: e.target.value,
-                                position: e.target.value === 'candidate_profile' ? prev.position : '',
-                                department: e.target.value === 'candidate_profile' ? prev.department : ''
-                              }))}
-                              required
-                            >
-                              <option value="candidate_profile">Candidate Profile Form</option>
-                              <option value="feedback_form">Feedback Form</option>
-                            </Form.Select>
-                          </Form.Group>
-                        </Col>
-                      </Row>
-          
-                      {formData.formType === 'candidate_profile' && (
+        <Modal.Body style={{ 
+          maxHeight: '80vh', 
+          overflowY: 'auto',
+          padding: '2rem',
+          background: '#f8f9fa'
+        }}>
+          <Form onSubmit={handleCreateForm} className="form-creation-form">
+                      <div style={{ 
+                        background: 'white', 
+                        padding: '1.5rem', 
+                        borderRadius: '10px', 
+                        marginBottom: '1.5rem',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }}>
+                        <h6 style={{ 
+                          color: '#667eea', 
+                          fontWeight: 600, 
+                          marginBottom: '1.25rem',
+                          paddingBottom: '0.75rem',
+                          borderBottom: '2px solid #e9ecef'
+                        }}>
+                          📋 Basic Information
+                        </h6>
                         <Row>
-                          <Col md={6}>
+                          <Col md={8}>
                             <Form.Group className="mb-3">
-                              <Form.Label>Position *</Form.Label>
+                              <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Form Title *</Form.Label>
                               <Form.Control
                                 type="text"
-                                value={formData.position}
-                                onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
-                                required={formData.formType === 'candidate_profile'}
+                                value={formData.title}
+                                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                                required
+                                style={{ 
+                                  border: '1px solid #ced4da',
+                                  borderRadius: '6px',
+                                  padding: '0.75rem'
+                                }}
                               />
                             </Form.Group>
                           </Col>
-                          <Col md={6}>
+                          <Col md={4}>
                             <Form.Group className="mb-3">
-                              <Form.Label>Department *</Form.Label>
-                              <Form.Control
-                                type="text"
-                                value={formData.department}
-                                onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                                required={formData.formType === 'candidate_profile'}
-                              />
+                              <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Form Type *</Form.Label>
+                              <Form.Select
+                                value={formData.formType}
+                                onChange={(e) => setFormData(prev => ({
+                                  ...prev,
+                                  formType: e.target.value,
+                                  position: e.target.value === 'candidate_profile' ? prev.position : '',
+                                  department: e.target.value === 'candidate_profile' ? prev.department : ''
+                                }))}
+                                required
+                                style={{ 
+                                  border: '1px solid #ced4da',
+                                  borderRadius: '6px',
+                                  padding: '0.75rem'
+                                }}
+                              >
+                                <option value="candidate_profile">Candidate Profile Form</option>
+                                <option value="feedback_form">Feedback Form</option>
+                              </Form.Select>
                             </Form.Group>
                           </Col>
                         </Row>
+                      </div>
+          
+                      {formData.formType === 'candidate_profile' && (
+                        <div style={{ 
+                          background: 'white', 
+                          padding: '1.5rem', 
+                          borderRadius: '10px', 
+                          marginBottom: '1.5rem',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}>
+                          <h6 style={{ 
+                            color: '#667eea', 
+                            fontWeight: 600, 
+                            marginBottom: '1.25rem',
+                            paddingBottom: '0.75rem',
+                            borderBottom: '2px solid #e9ecef'
+                          }}>
+                            🎯 Candidate Profile Details
+                          </h6>
+                          <Row>
+                            <Col md={editingForm ? 12 : 6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Form Category *</Form.Label>
+                                <Form.Select
+                                  value={formData.formCategory}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, formCategory: e.target.value }))}
+                                  required
+                                  disabled={!!editingForm}
+                                  style={{ 
+                                    border: '1px solid #ced4da',
+                                    borderRadius: '6px',
+                                    padding: '0.75rem',
+                                    backgroundColor: editingForm ? '#e9ecef' : 'white'
+                                  }}
+                                >
+                                  <option value="teaching">Teaching</option>
+                                  <option value="non_teaching">Non-Teaching</option>
+                                </Form.Select>
+                              </Form.Group>
+                            </Col>
+                            {!editingForm && (
+                              <Col md={6}>
+                                <Form.Group className="mb-3">
+                                  <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Quick Templates</Form.Label>
+                                  <div className="d-flex gap-2">
+                                    <Button
+                                      variant="outline-primary"
+                                      size="sm"
+                                      onClick={loadTeachingTemplate}
+                                      type="button"
+                                      style={{ 
+                                        borderRadius: '6px',
+                                        borderWidth: '1.5px',
+                                        fontWeight: 500
+                                      }}
+                                    >
+                                      📚 Teaching Template
+                                    </Button>
+                                    <Button
+                                      variant="outline-secondary"
+                                      size="sm"
+                                      onClick={loadNonTeachingTemplate}
+                                      type="button"
+                                      style={{ 
+                                        borderRadius: '6px',
+                                        borderWidth: '1.5px',
+                                        fontWeight: 500
+                                      }}
+                                    >
+                                      💼 Non-Teaching Template
+                                    </Button>
+                                  </div>
+                                </Form.Group>
+                              </Col>
+                            )}
+                          </Row>
+                          <Row>
+                            <Col md={6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
+                                  {formData.formCategory === 'teaching' ? 'Department' : 'Position'} *
+                                </Form.Label>
+                                <Form.Control
+                                  type="text"
+                                  value={formData.position}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
+                                  required={formData.formType === 'candidate_profile'}
+                                  style={{ 
+                                    border: '1px solid #ced4da',
+                                    borderRadius: '6px',
+                                    padding: '0.75rem'
+                                  }}
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
+                                  {formData.formCategory === 'teaching' ? 'Subject' : 'Department'} *
+                                </Form.Label>
+                                <Form.Control
+                                  type="text"
+                                  value={formData.department}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                                  required={formData.formType === 'candidate_profile'}
+                                  style={{ 
+                                    border: '1px solid #ced4da',
+                                    borderRadius: '6px',
+                                    padding: '0.75rem'
+                                  }}
+                                />
+                              </Form.Group>
+                            </Col>
+                          </Row>
+                          {formData.formType === 'candidate_profile' && (
+                            <Row className="mt-3">
+                              <Col md={6}>
+                                <Form.Group className="mb-3">
+                                  <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Closing Date *</Form.Label>
+                                  <Form.Control
+                                    type="date"
+                                    value={formData.closingDate}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, closingDate: e.target.value }))}
+                                    required={formData.formType === 'candidate_profile'}
+                                    min={new Date().toISOString().split('T')[0]}
+                                    style={{ 
+                                      border: '1px solid #ced4da',
+                                      borderRadius: '6px',
+                                      padding: '0.75rem'
+                                    }}
+                                  />
+                                  <Form.Text className="text-muted">
+                                    Form will automatically be disabled after this date
+                                  </Form.Text>
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group className="mb-3">
+                                  <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Number of Vacancies *</Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    min="1"
+                                    value={formData.vacancies}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, vacancies: parseInt(e.target.value) || 1 }))}
+                                    required={formData.formType === 'candidate_profile'}
+                                    style={{ 
+                                      border: '1px solid #ced4da',
+                                      borderRadius: '6px',
+                                      padding: '0.75rem'
+                                    }}
+                                  />
+                                  <Form.Text className="text-muted">
+                                    Total number of positions available for this role
+                                  </Form.Text>
+                                </Form.Group>
+                              </Col>
+                            </Row>
+                          )}
+                        </div>
                       )}
           
-                      <Row>
-                        <Col>
-                          <Form.Group className="mb-3">
-                            <Form.Label>Description</Form.Label>
-                            <Form.Control
-                              as="textarea"
-                              rows={2}
-                              value={formData.description}
-                              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                              placeholder={
-                                formData.formType === 'candidate_profile'
-                                  ? "Describe the job requirements and expectations..."
-                                  : "Describe the purpose and criteria for this feedback form..."
-                              }
-                            />
-                          </Form.Group>
-                        </Col>
-                      </Row>
+                      <div style={{ 
+                        background: 'white', 
+                        padding: '1.5rem', 
+                        borderRadius: '10px', 
+                        marginBottom: '1.5rem',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }}>
+                        <Form.Group className="mb-3">
+                          <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Description</Form.Label>
+                          <Form.Control
+                            as="textarea"
+                            rows={3}
+                            value={formData.description}
+                            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                            placeholder={
+                              formData.formType === 'candidate_profile'
+                                ? "Describe the job requirements and expectations..."
+                                : "Describe the purpose and criteria for this feedback form..."
+                            }
+                            style={{ 
+                              border: '1px solid #ced4da',
+                              borderRadius: '6px',
+                              padding: '0.75rem',
+                              resize: 'vertical'
+                            }}
+                          />
+                        </Form.Group>
+                      </div>
 
             {/* Form Fields Section */}
-            <div className="mb-4">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <h5>Form Fields</h5>
-                <Button variant="outline-primary" size="sm" onClick={addFormField}>
-                  Add Field
+            <div className="mb-4" style={{ 
+              background: 'white', 
+              padding: '1.5rem', 
+              borderRadius: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}>
+              <div className="d-flex justify-content-between align-items-center mb-3" style={{
+                paddingBottom: '1rem',
+                borderBottom: '2px solid #e9ecef'
+              }}>
+                <h5 style={{ 
+                  color: '#667eea', 
+                  fontWeight: 600, 
+                  margin: 0
+                }}>
+                  📝 Form Fields
+                </h5>
+                <Button 
+                  variant="primary" 
+                  size="sm" 
+                  onClick={addFormField}
+                  style={{
+                    borderRadius: '6px',
+                    fontWeight: 500,
+                    padding: '0.5rem 1rem',
+                    boxShadow: '0 2px 4px rgba(102, 126, 234, 0.3)'
+                  }}
+                >
+                  ➕ Add Field
                 </Button>
               </div>
 
               {formData.formFields.map((field, index) => (
-                <Card key={index} className="mb-3">
-                  <Card.Body>
-                    <Row>
-                      <Col md={4}>
+                <Card 
+                  key={index} 
+                  className="mb-3"
+                  style={{
+                    border: '1px solid #e9ecef',
+                    borderRadius: '8px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Card.Body style={{ padding: '1.25rem' }}>
+                    <Row className="align-items-end">
+                      <Col md={3}>
                         <Form.Group className="mb-2">
                           <Form.Label>Field Name *</Form.Label>
                           <Form.Control
@@ -454,72 +859,66 @@ const FormsManagement = () => {
                         <Form.Group className="mb-2">
                           <Form.Label>Field Type *</Form.Label>
                           <Form.Select
-                                                      value={field.fieldType}
-                                                      onChange={(e) => updateFormField(index, 'fieldType', e.target.value)}
-                                                      required
-                                                    >
-                                                      <option value="text">Text</option>
-                                                      <option value="email">Email</option>
-                                                      <option value="number">Number</option>
-                                                      <option value="date">Date</option>
-                                                      <option value="textarea">Textarea</option>
-                                                      <option value="select">Select</option>
-                                                      <option value="file">File</option>
-                                                      {formData.formType === 'feedback_form' && (
-                                                        <>
-                                                          <option value="rating">Rating (1-5)</option>
-                                                          <option value="yes_no">Yes/No</option>
-                                                        </>
-                                                      )}
-                                                    </Form.Select>
-                                                  </Form.Group>
-                                                </Col>
-                                                <Col md={2}>
-                                                  <Form.Group className="mb-2">
-                                                    <Form.Label>Required</Form.Label>
-                                                    <Form.Check
-                                                      type="checkbox"
-                                                      checked={field.required}
-                                                      onChange={(e) => updateFormField(index, 'required', e.target.checked)}
-                                                    />
-                                                  </Form.Group>
-                                                </Col>
-                                                <Col md={2}>
-                                                  <Form.Group className="mb-2">
-                                                    <Form.Label>Placeholder</Form.Label>
-                                                    <Form.Control
-                                                      type="text"
-                                                      value={field.placeholder}
-                                                      onChange={(e) => updateFormField(index, 'placeholder', e.target.value)}
-                                                    />
-                                                  </Form.Group>
-                                                </Col>
-                                                <Col md={2}>
-                                                  <Form.Group className="mb-2">
-                                                    <Form.Label>Weight</Form.Label>
-                                                    <Form.Select
-                                                      value={field.weight}
-                                                      onChange={(e) => updateFormField(index, 'weight', parseInt(e.target.value))}
-                                                    >
-                                                      <option value={1}>1 (Low)</option>
-                                                      <option value={2}>2 (Medium)</option>
-                                                      <option value={3}>3 (High)</option>
-                                                      <option value={4}>4 (Very High)</option>
-                                                      <option value={5}>5 (Critical)</option>
-                                                    </Form.Select>
-                                                  </Form.Group>
-                                                </Col>
-                                                <Col md={1}>
-                                                  <Button
-                                                    variant="outline-danger"
-                                                    size="sm"
-                                                    className="mt-4"
-                                                    onClick={() => removeFormField(index)}
-                                                  >
-                                                    ×
-                                                  </Button>
-                                                </Col>
-                                              </Row>
+                            value={field.fieldType}
+                            onChange={(e) => updateFormField(index, 'fieldType', e.target.value)}
+                            required
+                          >
+                            <option value="text">Text</option>
+                            <option value="email">Email</option>
+                            <option value="number">Number</option>
+                            <option value="date">Date</option>
+                            <option value="textarea">Textarea</option>
+                            <option value="select">Select</option>
+                            <option value="file">File</option>
+                            {formData.formType === 'feedback_form' && (
+                              <>
+                                <option value="rating">Rating (1-5)</option>
+                                <option value="yes_no">Yes/No</option>
+                              </>
+                            )}
+                          </Form.Select>
+                        </Form.Group>
+                      </Col>
+                      <Col md={2}>
+                        <Form.Group className="mb-2">
+                          <Form.Label>Required</Form.Label>
+                          <Form.Check
+                            type="checkbox"
+                            checked={field.required}
+                            onChange={(e) => updateFormField(index, 'required', e.target.checked)}
+                          />
+                        </Form.Group>
+                      </Col>
+                      <Col md={3}>
+                        <Form.Group className="mb-2">
+                          <Form.Label>Placeholder</Form.Label>
+                          <Form.Control
+                            type="text"
+                            value={field.placeholder}
+                            onChange={(e) => updateFormField(index, 'placeholder', e.target.value)}
+                          />
+                        </Form.Group>
+                      </Col>
+                      <Col md={1}>
+                        <Form.Group className="mb-2">
+                          <Form.Label style={{ visibility: 'hidden' }}>Remove</Form.Label>
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => removeFormField(index)}
+                            style={{
+                              borderRadius: '6px',
+                              borderWidth: '1.5px',
+                              fontWeight: 600,
+                              width: '100%',
+                              height: '38px'
+                            }}
+                          >
+                            🗑️
+                          </Button>
+                        </Form.Group>
+                      </Col>
+                    </Row>
                                               {field.fieldType === 'select' && (
                                                 <Row className="mt-2">
                                                   <Col>
@@ -540,18 +939,52 @@ const FormsManagement = () => {
                                         ))}
                                       </div>
 
-            <div className="d-flex justify-content-end">
-              <Button variant="secondary" onClick={() => setShowCreateModal(false)} className="me-2">
+            <div className="d-flex justify-content-end gap-2" style={{
+              paddingTop: '1.5rem',
+              borderTop: '2px solid #e9ecef',
+              marginTop: '1.5rem',
+              background: 'white',
+              padding: '1.5rem',
+              borderRadius: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}>
+              <Button 
+                variant="secondary" 
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setEditingForm(null);
+                  resetFormData();
+                }}
+                style={{
+                  borderRadius: '6px',
+                  padding: '0.75rem 1.5rem',
+                  fontWeight: 500,
+                  minWidth: '120px'
+                }}
+              >
                 Cancel
               </Button>
-              <Button variant="primary" type="submit" disabled={submitting}>
+              <Button 
+                variant="primary" 
+                type="submit" 
+                disabled={submitting}
+                style={{
+                  borderRadius: '6px',
+                  padding: '0.75rem 1.5rem',
+                  fontWeight: 500,
+                  minWidth: '150px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  boxShadow: '0 4px 6px rgba(102, 126, 234, 0.3)'
+                }}
+              >
                 {submitting ? (
                   <>
                     <Spinner as="span" animation="border" size="sm" className="me-2" />
-                    Creating...
+                    {editingForm ? 'Updating...' : 'Creating...'}
                   </>
                 ) : (
-                  'Create Form'
+                  editingForm ? '✏️ Update Form' : '➕ Create Form'
                 )}
               </Button>
             </div>

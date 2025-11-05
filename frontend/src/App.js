@@ -33,7 +33,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 };
 
 // App Layout Component
-const AppLayout = ({ children }) => {
+const AppLayout = ({ children, showSidebar = true }) => {
   const { isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -41,7 +41,7 @@ const AppLayout = ({ children }) => {
     setSidebarOpen(!sidebarOpen);
   };
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !showSidebar) {
     return (
       <div className="App">
         {children}
@@ -72,64 +72,72 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <AppLayout>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/form/:uniqueLink" element={<PublicForm />} />
-            <Route path="/test/:testLink" element={<TakeTest />} />
+        <Routes>
+          {/* Public Routes - No Sidebar */}
+          <Route path="/login" element={<AppLayout showSidebar={false}><Login /></AppLayout>} />
+          <Route path="/form/:uniqueLink" element={<AppLayout showSidebar={false}><PublicForm /></AppLayout>} />
+          <Route path="/test/:testLink" element={<AppLayout showSidebar={false}><TakeTest /></AppLayout>} />
 
-            {/* Protected Routes */}
-            <Route
-              path="/super-admin/*"
-              element={
+          {/* Protected Routes - With Sidebar */}
+          <Route
+            path="/super-admin/*"
+            element={
+              <AppLayout>
                 <ProtectedRoute allowedRoles={['super_admin']}>
                   <SuperAdminDashboard />
                 </ProtectedRoute>
-              }
-            />
+              </AppLayout>
+            }
+          />
 
-            <Route
-              path="/panel-member/*"
-              element={
+          <Route
+            path="/panel-member/*"
+            element={
+              <AppLayout>
                 <ProtectedRoute allowedRoles={['panel_member']}>
                   <PanelMemberDashboard />
                 </ProtectedRoute>
-              }
-            />
+              </AppLayout>
+            }
+          />
 
-            <Route
-              path="/candidate/*"
-              element={
+          <Route
+            path="/candidate/*"
+            element={
+              <AppLayout>
                 <ProtectedRoute allowedRoles={['candidate']}>
                   <CandidateDashboard />
                 </ProtectedRoute>
-              }
-            />
+              </AppLayout>
+            }
+          />
 
-            {/* Default redirect based on user role */}
-            <Route
-              path="/"
-              element={
+          {/* Default redirect based on user role */}
+          <Route
+            path="/"
+            element={
+              <AppLayout showSidebar={false}>
                 <RoleBasedRedirect />
-              }
-            />
+              </AppLayout>
+            }
+          />
 
-            {/* Unauthorized page */}
-            <Route
-              path="/unauthorized"
-              element={
+          {/* Unauthorized page */}
+          <Route
+            path="/unauthorized"
+            element={
+              <AppLayout showSidebar={false}>
                 <div className="text-center mt-5">
                   <h2>Access Denied</h2>
                   <p>You don't have permission to access this page.</p>
                 </div>
-              }
-            />
+              </AppLayout>
+            }
+          />
 
-            {/* Catch all route */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </AppLayout>
+          {/* Catch all route */}
+          <Route path="*" element={<AppLayout showSidebar={false}><Navigate to="/" replace /></AppLayout>} />
+        </Routes>
       </Router>
     </AuthProvider>
   );
