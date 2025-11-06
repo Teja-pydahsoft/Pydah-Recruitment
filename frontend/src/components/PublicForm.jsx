@@ -404,7 +404,7 @@ const FileIcon = styled.div`
 
   &.uploading {
     color: #10b981;
-    animation: ${spin} 1s linear infinite;
+    /* No rotation animation - icon stays static */
   }
 
   &.uploaded {
@@ -808,24 +808,50 @@ const PublicForm = () => {
           fd,
           (progress) => {
             setUploadProgress(progress);
-            // Update individual file progress (simulated)
+            // Update individual file progress
             setFileUploads(prevUploads => {
               const updatedUploads = { ...prevUploads };
               const fileIds = Object.keys(updatedUploads);
+              const progressPerFile = 100 / fileIds.length;
+              
               fileIds.forEach((fileId, index) => {
-                const fileProgress = Math.min(100, (progress / fileIds.length) + (index * (100 / fileIds.length)));
+                // Calculate progress for each file more accurately
+                const startProgress = index * progressPerFile;
+                const endProgress = (index + 1) * progressPerFile;
+                let fileProgress = 0;
+                
+                if (progress >= endProgress) {
+                  // File is fully uploaded
+                  fileProgress = 100;
+                } else if (progress > startProgress) {
+                  // File is partially uploaded
+                  fileProgress = ((progress - startProgress) / progressPerFile) * 100;
+                }
+                
                 updatedUploads[fileId] = {
                   ...updatedUploads[fileId],
                   status: fileProgress >= 100 ? 'uploaded' : 'uploading',
-                  progress: Math.min(100, fileProgress)
+                  progress: Math.min(100, Math.max(0, fileProgress))
                 };
               });
+              
+              // If overall progress is 100%, ensure all files are marked as uploaded
+              if (progress >= 100) {
+                Object.keys(updatedUploads).forEach((fileId) => {
+                  updatedUploads[fileId] = {
+                    ...updatedUploads[fileId],
+                    status: 'uploaded',
+                    progress: 100
+                  };
+                });
+              }
+              
               return updatedUploads;
             });
           }
         );
 
-        // Mark all files as uploaded
+        // Ensure all files are marked as uploaded after successful upload
         setFileUploads(prevUploads => {
           const completedUploads = { ...prevUploads };
           Object.keys(completedUploads).forEach((fileId) => {
@@ -837,6 +863,7 @@ const PublicForm = () => {
           });
           return completedUploads;
         });
+        setUploadProgress(100);
 
         if (resp?.data?.warnings?.length) {
           console.warn('Upload warnings:', resp.data.warnings);
@@ -854,6 +881,21 @@ const PublicForm = () => {
         }
       }
 
+      // Ensure all file uploads are marked as complete before showing completion state
+      setFileUploads(prevUploads => {
+        const completedUploads = { ...prevUploads };
+        Object.keys(completedUploads).forEach((fileId) => {
+          if (completedUploads[fileId].status !== 'uploaded') {
+            completedUploads[fileId] = {
+              ...completedUploads[fileId],
+              status: 'uploaded',
+              progress: 100
+            };
+          }
+        });
+        return completedUploads;
+      });
+      
       setSubmissionState('complete');
       setUploadProgress(100);
       await new Promise(resolve => setTimeout(resolve, 1000)); // Show completion state briefly
@@ -1401,7 +1443,7 @@ const PublicForm = () => {
                   {Object.entries(fileUploads).map(([fileId, fileInfo]) => (
                     <FilePreviewCard key={fileId} className={fileInfo.status}>
                       <FileIcon className={fileInfo.status}>
-                        {fileInfo.status === 'uploading' && <FaSpinner />}
+                        {fileInfo.status === 'uploading' && <FaCloudUploadAlt />}
                         {fileInfo.status === 'uploaded' && <FaCheckCircle />}
                         {fileInfo.status === 'error' && <FaTimes />}
                         {(fileInfo.status === 'pending' || !['uploading', 'uploaded', 'error'].includes(fileInfo.status)) && <FaFileAlt />}
@@ -1420,13 +1462,13 @@ const PublicForm = () => {
                         <StatusBadge className={fileInfo.status}>
                           {fileInfo.status === 'pending' && (
                             <>
-                              <FaSpinner />
+                              <FaClock />
                               Waiting...
                             </>
                           )}
                           {fileInfo.status === 'uploading' && (
                             <>
-                              <FaSpinner />
+                              <FaCloudUploadAlt />
                               Uploading {fileInfo.progress}%
                             </>
                           )}

@@ -241,21 +241,39 @@ router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
       isActive: req.body.isActive
     });
 
-    const { title, description, formType, formCategory, position, department, closingDate, vacancies, requirements, formFields, isActive } = req.body;
+    // First, get the existing form to preserve formType
+    const existingForm = await RecruitmentForm.findById(req.params.id);
+    if (!existingForm) {
+      console.error('❌ [FORM UPDATE] Form not found:', req.params.id);
+      return res.status(404).json({ message: 'Form not found' });
+    }
 
+    // Prevent formType from being changed (data integrity)
+    const originalFormType = existingForm.formType;
+    const { title, description, formCategory, position, department, closingDate, vacancies, requirements, formFields, isActive } = req.body;
+
+    // Use original formType, ignore any formType in request body
     const updateData = {
       title,
       description,
-      formType,
-      formCategory: formType === 'candidate_profile' ? formCategory : undefined,
-      position: formType === 'candidate_profile' ? position : undefined,
-      department: formType === 'candidate_profile' ? department : undefined,
-      closingDate: formType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,
-      vacancies: formType === 'candidate_profile' && vacancies ? parseInt(vacancies) : undefined,
+      formType: originalFormType, // Preserve original form type
+      formCategory: originalFormType === 'candidate_profile' ? formCategory : undefined,
+      position: originalFormType === 'candidate_profile' ? position : undefined,
+      department: originalFormType === 'candidate_profile' ? department : undefined,
+      closingDate: originalFormType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,
+      vacancies: originalFormType === 'candidate_profile' && vacancies ? parseInt(vacancies) : undefined,
       requirements,
       formFields,
       isActive
     };
+
+    // If formType was attempted to be changed, log a warning
+    if (req.body.formType && req.body.formType !== originalFormType) {
+      console.warn('⚠️ [FORM UPDATE] Form type change attempted but prevented:', {
+        original: originalFormType,
+        attempted: req.body.formType
+      });
+    }
 
     const form = await RecruitmentForm.findByIdAndUpdate(
       req.params.id,
@@ -264,11 +282,12 @@ router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
     ).populate('createdBy', 'name email');
 
     if (!form) {
-      console.error('❌ [FORM UPDATE] Form not found:', req.params.id);
-      return res.status(404).json({ message: 'Form not found' });
+      console.error('❌ [FORM UPDATE] Form update failed:', req.params.id);
+      return res.status(500).json({ message: 'Failed to update form' });
     }
 
     console.log('✅ [FORM UPDATE] Form updated successfully:', form._id);
+    console.log('✅ [FORM UPDATE] Form type preserved:', form.formType);
 
     // Regenerate QR code if form URL might have changed
     try {

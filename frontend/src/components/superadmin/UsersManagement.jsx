@@ -357,7 +357,7 @@ const UsersManagement = () => {
             <Th>Name</Th>
             <Th>Email</Th>
             <Th>Designation</Th>
-            <Th>Department</Th>
+            <Th>Phone</Th>
             <Th>Status</Th>
             <Th>Actions</Th>
           </tr>
@@ -368,7 +368,7 @@ const UsersManagement = () => {
               <Td>{member.name}</Td>
               <Td>{member.email}</Td>
               <Td>{member.profile?.designation || 'N/A'}</Td>
-              <Td>{member.profile?.department || 'N/A'}</Td>
+              <Td>{member.profile?.phone || 'N/A'}</Td>
               <Td>
                 <span style={{
                   color: member.isActive ? '#10b981' : '#ef4444',
@@ -434,7 +434,7 @@ const UsersManagement = () => {
                 />
               </FormGroup>
 
-              {!editingMember && (
+              {!editingMember ? (
                 <FormGroup>
                   <Label htmlFor="password">Password</Label>
                   <Input
@@ -444,6 +444,18 @@ const UsersManagement = () => {
                     value={formData.password}
                     onChange={handleInputChange}
                     required
+                  />
+                </FormGroup>
+              ) : (
+                <FormGroup>
+                  <Label htmlFor="password">New Password (leave blank to keep current)</Label>
+                  <Input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Enter new password to update"
                   />
                 </FormGroup>
               )}

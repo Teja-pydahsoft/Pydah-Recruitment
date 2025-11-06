@@ -22,19 +22,66 @@ router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
       type
     } = req.body;
 
+    // Ensure default feedback form if not provided
+    let finalFeedbackForm = feedbackForm;
+    if (!finalFeedbackForm || !finalFeedbackForm.questions || finalFeedbackForm.questions.length === 0) {
+      finalFeedbackForm = {
+        questions: [
+          {
+            question: 'How would you rate the candidate\'s technical skills?',
+            type: 'rating',
+            required: true
+          },
+          {
+            question: 'How would you rate the candidate\'s communication skills?',
+            type: 'rating',
+            required: true
+          },
+          {
+            question: 'How would you rate the candidate\'s problem-solving abilities?',
+            type: 'rating',
+            required: true
+          },
+          {
+            question: 'Overall rating for this candidate?',
+            type: 'rating',
+            required: true
+          },
+          {
+            question: 'Additional comments or observations?',
+            type: 'text',
+            required: false
+          },
+          {
+            question: 'Would you recommend this candidate?',
+            type: 'yes_no',
+            required: true,
+            options: ['Yes', 'No']
+          }
+        ]
+      };
+    }
+
     const interview = new Interview({
       title,
       description,
       form,
       panelMembers,
       evaluationCriteria,
-      feedbackForm,
+      feedbackForm: finalFeedbackForm,
       round,
       type,
       createdBy: req.user._id
     });
 
     await interview.save();
+
+    // Populate the interview before returning
+    await interview.populate('form', 'title position department formCategory');
+    await interview.populate('createdBy', 'name email');
+
+    console.log('✅ [INTERVIEW CREATION] Interview created successfully:', interview._id);
+    console.log('✅ [INTERVIEW CREATION] Interview title:', interview.title);
 
     res.status(201).json({
       message: 'Interview created successfully',
@@ -49,6 +96,8 @@ router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
 // Get all interviews (Super Admin and Panel Members)
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    console.log('📋 [INTERVIEWS FETCH] Request from:', req.user.email, 'Role:', req.user.role);
+    
     let query = {};
 
     // Panel members can only see interviews they're assigned to
@@ -56,16 +105,28 @@ router.get('/', authenticateToken, async (req, res) => {
       query['panelMembers.panelMember'] = req.user._id;
     }
 
+    console.log('📋 [INTERVIEWS FETCH] Query:', JSON.stringify(query));
+
     const interviews = await Interview.find(query)
-      .populate('form', 'title position department')
+      .populate('form', 'title position department formCategory')
       .populate('createdBy', 'name email')
       .populate('panelMembers.panelMember', 'name email')
+      .populate({
+        path: 'candidates.candidate',
+        populate: [
+          { path: 'user', select: 'name email' },
+          { path: 'form', select: 'title position department formCategory' }
+        ]
+      })
       .sort({ createdAt: -1 });
+
+    console.log('✅ [INTERVIEWS FETCH] Found', interviews.length, 'interviews');
+    console.log('✅ [INTERVIEWS FETCH] Interview IDs:', interviews.map(i => i._id));
 
     res.json({ interviews });
   } catch (error) {
-    console.error('Interviews fetch error:', error);
-    res.status(500).json({ message: 'Server error fetching interviews' });
+    console.error('❌ [INTERVIEWS FETCH] Error:', error);
+    res.status(500).json({ message: 'Server error fetching interviews', error: error.message });
   }
 });
 
@@ -138,8 +199,22 @@ router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, asyn
     const interviews = await Interview.find({
       'panelMembers.panelMember': req.user._id
     })
-      .populate('form', 'title position department')
-      .populate('candidates.candidate', 'name email')
+      .populate('form', 'title position department formCategory')
+      .populate({
+        path: 'candidates.candidate',
+        populate: [
+          { path: 'user', select: 'name email' },
+          { path: 'form', select: 'title position department formCategory' },
+          { 
+            path: 'interviewFeedback.panelMember', 
+            select: 'name email'
+          },
+          {
+            path: 'interviewFeedback.interview',
+            select: 'title'
+          }
+        ]
+      })
       .populate('panelMembers.panelMember', 'name email')
       .sort({ createdAt: -1 });
 
@@ -157,14 +232,34 @@ router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, asyn
           
           // Include interviews that are scheduled or upcoming
           if (scheduledDate >= now || candidateEntry.status !== 'completed') {
+            // Check if this panel member has submitted feedback for this interview
+            const candidate = candidateEntry.candidate;
+            let submittedFeedback = null;
+            
+            if (candidate && candidate.interviewFeedback) {
+              submittedFeedback = candidate.interviewFeedback.find(
+                feedback => 
+                  feedback.interview && 
+                  feedback.interview.toString() === interview._id.toString() &&
+                  feedback.panelMember &&
+                  feedback.panelMember.toString() === req.user._id.toString()
+              );
+            }
+            
             upcomingInterviews.push({
               _id: interview._id,
               title: interview.title,
               candidate: candidateEntry.candidate,
               form: interview.form,
+              feedbackForm: interview.feedbackForm,
               scheduledAt: scheduledDate,
+              scheduledDate: candidateEntry.scheduledDate,
+              scheduledTime: candidateEntry.scheduledTime,
               status: candidateEntry.status || 'scheduled',
-              meetingLink: candidateEntry.meetingLink
+              meetingLink: candidateEntry.meetingLink,
+              duration: candidateEntry.duration,
+              notes: candidateEntry.notes,
+              submittedFeedback: submittedFeedback || null
             });
           }
         }
@@ -187,12 +282,15 @@ router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, asyn
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
   const interview = await Interview.findById(req.params.id)
-      .populate('form', 'title position department')
+      .populate('form', 'title position department formCategory')
       .populate('createdBy', 'name email')
       .populate('panelMembers.panelMember', 'name email')
       .populate({
         path: 'candidates.candidate',
-        populate: { path: 'user', select: 'name email' }
+        populate: [
+          { path: 'user', select: 'name email' },
+          { path: 'form', select: 'title position department formCategory' }
+        ]
       });
 
     if (!interview) {
@@ -226,27 +324,41 @@ router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
       panelMembers,
       evaluationCriteria,
       feedbackForm,
-      isActive
+      isActive,
+      candidates
     } = req.body;
 
-    const interview = await Interview.findByIdAndUpdate(
-      req.params.id,
-      {
-        title,
-        description,
-        panelMembers,
-        evaluationCriteria,
-        feedbackForm,
-        isActive
-      },
-      { new: true, runValidators: true }
-    ).populate('form', 'title position department')
-     .populate('createdBy', 'name email')
-     .populate('panelMembers.panelMember', 'name email');
+    const interview = await Interview.findById(req.params.id);
 
     if (!interview) {
       return res.status(404).json({ message: 'Interview not found' });
     }
+
+    // Update fields if provided
+    if (title !== undefined) interview.title = title;
+    if (description !== undefined) interview.description = description;
+    if (panelMembers !== undefined) interview.panelMembers = panelMembers;
+    if (evaluationCriteria !== undefined) interview.evaluationCriteria = evaluationCriteria;
+    if (feedbackForm !== undefined) interview.feedbackForm = feedbackForm;
+    if (isActive !== undefined) interview.isActive = isActive;
+    if (candidates !== undefined) {
+      // Update candidates array
+      interview.candidates = candidates.map(c => ({
+        candidate: c.candidate,
+        status: c.status || 'scheduled',
+        scheduledDate: c.scheduledDate ? new Date(c.scheduledDate) : undefined,
+        scheduledTime: c.scheduledTime,
+        duration: c.duration,
+        meetingLink: c.meetingLink,
+        notes: c.notes
+      }));
+    }
+
+    await interview.save();
+
+    await interview.populate('form', 'title position department formCategory');
+    await interview.populate('createdBy', 'name email');
+    await interview.populate('panelMembers.panelMember', 'name email');
 
     res.json({
       message: 'Interview updated successfully',
@@ -359,10 +471,241 @@ router.post('/:id/schedule', authenticateToken, requireSuperAdmin, async (req, r
   }
 });
 
+// Update individual candidate schedule (Super Admin only)
+router.put('/:id/candidate/:candidateId/schedule', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { scheduledDate, scheduledTime, duration, meetingLink, notes, status, sendNotification } = req.body;
+    const interview = await Interview.findById(req.params.id)
+      .populate('form', 'title position department')
+      .populate({
+        path: 'candidates.candidate',
+        populate: [
+          { path: 'user', select: 'name email' },
+          { path: 'form', select: 'title position department' }
+        ]
+      });
+
+    if (!interview) {
+      return res.status(404).json({ message: 'Interview not found' });
+    }
+
+    const candidateIndex = interview.candidates.findIndex(
+      c => c.candidate.toString() === req.params.candidateId
+    );
+
+    if (candidateIndex < 0) {
+      return res.status(404).json({ message: 'Candidate not found in this interview' });
+    }
+
+    // Store old schedule for comparison
+    const oldSchedule = {
+      scheduledDate: interview.candidates[candidateIndex].scheduledDate,
+      scheduledTime: interview.candidates[candidateIndex].scheduledTime,
+      meetingLink: interview.candidates[candidateIndex].meetingLink
+    };
+
+    // Check if schedule is being changed (for reschedule notification)
+    const isReschedule = (scheduledDate !== undefined && oldSchedule.scheduledDate && 
+                          new Date(scheduledDate).getTime() !== new Date(oldSchedule.scheduledDate).getTime()) ||
+                         (scheduledTime !== undefined && oldSchedule.scheduledTime !== scheduledTime);
+
+    // Update candidate schedule fields
+    if (scheduledDate !== undefined) {
+      interview.candidates[candidateIndex].scheduledDate = scheduledDate ? new Date(scheduledDate) : null;
+    }
+    if (scheduledTime !== undefined) {
+      interview.candidates[candidateIndex].scheduledTime = scheduledTime;
+    }
+    if (duration !== undefined) {
+      interview.candidates[candidateIndex].duration = duration;
+    }
+    if (meetingLink !== undefined) {
+      interview.candidates[candidateIndex].meetingLink = meetingLink;
+    }
+    if (notes !== undefined) {
+      interview.candidates[candidateIndex].notes = notes;
+    }
+    if (status !== undefined) {
+      interview.candidates[candidateIndex].status = status;
+    }
+
+    await interview.save();
+
+    // Send reschedule notification if schedule changed and notification is requested
+    if (isReschedule && sendNotification !== false) {
+      const candidateEntry = interview.candidates[candidateIndex];
+      const candidate = candidateEntry.candidate;
+      const user = candidate.user;
+
+      if (user && user.email) {
+        const newDate = candidateEntry.scheduledDate 
+          ? new Date(candidateEntry.scheduledDate).toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })
+          : 'To be determined';
+        const newTime = candidateEntry.scheduledTime || 'To be determined';
+        const oldDate = oldSchedule.scheduledDate 
+          ? new Date(oldSchedule.scheduledDate).toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })
+          : 'Not scheduled';
+        const oldTime = oldSchedule.scheduledTime || 'Not scheduled';
+
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #f59e0b; border-bottom: 2px solid #f59e0b; padding-bottom: 10px;">
+              Interview Schedule Updated
+            </h2>
+            <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+              Dear ${user.name},
+            </p>
+            <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+              This is to inform you that your interview schedule has been updated.
+            </p>
+            <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+              <h3 style="color: #92400e; margin-top: 0;">Previous Schedule</h3>
+              <p style="margin: 5px 0;"><strong>Date:</strong> ${oldDate}</p>
+              <p style="margin: 5px 0;"><strong>Time:</strong> ${oldTime}</p>
+            </div>
+            <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+              <h3 style="color: #1e40af; margin-top: 0;">New Schedule</h3>
+              <p style="margin: 5px 0;"><strong>Date:</strong> ${newDate}</p>
+              <p style="margin: 5px 0;"><strong>Time:</strong> ${newTime}</p>
+              ${candidateEntry.duration ? `<p style="margin: 5px 0;"><strong>Duration:</strong> ${candidateEntry.duration} minutes</p>` : ''}
+              ${candidateEntry.meetingLink ? `<p style="margin: 5px 0;"><strong>Meeting Link:</strong> <a href="${candidateEntry.meetingLink}">${candidateEntry.meetingLink}</a></p>` : ''}
+            </div>
+            <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+              <h3 style="color: #1e40af; margin-top: 0;">Interview Details</h3>
+              <p style="margin: 5px 0;"><strong>Interview:</strong> ${interview.title}</p>
+              <p style="margin: 5px 0;"><strong>Position:</strong> ${interview.form.title || interview.form.position || 'N/A'}</p>
+              <p style="margin: 5px 0;"><strong>Department:</strong> ${interview.form.department || 'N/A'}</p>
+              <p style="margin: 5px 0;"><strong>Round:</strong> ${interview.round}</p>
+              <p style="margin: 5px 0;"><strong>Type:</strong> ${interview.type}</p>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">
+              Please update your calendar accordingly. If you have any concerns or need to reschedule, please contact us as soon as possible.
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            <p style="color: #6b7280; font-size: 12px;">
+              This is an automated message from the Staff Recruitment System.
+            </p>
+          </div>
+        `;
+
+        const emailText = `
+Interview Schedule Updated
+
+Dear ${user.name},
+
+This is to inform you that your interview schedule has been updated.
+
+Previous Schedule:
+- Date: ${oldDate}
+- Time: ${oldTime}
+
+New Schedule:
+- Date: ${newDate}
+- Time: ${newTime}
+${candidateEntry.duration ? `- Duration: ${candidateEntry.duration} minutes` : ''}
+${candidateEntry.meetingLink ? `- Meeting Link: ${candidateEntry.meetingLink}` : ''}
+
+Interview Details:
+- Interview: ${interview.title}
+- Position: ${interview.form.title || interview.form.position || 'N/A'}
+- Department: ${interview.form.department || 'N/A'}
+- Round: ${interview.round}
+- Type: ${interview.type}
+
+Please update your calendar accordingly. If you have any concerns or need to reschedule, please contact us as soon as possible.
+
+This is an automated message from the Staff Recruitment System.
+        `;
+
+        try {
+          await sendEmail(user.email, `Interview Schedule Updated: ${interview.title}`, emailHtml, emailText);
+          console.log('✅ [RESCHEDULE NOTIFICATION] Email sent to candidate:', user.email);
+        } catch (emailError) {
+          console.error('❌ [RESCHEDULE NOTIFICATION] Email send error:', emailError);
+          // Don't fail the request if email fails
+        }
+      }
+    }
+
+    res.json({
+      message: 'Candidate schedule updated successfully',
+      interview,
+      notificationSent: isReschedule && sendNotification !== false
+    });
+  } catch (error) {
+    console.error('Candidate schedule update error:', error);
+    res.status(500).json({ message: 'Server error updating candidate schedule' });
+  }
+});
+
+// Get feedback form by token (for panel members)
+router.get('/feedback/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    // Find interview with this feedback token
+    const interview = await Interview.findOne({
+      'panelMembers.feedbackToken': token
+    })
+      .populate('form', 'title position department')
+      .populate('candidates.candidate', 'user candidateNumber')
+      .populate('candidates.candidate.user', 'name email');
+
+    if (!interview) {
+      return res.status(404).json({ message: 'Invalid feedback token' });
+    }
+
+    // Find the panel member with this token
+    const panelMember = interview.panelMembers.find(pm => pm.feedbackToken === token);
+    if (!panelMember) {
+      return res.status(404).json({ message: 'Panel member not found' });
+    }
+
+    // Get candidates for this interview
+    const candidates = interview.candidates.map(candidateEntry => ({
+      _id: candidateEntry.candidate._id,
+      name: candidateEntry.candidate.user?.name || 'Unknown',
+      email: candidateEntry.candidate.user?.email || '',
+      candidateNumber: candidateEntry.candidate.candidateNumber || '',
+      scheduledDate: candidateEntry.scheduledDate,
+      scheduledTime: candidateEntry.scheduledTime,
+      status: candidateEntry.status
+    }));
+
+    res.json({
+      interview: {
+        _id: interview._id,
+        title: interview.title,
+        description: interview.description,
+        form: interview.form,
+        feedbackForm: interview.feedbackForm || { questions: [] }
+      },
+      panelMember: {
+        _id: panelMember.panelMember,
+        role: panelMember.role
+      },
+      candidates
+    });
+  } catch (error) {
+    console.error('Feedback form fetch error:', error);
+    res.status(500).json({ message: 'Server error fetching feedback form' });
+  }
+});
+
 // Submit interview feedback (Panel Members only)
 router.post('/:id/feedback', authenticateToken, requirePanelMember, async (req, res) => {
   try {
-    const { candidateId, ratings, comments, recommendation } = req.body;
+    const { candidateId, ratings, comments, recommendation, questionAnswers } = req.body;
     const interview = await Interview.findById(req.params.id);
 
     if (!interview) {
@@ -384,6 +727,21 @@ router.post('/:id/feedback', authenticateToken, requirePanelMember, async (req, 
       return res.status(404).json({ message: 'Candidate not found' });
     }
 
+    // Validate feedback form questions if provided
+    if (questionAnswers && interview.feedbackForm && interview.feedbackForm.questions) {
+      const requiredQuestions = interview.feedbackForm.questions.filter(q => q.required);
+      for (const requiredQ of requiredQuestions) {
+        const answer = questionAnswers.find(qa => 
+          qa.question === requiredQ.question || qa.questionId === requiredQ._id?.toString()
+        );
+        if (!answer || answer.answer === null || answer.answer === undefined || answer.answer === '') {
+          return res.status(400).json({ 
+            message: `Required question "${requiredQ.question}" is missing or empty` 
+          });
+        }
+      }
+    }
+
     // Check if feedback already exists
     const existingFeedbackIndex = candidate.interviewFeedback.findIndex(
       f => f.interview.toString() === req.params.id && f.panelMember.toString() === req.user._id.toString()
@@ -392,9 +750,10 @@ router.post('/:id/feedback', authenticateToken, requirePanelMember, async (req, 
     const feedbackData = {
       interview: req.params.id,
       panelMember: req.user._id,
-      ratings,
-      comments,
-      recommendation,
+      ratings: ratings || {},
+      comments: comments || '',
+      recommendation: recommendation || 'neutral',
+      questionAnswers: questionAnswers || [],
       submittedAt: new Date()
     };
 
@@ -417,6 +776,101 @@ router.post('/:id/feedback', authenticateToken, requirePanelMember, async (req, 
         return candidate.interviewFeedback.some(
           f => f.interview.toString() === req.params.id &&
                f.panelMember.toString() === panelMember.panelMember.toString()
+        );
+      });
+
+      if (allFeedbackSubmitted) {
+        interview.candidates[interviewCandidateIndex].status = 'completed';
+        await interview.save();
+      }
+    }
+
+    res.json({
+      message: 'Interview feedback submitted successfully'
+    });
+  } catch (error) {
+    console.error('Feedback submission error:', error);
+    res.status(500).json({ message: 'Server error submitting feedback' });
+  }
+});
+
+// Submit feedback by token (for panel members without authentication)
+router.post('/feedback/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { candidateId, ratings, comments, recommendation, questionAnswers } = req.body;
+    
+    // Find interview with this feedback token
+    const interview = await Interview.findOne({
+      'panelMembers.feedbackToken': token
+    });
+
+    if (!interview) {
+      return res.status(404).json({ message: 'Invalid feedback token' });
+    }
+
+    // Find the panel member with this token
+    const panelMember = interview.panelMembers.find(pm => pm.feedbackToken === token);
+    if (!panelMember) {
+      return res.status(404).json({ message: 'Panel member not found' });
+    }
+
+    // Find candidate
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    // Validate feedback form questions if provided
+    if (questionAnswers && interview.feedbackForm && interview.feedbackForm.questions) {
+      const requiredQuestions = interview.feedbackForm.questions.filter(q => q.required);
+      for (const requiredQ of requiredQuestions) {
+        const answer = questionAnswers.find(qa => 
+          qa.question === requiredQ.question || qa.questionId === requiredQ._id?.toString()
+        );
+        if (!answer || answer.answer === null || answer.answer === undefined || answer.answer === '') {
+          return res.status(400).json({ 
+            message: `Required question "${requiredQ.question}" is missing or empty` 
+          });
+        }
+      }
+    }
+
+    // Check if feedback already exists
+    const existingFeedbackIndex = candidate.interviewFeedback.findIndex(
+      f => f.interview.toString() === interview._id.toString() && 
+           f.panelMember.toString() === panelMember.panelMember.toString()
+    );
+
+    const feedbackData = {
+      interview: interview._id,
+      panelMember: panelMember.panelMember,
+      ratings: ratings || {},
+      comments: comments || '',
+      recommendation: recommendation || 'neutral',
+      questionAnswers: questionAnswers || [],
+      submittedAt: new Date()
+    };
+
+    if (existingFeedbackIndex >= 0) {
+      candidate.interviewFeedback[existingFeedbackIndex] = feedbackData;
+    } else {
+      candidate.interviewFeedback.push(feedbackData);
+    }
+
+    await candidate.save();
+
+    // Update interview candidate status if all panel members have submitted feedback
+    const interviewCandidateIndex = interview.candidates.findIndex(
+      c => c.candidate.toString() === candidateId
+    );
+
+    if (interviewCandidateIndex >= 0) {
+      // Check if all panel members have submitted feedback for this candidate
+      const allFeedbackSubmitted = interview.panelMembers.every(pm => {
+        return candidate.interviewFeedback.some(
+          f => f.interview.toString() === interview._id.toString() &&
+               f.panelMember.toString() === pm.panelMember.toString()
         );
       });
 
@@ -530,6 +984,36 @@ router.put('/:id/candidate/:candidateId/status', authenticateToken, requireSuper
   }
 });
 
+// Remove candidate from interview (Super Admin only)
+router.delete('/:id/candidate/:candidateId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const interview = await Interview.findById(req.params.id);
+
+    if (!interview) {
+      return res.status(404).json({ message: 'Interview not found' });
+    }
+
+    const candidateIndex = interview.candidates.findIndex(
+      c => c.candidate.toString() === req.params.candidateId
+    );
+
+    if (candidateIndex < 0) {
+      return res.status(404).json({ message: 'Candidate not found in this interview' });
+    }
+
+    // Remove candidate from array
+    interview.candidates.splice(candidateIndex, 1);
+    await interview.save();
+
+    res.json({
+      message: 'Candidate removed from interview successfully'
+    });
+  } catch (error) {
+    console.error('Remove candidate error:', error);
+    res.status(500).json({ message: 'Server error removing candidate from interview' });
+  }
+});
+
 // Assign panel members to interview with email notification (Super Admin only)
 router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
@@ -564,12 +1048,75 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdmin, a
 
     await interview.save();
 
+    // Populate candidates with their details for email
+    await interview.populate({
+      path: 'candidates.candidate',
+      populate: [
+        { path: 'user', select: 'name email' },
+        { path: 'form', select: 'title position department' }
+      ]
+    });
+
     // Send email notifications to panel members
     const emailPromises = interview.panelMembers.map(async (pm) => {
       const panelMember = await User.findById(pm.panelMember);
       if (!panelMember || !panelMember.email) return;
 
       const feedbackUrl = `${process.env.FRONTEND_URL}/feedback/${pm.feedbackToken}`;
+
+      // Build candidate schedule list
+      let candidateSchedulesHtml = '';
+      let candidateSchedulesText = '';
+      
+      if (interview.candidates && interview.candidates.length > 0) {
+        candidateSchedulesHtml = '<div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;"><h3 style="color: #1e40af; margin-top: 0;">Candidate Interview Schedules</h3>';
+        candidateSchedulesText = '\n\nCandidate Interview Schedules:\n';
+        
+        for (const candidateEntry of interview.candidates) {
+          const candidate = candidateEntry.candidate;
+          const candidateName = candidate?.user?.name || 'Unknown Candidate';
+          const candidateNumber = candidate?.candidateNumber || '';
+          const jobRole = candidate?.form?.position || interview.form?.position || 'N/A';
+          
+          if (candidateEntry.scheduledDate) {
+            const scheduledDate = new Date(candidateEntry.scheduledDate);
+            const dateStr = scheduledDate.toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            });
+            const timeStr = candidateEntry.scheduledTime || 'Time TBD';
+            const duration = candidateEntry.duration ? `${candidateEntry.duration} minutes` : '';
+            const meetingLink = candidateEntry.meetingLink ? `<br><strong>Meeting Link:</strong> <a href="${candidateEntry.meetingLink}">${candidateEntry.meetingLink}</a>` : '';
+            
+            candidateSchedulesHtml += `
+              <div style="background: white; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #dbeafe;">
+                <p style="margin: 5px 0;"><strong>Candidate:</strong> ${candidateName}${candidateNumber ? ` (${candidateNumber})` : ''}</p>
+                <p style="margin: 5px 0;"><strong>Job Role:</strong> ${jobRole}</p>
+                <p style="margin: 5px 0;"><strong>Date:</strong> ${dateStr}</p>
+                <p style="margin: 5px 0;"><strong>Time:</strong> ${timeStr}</p>
+                ${duration ? `<p style="margin: 5px 0;"><strong>Duration:</strong> ${duration}</p>` : ''}
+                ${meetingLink}
+              </div>
+            `;
+            
+            candidateSchedulesText += `\n- ${candidateName}${candidateNumber ? ` (${candidateNumber})` : ''} - ${jobRole}\n  Date: ${dateStr}\n  Time: ${timeStr}${duration ? `\n  Duration: ${duration}` : ''}${candidateEntry.meetingLink ? `\n  Meeting Link: ${candidateEntry.meetingLink}` : ''}\n`;
+          } else {
+            candidateSchedulesHtml += `
+              <div style="background: white; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #dbeafe;">
+                <p style="margin: 5px 0;"><strong>Candidate:</strong> ${candidateName}${candidateNumber ? ` (${candidateNumber})` : ''}</p>
+                <p style="margin: 5px 0;"><strong>Job Role:</strong> ${jobRole}</p>
+                <p style="margin: 5px 0; color: #f59e0b;"><strong>Schedule:</strong> To be determined</p>
+              </div>
+            `;
+            
+            candidateSchedulesText += `\n- ${candidateName}${candidateNumber ? ` (${candidateNumber})` : ''} - ${jobRole}\n  Schedule: To be determined\n`;
+          }
+        }
+        
+        candidateSchedulesHtml += '</div>';
+      }
 
       const emailHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -584,6 +1131,7 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdmin, a
             <p style="margin: 5px 0;"><strong>Type:</strong> ${interview.type}</p>
             ${interview.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${interview.description}</p>` : ''}
           </div>
+          ${candidateSchedulesHtml}
           <p>Please review the candidates and provide your feedback by clicking the button below:</p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${feedbackUrl}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Provide Feedback</a>
@@ -612,10 +1160,11 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdmin, a
         Round: ${interview.round}
         Type: ${interview.type}
         ${interview.description ? `Description: ${interview.description}` : ''}
+        ${candidateSchedulesText}
 
         Please provide your feedback using this link: ${feedbackUrl}
 
-        This is an automated message from the Faculty Recruitment System.
+        This is an automated message from the Staff Recruitment System.
       `;
 
       try {

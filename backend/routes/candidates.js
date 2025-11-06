@@ -137,6 +137,26 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Generate unique candidate number
+const generateCandidateNumber = async () => {
+  const year = new Date().getFullYear();
+  const prefix = `CAND-${year}-`;
+  
+  // Find the highest candidate number for this year
+  const lastCandidate = await Candidate.findOne({
+    candidateNumber: { $regex: `^${prefix}` }
+  }).sort({ candidateNumber: -1 });
+  
+  let sequence = 1;
+  if (lastCandidate && lastCandidate.candidateNumber) {
+    const lastSequence = parseInt(lastCandidate.candidateNumber.split('-')[2] || '0');
+    sequence = lastSequence + 1;
+  }
+  
+  // Format: CAND-YYYY-XXXXX (5 digits)
+  return `${prefix}${sequence.toString().padStart(5, '0')}`;
+};
+
 // Update candidate status (Super Admin only)
 router.put('/:id/status', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
@@ -146,6 +166,17 @@ router.put('/:id/status', authenticateToken, requireSuperAdmin, async (req, res)
 
     if (!candidate) {
       return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    // Generate unique candidate number when status changes to approved (if not already assigned)
+    if (status === 'approved' && !candidate.candidateNumber) {
+      try {
+        candidate.candidateNumber = await generateCandidateNumber();
+        console.log(`✅ Generated candidate number: ${candidate.candidateNumber} for candidate ${candidate._id}`);
+      } catch (error) {
+        console.error('Error generating candidate number:', error);
+        // Continue without candidate number if generation fails
+      }
     }
 
     // Update candidate status
@@ -311,15 +342,57 @@ router.put('/bulk/status', authenticateToken, requireSuperAdmin, async (req, res
   try {
     const { candidateIds, status } = req.body;
 
-    const result = await Candidate.updateMany(
-      { _id: { $in: candidateIds } },
-      { status }
-    );
+    // If approving candidates, generate unique numbers for those without one
+    if (status === 'approved') {
+      const candidates = await Candidate.find({ 
+        _id: { $in: candidateIds },
+        candidateNumber: { $exists: false }
+      });
 
-    res.json({
-      message: `Updated ${result.modifiedCount} candidates`,
-      modifiedCount: result.modifiedCount
-    });
+      for (const candidate of candidates) {
+        try {
+          candidate.candidateNumber = await generateCandidateNumber();
+          candidate.status = status;
+          await candidate.save();
+          console.log(`✅ Generated candidate number: ${candidate.candidateNumber} for candidate ${candidate._id}`);
+        } catch (error) {
+          console.error(`Error generating candidate number for ${candidate._id}:`, error);
+          // Update status even if number generation fails
+          candidate.status = status;
+          await candidate.save();
+        }
+      }
+
+      // Update remaining candidates (those that already have numbers)
+      const remainingIds = candidateIds.filter(id => 
+        !candidates.some(c => c._id.toString() === id.toString())
+      );
+
+      if (remainingIds.length > 0) {
+        await Candidate.updateMany(
+          { _id: { $in: remainingIds } },
+          { status }
+        );
+      }
+
+      const totalUpdated = candidates.length + remainingIds.length;
+
+      res.json({
+        message: `Updated ${totalUpdated} candidates`,
+        modifiedCount: totalUpdated
+      });
+    } else {
+      // For other statuses, just update normally
+      const result = await Candidate.updateMany(
+        { _id: { $in: candidateIds } },
+        { status }
+      );
+
+      res.json({
+        message: `Updated ${result.modifiedCount} candidates`,
+        modifiedCount: result.modifiedCount
+      });
+    }
   } catch (error) {
     console.error('Bulk status update error:', error);
     res.status(500).json({ message: 'Server error updating candidates' });

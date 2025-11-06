@@ -393,23 +393,105 @@ const DashboardOverview = () => {
     fetchDashboardData();
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    const isTomorrow = date.toDateString() === new Date(now.getTime() + 24 * 60 * 60 * 1000).toDateString();
+  // Utility function to format date/time in IST (12-hour format)
+  const formatISTDateTime = (dateString, timeString = '') => {
+    if (!dateString) return 'Not scheduled';
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Format date in IST (DD/MM/YYYY format)
+      const dateOptions = { 
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit'
+      };
+      
+      const formattedDate = date.toLocaleDateString('en-IN', dateOptions);
+      const dateParts = formattedDate.split('/');
+      const day = dateParts[0].padStart(2, '0');
+      const month = dateParts[1].padStart(2, '0');
+      const year = dateParts[2];
+      const formattedDateStr = `${day}/${month}/${year}`;
+      
+      if (timeString) {
+        const [hours, minutes] = timeString.split(':');
+        if (hours && minutes) {
+          const hour24 = parseInt(hours, 10);
+          const min = minutes.padStart(2, '0');
+          const hour12 = hour24 % 12 || 12;
+          const ampm = hour24 >= 12 ? 'PM' : 'AM';
+          const time12hr = `${hour12.toString().padStart(2, '0')}:${min} ${ampm} IST`;
+          return `${formattedDateStr} ${time12hr}`;
+        }
+      }
+      
+      return formattedDateStr;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return dateString;
+    }
+  };
 
-    if (isToday) {
-      return `Today, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-    } else if (isTomorrow) {
-      return `Tomorrow, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-    } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
+  const formatDate = (dateString, timeString = '') => {
+    if (!dateString) return 'Not scheduled';
+    
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      
+      // Convert to IST for comparison
+      const istDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      
+      const isToday = istDate.toDateString() === istNow.toDateString();
+      const isTomorrow = istDate.toDateString() === new Date(istNow.getTime() + 24 * 60 * 60 * 1000).toDateString();
+
+      // Format time in 12-hour IST format
+      let timeDisplay = '';
+      if (timeString) {
+        const [hours, minutes] = timeString.split(':');
+        if (hours && minutes) {
+          const hour24 = parseInt(hours, 10);
+          const min = minutes.padStart(2, '0');
+          const hour12 = hour24 % 12 || 12;
+          const ampm = hour24 >= 12 ? 'PM' : 'AM';
+          timeDisplay = ` ${hour12.toString().padStart(2, '0')}:${min} ${ampm} IST`;
+        }
+      } else {
+        // Use time from date object in IST
+        const timeOptions = {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        };
+        timeDisplay = ` ${date.toLocaleTimeString('en-IN', timeOptions)} IST`;
+      }
+
+      if (isToday) {
+        return `Today,${timeDisplay}`;
+      } else if (isTomorrow) {
+        return `Tomorrow,${timeDisplay}`;
+      } else {
+        // Format date in IST (DD/MM/YYYY format)
+        const dateOptions = { 
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit'
+        };
+        const formattedDate = date.toLocaleDateString('en-IN', dateOptions);
+        const dateParts = formattedDate.split('/');
+        const day = dateParts[0].padStart(2, '0');
+        const month = dateParts[1].padStart(2, '0');
+        const year = dateParts[2];
+        return `${day}/${month}/${year}${timeDisplay}`;
+      }
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return dateString;
     }
   };
 
@@ -557,7 +639,13 @@ const DashboardOverview = () => {
                   </InterviewDetails>
                 </InterviewInfo>
                 <InterviewTime completed={interview.status === 'completed'}>
-                  {interview.status === 'completed' ? 'Completed' : formatDate(interview.scheduledAt)}
+                  {interview.status === 'completed' 
+                    ? 'Completed' 
+                    : interview.scheduledDate && interview.scheduledTime
+                      ? formatISTDateTime(interview.scheduledDate, interview.scheduledTime)
+                      : interview.scheduledAt
+                        ? formatDate(interview.scheduledAt)
+                        : 'Not scheduled'}
                 </InterviewTime>
                 <StatusIndicator className={getStatusClass(interview)}>
                   {interview.status === 'completed' ? (

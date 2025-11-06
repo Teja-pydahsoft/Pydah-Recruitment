@@ -9,6 +9,7 @@ const Candidate = require('../models/Candidate');
 const User = require('../models/User');
 const QuestionBank = require('../models/QuestionBank');
 const PreviousPaper = require('../models/PreviousPaper');
+const Interview = require('../models/Interview');
 const { authenticateToken, requireSuperAdmin } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
 
@@ -524,6 +525,84 @@ router.get('/take/:testLink', authenticateToken, async (req, res) => {
   }
 });
 
+// Helper function to normalize answer to index format for consistent comparison
+const normalizeAnswerToIndex = (answer, options) => {
+  if (!options || !Array.isArray(options) || options.length === 0) {
+    return null;
+  }
+
+  // If answer is already an index (number)
+  if (typeof answer === 'number') {
+    return answer >= 0 && answer < options.length ? answer : null;
+  }
+
+  // If answer is an array (multiple choice)
+  if (Array.isArray(answer)) {
+    return answer.map(a => normalizeAnswerToIndex(a, options)).filter(a => a !== null);
+  }
+
+  // If answer is a string, try to find it in options
+  if (typeof answer === 'string') {
+    const index = options.findIndex(opt => opt.trim().toLowerCase() === answer.trim().toLowerCase());
+    return index >= 0 ? index : null;
+  }
+
+  return null;
+};
+
+// Helper function to validate MCQ answer
+const validateMCQAnswer = (candidateAnswer, correctAnswer, options) => {
+  if (!options || !Array.isArray(options) || options.length === 0) {
+    return false;
+  }
+
+  // Normalize candidate answer to index format
+  const normalizedCandidateAnswer = normalizeAnswerToIndex(candidateAnswer, options);
+
+  // Normalize correct answer to index format
+  let normalizedCorrectAnswer;
+  
+  if (typeof correctAnswer === 'number') {
+    // correctAnswer is already an index
+    normalizedCorrectAnswer = correctAnswer >= 0 && correctAnswer < options.length ? correctAnswer : null;
+  } else if (Array.isArray(correctAnswer)) {
+    // Multiple correct answers
+    normalizedCorrectAnswer = correctAnswer.map(ca => {
+      if (typeof ca === 'number') {
+        return ca >= 0 && ca < options.length ? ca : null;
+      } else if (typeof ca === 'string') {
+        const index = options.findIndex(opt => opt.trim().toLowerCase() === ca.trim().toLowerCase());
+        return index >= 0 ? index : null;
+      }
+      return null;
+    }).filter(ca => ca !== null);
+  } else if (typeof correctAnswer === 'string') {
+    // correctAnswer is a value, find its index
+    const index = options.findIndex(opt => opt.trim().toLowerCase() === correctAnswer.trim().toLowerCase());
+    normalizedCorrectAnswer = index >= 0 ? index : null;
+  } else {
+    return false;
+  }
+
+  if (normalizedCandidateAnswer === null || normalizedCorrectAnswer === null) {
+    return false;
+  }
+
+  // Compare normalized answers
+  if (Array.isArray(normalizedCandidateAnswer) && Array.isArray(normalizedCorrectAnswer)) {
+    // Both are arrays - check if they contain the same elements (order doesn't matter)
+    const sortedCandidate = [...normalizedCandidateAnswer].sort((a, b) => a - b);
+    const sortedCorrect = [...normalizedCorrectAnswer].sort((a, b) => a - b);
+    return sortedCandidate.length === sortedCorrect.length &&
+           sortedCandidate.every((val, idx) => val === sortedCorrect[idx]);
+  } else if (!Array.isArray(normalizedCandidateAnswer) && !Array.isArray(normalizedCorrectAnswer)) {
+    // Both are single values
+    return normalizedCandidateAnswer === normalizedCorrectAnswer;
+  }
+
+  return false;
+};
+
 // Submit test answers
 router.post('/:id/submit', authenticateToken, async (req, res) => {
   try {
@@ -561,11 +640,8 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
       let marks = 0;
 
       if (question.questionType === 'mcq' || question.questionType === 'multiple_answer') {
-        if (Array.isArray(answer.answer)) {
-          isCorrect = JSON.stringify(answer.answer.sort()) === JSON.stringify(question.correctAnswer.sort());
-        } else {
-          isCorrect = answer.answer === question.correctAnswer;
-        }
+        // Use the robust validation function
+        isCorrect = validateMCQAnswer(answer.answer, question.correctAnswer, question.options);
       } else if (question.questionType === 'short_answer' || question.questionType === 'long_answer') {
         // For subjective questions, mark as pending for manual evaluation
         isCorrect = null; // null means pending evaluation
@@ -614,7 +690,8 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
         submittedAt: new Date(),
         startedAt: startedAt ? new Date(startedAt) : new Date(),
         answers: processedAnswers,
-        screenshots: screenshots || [] // Array of screenshots with timestamps
+        candidatePhotos: req.body.candidatePhotos || [], // Array of candidate photos with timestamps
+        screenshots: screenshots || [] // Legacy field - kept for backward compatibility
       };
 
       if (existingResultIndex >= 0) {
@@ -723,16 +800,74 @@ router.get('/:testId/results/:candidateId', authenticateToken, requireSuperAdmin
         d && (d.name?.toLowerCase().includes('photo') || d.name?.toLowerCase().includes('passport'))
       )?.url;
 
+    // Helper function to format answer for display
+    const formatAnswerForDisplay = (answer, options) => {
+      if (!options || !Array.isArray(options)) {
+        return answer;
+      }
+
+      // If answer is an index (number)
+      if (typeof answer === 'number') {
+        if (answer >= 0 && answer < options.length) {
+          return {
+            index: answer,
+            value: options[answer],
+            display: `Option ${String.fromCharCode(65 + answer)}: ${options[answer]}`
+          };
+        }
+        return { index: answer, value: null, display: `Invalid index: ${answer}` };
+      }
+
+      // If answer is an array (multiple choice)
+      if (Array.isArray(answer)) {
+        const formatted = answer.map(a => {
+          if (typeof a === 'number' && a >= 0 && a < options.length) {
+            return {
+              index: a,
+              value: options[a],
+              display: `Option ${String.fromCharCode(65 + a)}: ${options[a]}`
+            };
+          }
+          return { index: a, value: a, display: String(a) };
+        });
+        return {
+          indices: formatted.map(f => f.index),
+          values: formatted.map(f => f.value),
+          display: formatted.map(f => f.display).join(', ')
+        };
+      }
+
+      // If answer is a string, try to find it in options
+      if (typeof answer === 'string') {
+        const index = options.findIndex(opt => opt.trim().toLowerCase() === answer.trim().toLowerCase());
+        if (index >= 0) {
+          return {
+            index: index,
+            value: options[index],
+            display: `Option ${String.fromCharCode(65 + index)}: ${options[index]}`
+          };
+        }
+        return { index: null, value: answer, display: answer };
+      }
+
+      return { index: null, value: answer, display: String(answer) };
+    };
+
     // Map answers with question details
     const detailedAnswers = testResult.answers.map(answer => {
       const question = test.questions.find(q => q._id.toString() === answer.questionId);
+      const formattedCandidateAnswer = formatAnswerForDisplay(answer.answer, question?.options);
+      const formattedCorrectAnswer = formatAnswerForDisplay(question?.correctAnswer, question?.options);
+      
       return {
         questionId: answer.questionId,
         questionText: question?.questionText || 'Question not found',
         questionType: question?.questionType || 'mcq',
         options: question?.options || [],
         correctAnswer: question?.correctAnswer,
+        correctAnswerFormatted: formattedCorrectAnswer,
         candidateAnswer: answer.answer,
+        candidateAnswerFormatted: formattedCandidateAnswer,
         isCorrect: answer.isCorrect,
         marks: answer.marks || 0,
         questionMarks: question?.marks || 0,
@@ -784,7 +919,8 @@ router.get('/:testId/results/:candidateId', authenticateToken, requireSuperAdmin
         testDuration: testDuration, // Total time taken in seconds
         totalTimeTaken: totalTimeTaken, // Sum of individual question times
         answers: detailedAnswers,
-        screenshots: testResult.screenshots || []
+        candidatePhotos: testResult.candidatePhotos || [],
+        screenshots: testResult.screenshots || [] // Legacy field
       }
     });
   } catch (error) {
@@ -1156,10 +1292,63 @@ router.post('/:id/release-results', authenticateToken, requireSuperAdmin, async 
     const user = candidate.user;
     const phone = user.profile?.phone || '';
 
+    // Initialize interview variables (used in both promote and reject paths)
+    let interview = null;
+    let interviewCreated = false;
+
     if (promote) {
       // Promote to interview
       candidate.status = 'shortlisted';
       await candidate.save();
+
+      // If interview date is provided, automatically create or find interview and add candidate
+      if (interviewDate) {
+        // Find or create an interview for this form and round
+        // First, try to find an existing interview for the same form
+        interview = await Interview.findOne({
+          form: candidate.form._id,
+          round: 1, // Default to round 1, can be made configurable
+          type: 'technical' // Default type
+        });
+
+        // If no interview exists, create a new one
+        if (!interview) {
+          interview = new Interview({
+            title: `Interview - ${candidate.form.title || candidate.form.position || 'Technical Interview'}`,
+            description: `Interview for candidates who passed the test: ${test.title}`,
+            form: candidate.form._id,
+            round: 1,
+            type: 'technical',
+            createdBy: req.user._id
+          });
+          await interview.save();
+          interviewCreated = true;
+          console.log('✅ [INTERVIEW AUTO-CREATE] Created new interview:', interview._id);
+        }
+
+        // Check if candidate is already in this interview
+        const existingCandidateIndex = interview.candidates.findIndex(
+          c => c.candidate.toString() === candidateId
+        );
+
+        if (existingCandidateIndex >= 0) {
+          // Update existing candidate entry with schedule
+          interview.candidates[existingCandidateIndex].scheduledDate = new Date(interviewDate);
+          interview.candidates[existingCandidateIndex].scheduledTime = interviewTime || '';
+          interview.candidates[existingCandidateIndex].status = 'scheduled';
+        } else {
+          // Add candidate to interview with schedule
+          interview.candidates.push({
+            candidate: candidateId,
+            scheduledDate: new Date(interviewDate),
+            scheduledTime: interviewTime || '',
+            status: 'scheduled'
+          });
+        }
+
+        await interview.save();
+        console.log('✅ [INTERVIEW AUTO-ASSIGN] Candidate added to interview:', interview._id);
+      }
 
       // Send promotion email with interview schedule
       const emailHtml = `
@@ -1182,12 +1371,15 @@ router.post('/:id/release-results', authenticateToken, requireSuperAdmin, async 
           ${interviewDate ? `
           <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
             <h3 style="color: #1e40af; margin-top: 0;">Interview Schedule</h3>
-            <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date(interviewDate).toLocaleDateString()}</p>
+            <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date(interviewDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             ${interviewTime ? `<p style="margin: 5px 0;"><strong>Time:</strong> ${interviewTime}</p>` : ''}
+            <p style="margin: 5px 0; color: #6b7280; font-size: 14px;">
+              You have been automatically scheduled for this interview. You will receive further details and meeting link shortly.
+            </p>
           </div>
           ` : ''}
           <p style="color: #6b7280; font-size: 14px;">
-            You will receive further details about the interview shortly.
+            ${interviewDate ? 'Please keep this date and time available for your interview.' : 'You will receive further details about the interview shortly.'}
           </p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
           <p style="color: #6b7280; font-size: 12px;">
@@ -1208,9 +1400,9 @@ Test Results:
 - Percentage: ${candidateTest.percentage?.toFixed(1) || 0}%
 - Status: Passed
 
-${interviewDate ? `Interview Schedule:\n- Date: ${new Date(interviewDate).toLocaleDateString()}\n${interviewTime ? `- Time: ${interviewTime}\n` : ''}` : ''}
+${interviewDate ? `Interview Schedule:\n- Date: ${new Date(interviewDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n${interviewTime ? `- Time: ${interviewTime}\n` : ''}\nYou have been automatically scheduled for this interview. You will receive further details and meeting link shortly.\n` : ''}
 
-You will receive further details about the interview shortly.
+${interviewDate ? 'Please keep this date and time available for your interview.' : 'You will receive further details about the interview shortly.'}
 
 This is an automated message from the Faculty Recruitment System.
       `;
@@ -1284,7 +1476,12 @@ This is an automated message from the Faculty Recruitment System.
       candidate: {
         _id: candidate._id,
         status: candidate.status
-      }
+      },
+      interview: interview ? {
+        _id: interview._id,
+        title: interview.title,
+        created: interviewCreated
+      } : null
     });
   } catch (error) {
     console.error('Release results error:', error);

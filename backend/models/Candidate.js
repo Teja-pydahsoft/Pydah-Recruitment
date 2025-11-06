@@ -16,6 +16,11 @@ const candidateSchema = new mongoose.Schema({
     of: mongoose.Schema.Types.Mixed,
     required: true
   },
+  candidateNumber: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected', 'shortlisted', 'selected', 'on_hold'],
@@ -45,10 +50,15 @@ const candidateSchema = new mongoose.Schema({
       screenshot: String // URL to screenshot captured during test
     }],
     startedAt: Date, // When test was started
+    candidatePhotos: [{
+      timestamp: Date,
+      url: String,
+      description: String // e.g., "Test started - Before test", "Middle of test", "Test ended - After test"
+    }],
     screenshots: [{
       timestamp: Date,
       url: String,
-      description: String // e.g., "Question 1", "Test start", "Test submission"
+      description: String // Legacy field - kept for backward compatibility
     }]
   }],
   interviewFeedback: [{
@@ -87,6 +97,16 @@ const candidateSchema = new mongoose.Schema({
       type: String,
       enum: ['strong_reject', 'reject', 'neutral', 'accept', 'strong_accept']
     },
+    // Store answers to custom feedback form questions
+    questionAnswers: [{
+      question: String, // The question text
+      questionId: String, // Optional: unique identifier for the question
+      answer: mongoose.Schema.Types.Mixed, // Can be string, number, boolean, etc.
+      type: {
+        type: String,
+        enum: ['rating', 'text', 'yes_no']
+      }
+    }],
     submittedAt: {
       type: Date,
       default: Date.now

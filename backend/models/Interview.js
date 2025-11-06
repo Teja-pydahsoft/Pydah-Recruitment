@@ -119,16 +119,57 @@ interviewSchema.methods.getFeedbackSummary = async function() {
 
   for (const candidateData of this.candidates) {
     const candidate = await Candidate.findById(candidateData.candidate)
-      .populate('interviewFeedback.panelMember', 'name email');
+      .populate('interviewFeedback.panelMember', 'name email')
+      .populate('user', 'name email');
 
     const candidateFeedbacks = candidate.interviewFeedback.filter(
       feedback => feedback.interview.toString() === this._id.toString()
     );
 
+    // Calculate average rating from questionAnswers if available
+    let averageRating = candidate.consolidatedInterviewRating;
+    if (candidateFeedbacks.length > 0 && this.feedbackForm && this.feedbackForm.questions) {
+      const ratingQuestions = this.feedbackForm.questions.filter(q => q.type === 'rating');
+      if (ratingQuestions.length > 0) {
+        let totalRating = 0;
+        let ratingCount = 0;
+        candidateFeedbacks.forEach(feedback => {
+          if (feedback.questionAnswers && feedback.questionAnswers.length > 0) {
+            feedback.questionAnswers.forEach(qa => {
+              if (qa.type === 'rating' && typeof qa.answer === 'number') {
+                totalRating += qa.answer;
+                ratingCount++;
+              }
+            });
+          }
+          // Fallback to old ratings structure
+          if (feedback.ratings && feedback.ratings.overallRating) {
+            totalRating += feedback.ratings.overallRating;
+            ratingCount++;
+          }
+        });
+        if (ratingCount > 0) {
+          averageRating = totalRating / ratingCount;
+        }
+      }
+    }
+
     feedbacks.push({
-      candidate: candidateData.candidate,
-      feedbacks: candidateFeedbacks,
-      averageRating: candidate.consolidatedInterviewRating
+      candidate: {
+        _id: candidate._id,
+        name: candidate.user?.name || 'Unknown',
+        email: candidate.user?.email || '',
+        candidateNumber: candidate.candidateNumber || ''
+      },
+      feedbacks: candidateFeedbacks.map(f => ({
+        panelMember: f.panelMember,
+        ratings: f.ratings,
+        comments: f.comments,
+        recommendation: f.recommendation,
+        questionAnswers: f.questionAnswers || [],
+        submittedAt: f.submittedAt
+      })),
+      averageRating: averageRating || 0
     });
   }
 

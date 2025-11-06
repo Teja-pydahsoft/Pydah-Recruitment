@@ -456,16 +456,14 @@ const FormsManagement = () => {
                       <td>{new Date(form.createdAt).toLocaleDateString()}</td>
                       <td>
                         <div className="d-flex flex-wrap gap-1">
-                          {form.formType === 'candidate_profile' && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              className="me-1"
-                              onClick={() => handleEditForm(form)}
-                            >
-                              Edit
-                            </Button>
-                          )}
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="me-1"
+                            onClick={() => handleEditForm(form)}
+                          >
+                            Edit
+                          </Button>
                           <Button
                             variant="info"
                             size="sm"
@@ -596,15 +594,22 @@ const FormsManagement = () => {
                                   department: e.target.value === 'candidate_profile' ? prev.department : ''
                                 }))}
                                 required
+                                disabled={!!editingForm}
                                 style={{ 
                                   border: '1px solid #ced4da',
                                   borderRadius: '6px',
-                                  padding: '0.75rem'
+                                  padding: '0.75rem',
+                                  backgroundColor: editingForm ? '#e9ecef' : 'white'
                                 }}
                               >
                                 <option value="candidate_profile">Candidate Profile Form</option>
                                 <option value="feedback_form">Feedback Form</option>
                               </Form.Select>
+                              {editingForm && (
+                                <Form.Text className="text-muted">
+                                  Form type cannot be changed after creation
+                                </Form.Text>
+                              )}
                             </Form.Group>
                           </Col>
                         </Row>

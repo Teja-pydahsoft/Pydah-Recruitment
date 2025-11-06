@@ -203,11 +203,89 @@ const seedCandidateRegistrationForm = async () => {
   }
 };
 
+// Seed default feedback form
+const seedDefaultFeedbackForm = async () => {
+  // Ensure a super admin exists to own the form
+  const superAdmin = await User.findOne({ role: 'super_admin' });
+  if (!superAdmin) {
+    console.log('No super admin found; skipping feedback form seeding.');
+    return;
+  }
+
+  // Check if default feedback form already exists
+  const existingFeedbackForm = await RecruitmentForm.findOne({ 
+    formType: 'feedback_form',
+    title: 'Default Interview Feedback Form'
+  });
+
+  if (!existingFeedbackForm) {
+    const feedbackFormFields = [
+      {
+        fieldName: 'technicalSkills',
+        fieldType: 'rating',
+        required: true,
+        placeholder: 'Rate technical skills (1-5)'
+      },
+      {
+        fieldName: 'communication',
+        fieldType: 'rating',
+        required: true,
+        placeholder: 'Rate communication skills (1-5)'
+      },
+      {
+        fieldName: 'problemSolving',
+        fieldType: 'rating',
+        required: true,
+        placeholder: 'Rate problem-solving abilities (1-5)'
+      },
+      {
+        fieldName: 'overallRating',
+        fieldType: 'rating',
+        required: true,
+        placeholder: 'Overall rating (1-5)'
+      },
+      {
+        fieldName: 'comments',
+        fieldType: 'textarea',
+        required: false,
+        placeholder: 'Additional comments or observations'
+      },
+      {
+        fieldName: 'recommendation',
+        fieldType: 'yes_no',
+        required: true,
+        options: ['Yes', 'No'],
+        placeholder: 'Would you recommend this candidate?'
+      }
+    ];
+
+    const defaultFeedbackForm = new RecruitmentForm({
+      title: 'Default Interview Feedback Form',
+      description: 'Default feedback form for interview evaluations',
+      formType: 'feedback_form',
+      formFields: feedbackFormFields,
+      createdBy: superAdmin._id
+    });
+
+    await defaultFeedbackForm.save();
+    try { 
+      await defaultFeedbackForm.generateQRCode(); 
+      await defaultFeedbackForm.save(); 
+    } catch (err) {
+      console.log('QR code generation skipped for feedback form');
+    }
+    console.log('✅ Seeded Default Interview Feedback Form with ID:', defaultFeedbackForm._id);
+  } else {
+    console.log('Default Interview Feedback Form already exists. Skipping.');
+  }
+};
+
 // Run seeding
 const runSeed = async () => {
   await connectDB();
   await seedUsers();
   await seedCandidateRegistrationForm();
+  await seedDefaultFeedbackForm();
   await mongoose.connection.close();
   console.log('Seeding completed. Database connection closed.');
 };

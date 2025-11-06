@@ -379,7 +379,7 @@ router.put('/panel-members/:userId', authenticateToken, async (req, res) => {
       return res.status(403).json({ message: 'Access denied. Super admin only' });
     }
 
-    const { name, email, profile } = req.body;
+    const { name, email, password, profile } = req.body;
 
     // Clean profile object - remove empty strings
     const cleanedProfile = profile ? Object.fromEntries(
@@ -387,27 +387,47 @@ router.put('/panel-members/:userId', authenticateToken, async (req, res) => {
     ) : {};
 
     const updateData = { name, email };
+    
+    // Handle password update if provided
+    if (password && password.trim() !== '') {
+      updateData.password = password;
+      console.log('👤 [PANEL MEMBER UPDATE] Password will be updated');
+    }
+    
     if (Object.keys(cleanedProfile).length > 0) {
       updateData.profile = cleanedProfile;
     }
 
-    console.log('👤 [PANEL MEMBER UPDATE] Updating with data:', updateData);
+    console.log('👤 [PANEL MEMBER UPDATE] Updating with data:', { ...updateData, password: password ? '***' : 'not provided' });
 
-    const user = await User.findByIdAndUpdate(
-      req.params.userId,
-      updateData,
-      { new: true, runValidators: true }
-    ).select('-password');
-
+    // Use findById to get the user, then save to trigger password hashing
+    const user = await User.findById(req.params.userId);
+    
     if (!user) {
       console.error('❌ [PANEL MEMBER UPDATE] User not found:', req.params.userId);
       return res.status(404).json({ message: 'Panel member not found' });
+    }
+
+    // Update fields
+    user.name = name;
+    user.email = email;
+    if (password && password.trim() !== '') {
+      user.password = password; // Will be hashed by pre-save hook
+    }
+    if (Object.keys(cleanedProfile).length > 0) {
+      user.profile = cleanedProfile;
     }
 
     if (user.role !== 'panel_member') {
       console.error('❌ [PANEL MEMBER UPDATE] User is not a panel member:', user.role);
       return res.status(400).json({ message: 'User is not a panel member' });
     }
+
+    await user.save();
+    
+    // Return user without password
+    const userResponse = user.toObject();
+    delete userResponse.password;
 
     console.log('✅ [PANEL MEMBER UPDATE] Panel member updated successfully:', user._id);
     console.log('✅ [PANEL MEMBER UPDATE] Updated details:', {
@@ -420,7 +440,7 @@ router.put('/panel-members/:userId', authenticateToken, async (req, res) => {
 
     res.json({
       message: 'Panel member updated successfully',
-      user
+      user: userResponse
     });
   } catch (error) {
     console.error('Panel member update error:', error);

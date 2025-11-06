@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { Container, Row, Col, Card, Button, Alert, Modal, ProgressBar } from 'react-bootstrap';
-import { FaCheckCircle, FaClock, FaExclamationTriangle, FaCheck, FaSignInAlt } from 'react-icons/fa';
+import { FaCheckCircle, FaClock, FaExclamationTriangle, FaCheck, FaSignInAlt, FaCamera } from 'react-icons/fa';
 import api from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
 import { useAuth } from '../contexts/AuthContext';
@@ -141,7 +141,12 @@ const TakeTest = () => {
   const [needsLogin, setNeedsLogin] = useState(false);
   const [questionStartTimes, setQuestionStartTimes] = useState({});
   const [testStartTime, setTestStartTime] = useState(null);
-  const [screenshots, setScreenshots] = useState([]);
+  const [candidatePhotos, setCandidatePhotos] = useState([]);
+  const [webcamStream, setWebcamStream] = useState(null);
+  const [webcamPermissionGranted, setWebcamPermissionGranted] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -191,8 +196,14 @@ const TakeTest = () => {
       setQuestionStartTimes(initialStartTimes);
       setTestStartTime(Date.now());
       
-      // Capture initial screenshot when test starts
-      captureScreenshot('Test started');
+      // Request webcam access and capture initial photo
+      const hasAccess = await requestWebcamAccess();
+      if (hasAccess) {
+        // Wait a bit for video to be ready
+        setTimeout(async () => {
+          await captureCandidatePhoto('Test started - Before test');
+        }, 500);
+      }
     } catch (error) {
       setError(error.response?.data?.message || 'Test not found or you are not authorized to take this test.');
     } finally {
@@ -200,47 +211,98 @@ const TakeTest = () => {
     }
   };
 
-  // Capture screenshot using html2canvas
-  const captureScreenshot = async (description) => {
+  // Request webcam access
+  const requestWebcamAccess = async () => {
     try {
-      // Dynamic import to avoid loading issues
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(document.body, {
-        allowTaint: true,
-        useCORS: true,
-        logging: false,
-        scale: 0.5 // Reduce size for better performance
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        } 
       });
-      
-      const screenshotDataUrl = canvas.toDataURL('image/png');
-      
-      // Convert to blob and upload if needed, or store as data URL
-      // For now, we'll send it as base64 in the submission
-      setScreenshots(prev => [...prev, {
-        timestamp: new Date(),
-        dataUrl: screenshotDataUrl,
-        description: description
-      }]);
-      
-      return screenshotDataUrl;
+      setWebcamStream(stream);
+      setWebcamPermissionGranted(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      return true;
     } catch (error) {
-      console.error('Screenshot capture error:', error);
+      console.error('Error accessing webcam:', error);
+      setError('Camera access is required to take the test. Please allow camera access and refresh the page.');
+      setWebcamPermissionGranted(false);
+      return false;
+    }
+  };
+
+  // Capture candidate photo from webcam
+  const captureCandidatePhoto = async (description) => {
+    try {
+      if (!videoRef.current || !canvasRef.current || !webcamStream) {
+        console.error('Webcam not available');
+        return null;
+      }
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+
+      // Draw video frame to canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Convert canvas to data URL
+      const photoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+      // Store photo
+      const photoData = {
+        timestamp: new Date(),
+        dataUrl: photoDataUrl,
+        description: description
+      };
+
+      setCandidatePhotos(prev => [...prev, photoData]);
+      return photoDataUrl;
+    } catch (error) {
+      console.error('Error capturing photo:', error);
       return null;
     }
   };
+
+  // Cleanup webcam stream on unmount
+  useEffect(() => {
+    return () => {
+      if (webcamStream) {
+        webcamStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [webcamStream]);
 
   const handleAnswerSelect = async (questionId, answer) => {
     // Calculate time taken for previous answer if exists
     const startTime = questionStartTimes[questionId] || Date.now();
     const timeTaken = Math.floor((Date.now() - startTime) / 1000);
     
-    setAnswers((prev) => ({
-      ...prev,
+    // Update answers first
+    const updatedAnswers = {
+      ...answers,
       [questionId]: answer
-    }));
+    };
+    setAnswers(updatedAnswers);
     
-    // Capture screenshot when answering a question
-    await captureScreenshot(`Question ${test.questions.findIndex(q => q._id === questionId) + 1} answered`);
+    // Capture photo at middle of test (when half questions are answered)
+    const answeredCount = Object.values(updatedAnswers).filter(a => a !== null).length;
+    const totalQuestions = test.questions.length;
+    const halfQuestions = Math.ceil(totalQuestions / 2);
+    
+    // Check if we should capture middle photo (after first photo is captured)
+    if (answeredCount === halfQuestions && candidatePhotos.length === 1 && webcamPermissionGranted) {
+      // Only capture middle photo once
+      await captureCandidatePhoto('Middle of test');
+    }
     
     // Update start time for next question (if any)
     const currentQuestionIndex = test.questions.findIndex(q => q._id === questionId);
@@ -269,36 +331,40 @@ const TakeTest = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      // Capture final screenshot before submission
-      await captureScreenshot('Test submission');
+      // Capture final photo before submission (end of test)
+      if (webcamPermissionGranted) {
+        await captureCandidatePhoto('Test ended - After test');
+      }
       
-      // Prepare answers with timestamps and screenshots
+      // Prepare answers with timestamps
       const answersArray = Object.entries(answers).map(([questionId, answer]) => {
         const startTime = questionStartTimes[questionId] || testStartTime;
         const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-        const questionScreenshot = screenshots.find(s => 
-          s.description.includes(`Question ${test.questions.findIndex(q => q._id === questionId) + 1}`)
-        );
         
         return {
           questionId,
           answer: answer !== null ? answer : -1,
           timeTaken: timeTaken,
-          answeredAt: new Date().toISOString(),
-          screenshot: questionScreenshot?.dataUrl || null
+          answeredAt: new Date().toISOString()
         };
       });
 
-      // Prepare screenshots array
-      const screenshotsArray = screenshots.map(s => ({
-        timestamp: s.timestamp.toISOString(),
-        url: s.dataUrl, // In production, upload to server and get URL
-        description: s.description
+      // Prepare candidate photos array
+      const candidatePhotosArray = candidatePhotos.map(photo => ({
+        timestamp: photo.timestamp.toISOString(),
+        url: photo.dataUrl, // In production, upload to server and get URL
+        description: photo.description
       }));
+
+      // Stop webcam stream
+      if (webcamStream) {
+        webcamStream.getTracks().forEach(track => track.stop());
+        setWebcamStream(null);
+      }
 
       await api.post(`/tests/${test._id}/submit`, {
         answers: answersArray,
-        screenshots: screenshotsArray,
+        candidatePhotos: candidatePhotosArray,
         startedAt: testStartTime ? new Date(testStartTime).toISOString() : new Date().toISOString()
       });
       setSubmitted(true);
@@ -408,6 +474,26 @@ const TakeTest = () => {
             {test.instructions && (
               <Alert variant="info" style={{ marginBottom: '2rem' }}>
                 <strong>Instructions:</strong> {test.instructions}
+              </Alert>
+            )}
+
+            {/* Hidden video and canvas for webcam capture */}
+            <div style={{ display: 'none' }}>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: '100%', maxWidth: '640px' }}
+              />
+              <canvas ref={canvasRef} />
+            </div>
+
+            {!webcamPermissionGranted && (
+              <Alert variant="warning" style={{ marginBottom: '2rem' }}>
+                <FaCamera className="me-2" />
+                <strong>Camera Access Required:</strong> Please allow camera access to continue with the test. 
+                Your photo will be captured at the start, middle, and end of the test for security purposes.
               </Alert>
             )}
 

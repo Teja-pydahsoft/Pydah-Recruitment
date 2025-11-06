@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { FaClipboardCheck, FaUser, FaCalendarAlt, FaExclamationTriangle, FaRedo, FaCheckCircle, FaClock } from 'react-icons/fa';
+import { FaClipboardCheck, FaUser, FaCalendarAlt, FaExclamationTriangle, FaRedo, FaCheckCircle, FaClock, FaStar } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -193,14 +194,362 @@ const EmptyText = styled.p`
   font-size: 1rem;
 `;
 
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+`;
+
+const ModalContent = styled.div`
+  background: white;
+  border-radius: 12px;
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+  color: #1e293b;
+  font-size: 1.5rem;
+  font-weight: 600;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #f3f4f6;
+    color: #1e293b;
+  }
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 1.5rem;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.95rem;
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+`;
+
+const RatingContainer = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+`;
+
+const StarButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: ${props => props.filled ? '#fbbf24' : '#d1d5db'};
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+`;
+
+const RadioGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+`;
+
+const RadioOption = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+  }
+
+  &:has(input[type="radio"]:checked) {
+    border-color: #3b82f6;
+    background: #eff6ff;
+  }
+
+  &:has(input[type="radio"]:checked) span {
+    color: #3b82f6;
+    font-weight: 600;
+  }
+
+  input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+  }
+
+  span {
+    user-select: none;
+  }
+`;
+
+const SubmitButton = styled.button`
+  background: #ea580c;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  &:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  &:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+  }
+`;
+
+const CancelButton = styled.button`
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-right: 1rem;
+
+  &:hover {
+    background: #4b5563;
+  }
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+`;
+
+const FeedbackButton = styled.button`
+  background: #ea580c;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+
+  &:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+`;
+
 const FeedbackEvaluations = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [feedback, setFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState(null);
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [feedbackForm, setFeedbackForm] = useState(null);
+  const [formData, setFormData] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [cameFromMyInterviews, setCameFromMyInterviews] = useState(false);
 
   useEffect(() => {
     fetchFeedback();
-  }, []);
+    
+    // Check if we came from MyInterviews with interviewId and candidateId
+    if (location.state?.interviewId && location.state?.candidateId) {
+      setCameFromMyInterviews(true);
+      handleOpenFeedbackForm(
+        location.state.interviewId, 
+        location.state.candidateId,
+        location.state.feedbackForm
+      );
+      // Clear the state to avoid reopening on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  const handleOpenFeedbackForm = async (interviewId, candidateId, feedbackFormFromState = null) => {
+    try {
+      setShowFeedbackModal(true);
+      setSubmitting(false);
+      setError(null);
+      
+      // Normalize candidateId to string for comparison
+      const candidateIdStr = candidateId?.toString();
+      
+      // Fetch interview details to get feedback form
+      const interviewResponse = await api.get(`/interviews/${interviewId}`);
+      const interview = interviewResponse.data.interview;
+      
+      if (!interview) {
+        throw new Error('Interview not found');
+      }
+      
+      setSelectedInterview(interview);
+      
+      // Find the candidate in the interview's candidates array
+      let candidate = null;
+      if (interview.candidates && interview.candidates.length > 0) {
+        const candidateEntry = interview.candidates.find(c => {
+          const cId = c.candidate?._id?.toString() || c.candidate?.toString() || c.candidate;
+          return cId === candidateIdStr;
+        });
+        
+        if (candidateEntry?.candidate) {
+          candidate = candidateEntry.candidate;
+        }
+      }
+      
+      // If candidate not found in interview, try to fetch directly
+      if (!candidate && candidateIdStr) {
+        try {
+          const candidateResponse = await api.get(`/candidates/${candidateIdStr}`);
+          candidate = candidateResponse.data.candidate;
+        } catch (candidateErr) {
+          console.error('Error fetching candidate:', candidateErr);
+          throw new Error('Candidate not found');
+        }
+      }
+      
+      if (!candidate) {
+        throw new Error('Candidate not found for this interview');
+      }
+      
+      setSelectedCandidate(candidate);
+      
+      // Use feedbackForm from state if provided, otherwise use interview's feedbackForm
+      const feedbackFormToUse = feedbackFormFromState || interview.feedbackForm;
+      
+      // Set feedback form questions
+      if (feedbackFormToUse?.questions && feedbackFormToUse.questions.length > 0) {
+        // Add unique IDs to questions if they don't have them
+        const questionsWithIds = feedbackFormToUse.questions.map((q, idx) => ({
+          ...q,
+          _id: q._id || `q_${idx}_${Date.now()}`,
+          questionId: q._id?.toString() || q.question || `question_${idx}`
+        }));
+        
+        setFeedbackForm(questionsWithIds);
+        
+        // Initialize form data
+        const initialData = {};
+        questionsWithIds.forEach(q => {
+          const questionId = q._id?.toString() || q.question || q.questionId;
+          if (q.type === 'rating') {
+            initialData[questionId] = 0;
+          } else if (q.type === 'yes_no') {
+            initialData[questionId] = '';
+          } else {
+            initialData[questionId] = '';
+          }
+        });
+        setFormData(initialData);
+        
+        // Debug: Log the feedback form structure
+        console.log('📋 [FEEDBACK FORM] Questions loaded:', questionsWithIds.length);
+        console.log('📋 [FEEDBACK FORM] Questions:', questionsWithIds);
+        console.log('📋 [FEEDBACK FORM] Initial data:', initialData);
+      } else {
+        // Default form if no feedback form is configured
+        console.log('⚠️ [FEEDBACK FORM] No questions found, using default form');
+        setFeedbackForm([]);
+        setFormData({
+          comments: '',
+          recommendation: 'neutral'
+        });
+      }
+    } catch (err) {
+      console.error('Error opening feedback form:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to load feedback form');
+      setShowFeedbackModal(false);
+    }
+  };
 
   const fetchFeedback = async () => {
     setLoading(true);
@@ -246,6 +595,108 @@ const FeedbackEvaluations = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!selectedInterview || !selectedCandidate) {
+      setError('Interview or candidate information is missing');
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      // Get candidate ID - handle both object and string formats
+      const candidateId = selectedCandidate._id?.toString() || selectedCandidate.toString() || selectedCandidate;
+      
+      if (!candidateId) {
+        throw new Error('Candidate ID is missing');
+      }
+
+      // Prepare questionAnswers array
+      const questionAnswers = [];
+      if (feedbackForm && feedbackForm.length > 0) {
+        feedbackForm.forEach(q => {
+          const questionId = q._id?.toString() || q.question;
+          const answer = formData[questionId];
+          
+          // Validate required questions
+          if (q.required) {
+            if (q.type === 'rating') {
+              // For rating questions, 0 means not answered
+              if (answer === null || answer === undefined || answer === '' || answer === 0) {
+                throw new Error(`Required question "${q.question}" must be answered`);
+              }
+            } else if (answer === null || answer === undefined || answer === '') {
+              throw new Error(`Required question "${q.question}" must be answered`);
+            }
+          }
+
+          // Add answer to questionAnswers if it has a value
+          // For ratings, only include if > 0
+          // For other types, include if not empty
+          if (q.type === 'rating') {
+            if (answer !== null && answer !== undefined && answer !== '' && answer > 0) {
+              questionAnswers.push({
+                question: q.question,
+                questionId: q._id?.toString(),
+                answer: answer,
+                type: q.type
+              });
+            }
+          } else if (answer !== null && answer !== undefined && answer !== '') {
+            questionAnswers.push({
+              question: q.question,
+              questionId: q._id?.toString(),
+              answer: answer,
+              type: q.type
+            });
+          }
+        });
+      }
+
+      // Prepare submission data
+      const submissionData = {
+        candidateId: candidateId,
+        questionAnswers: questionAnswers.length > 0 ? questionAnswers : undefined
+      };
+
+      // Add default fields if no custom form
+      if (!feedbackForm || feedbackForm.length === 0) {
+        submissionData.comments = formData.comments || '';
+        submissionData.recommendation = formData.recommendation || 'neutral';
+      }
+
+      // Submit feedback
+      await api.post(`/interviews/${selectedInterview._id}/feedback`, submissionData);
+
+      // Close modal and refresh feedback list
+      setShowFeedbackModal(false);
+      setSelectedInterview(null);
+      setSelectedCandidate(null);
+      setFeedbackForm(null);
+      setFormData({});
+      
+      // If user came from MyInterviews, navigate back there
+      if (cameFromMyInterviews) {
+        navigate('/panel-member/interviews');
+      } else {
+        await fetchFeedback();
+      }
+    } catch (err) {
+      console.error('Error submitting feedback:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to submit feedback');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRatingChange = (questionId, rating) => {
+    setFormData(prev => ({
+      ...prev,
+      [questionId]: rating
+    }));
   };
 
   const formatDate = (dateString) => {
@@ -342,9 +793,192 @@ const FeedbackEvaluations = () => {
                     <span><strong>Scheduled:</strong> {formatDate(item.scheduledAt)}</span>
                   </DetailItem>
                 </FeedbackDetails>
+
+                {item.status === 'pending' && (
+                  <FeedbackButton onClick={() => handleOpenFeedbackForm(item.interviewId, item.candidateId)}>
+                    <FaClipboardCheck />
+                    Submit Feedback
+                  </FeedbackButton>
+                )}
               </FeedbackCard>
             ))}
           </FeedbackList>
+        )}
+
+        {/* Feedback Submission Modal */}
+        {showFeedbackModal && selectedInterview && selectedCandidate && (
+          <ModalOverlay onClick={() => !submitting && setShowFeedbackModal(false)}>
+            <ModalContent onClick={(e) => e.stopPropagation()}>
+              <ModalHeader>
+                <ModalTitle>Submit Feedback</ModalTitle>
+                <CloseButton onClick={() => !submitting && setShowFeedbackModal(false)}>
+                  ×
+                </CloseButton>
+              </ModalHeader>
+
+              <div style={{ padding: '1.5rem' }}>
+                {error && (
+                  <div style={{ 
+                    background: '#fee2e2', 
+                    color: '#dc2626', 
+                    padding: '0.75rem', 
+                    borderRadius: '6px', 
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <FaExclamationTriangle />
+                    {error}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f9fafb', borderRadius: '8px' }}>
+                  <p style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#374151' }}>
+                    Interview: {selectedInterview.title}
+                  </p>
+                  <p style={{ margin: '0', color: '#6b7280' }}>
+                    Candidate: {selectedCandidate.user?.name || selectedCandidate.name || 'Unknown'}
+                  </p>
+                </div>
+
+                {feedbackForm && feedbackForm.length > 0 ? (
+                  // Custom feedback form with questions
+                  feedbackForm.map((question, index) => {
+                    const questionId = question._id?.toString() || question.questionId || question.question || `q_${index}`;
+                    const value = formData[questionId] || '';
+                    const questionType = question.type?.toLowerCase() || '';
+                    
+                    // Debug: Log each question being rendered
+                    console.log(`📝 [RENDER] Question ${index}:`, {
+                      question: question.question,
+                      type: question.type,
+                      questionType,
+                      questionId,
+                      value,
+                      hasRating: questionType === 'rating',
+                      formDataKeys: Object.keys(formData)
+                    });
+
+                    return (
+                      <FormGroup key={index}>
+                        <Label>
+                          {question.question || `Question ${index + 1}`}
+                          {question.required && <span style={{ color: '#dc2626' }}> *</span>}
+                        </Label>
+
+                        {questionType === 'rating' && (
+                          <RatingContainer>
+                            {[1, 2, 3, 4, 5].map((rating) => (
+                              <StarButton
+                                key={rating}
+                                type="button"
+                                filled={value >= rating}
+                                onClick={() => handleRatingChange(questionId, rating)}
+                                disabled={submitting}
+                              >
+                                <FaStar />
+                              </StarButton>
+                            ))}
+                            {value > 0 && (
+                              <span style={{ marginLeft: '0.5rem', color: '#6b7280' }}>
+                                ({value}/5)
+                              </span>
+                            )}
+                          </RatingContainer>
+                        )}
+
+                        {questionType === 'yes_no' && (
+                          <RadioGroup>
+                            <RadioOption>
+                              <input
+                                type="radio"
+                                name={questionId}
+                                value="yes"
+                                checked={value === 'yes'}
+                                onChange={(e) => setFormData(prev => ({ ...prev, [questionId]: e.target.value }))}
+                                disabled={submitting}
+                              />
+                              <span>Yes</span>
+                            </RadioOption>
+                            <RadioOption>
+                              <input
+                                type="radio"
+                                name={questionId}
+                                value="no"
+                                checked={value === 'no'}
+                                onChange={(e) => setFormData(prev => ({ ...prev, [questionId]: e.target.value }))}
+                                disabled={submitting}
+                              />
+                              <span>No</span>
+                            </RadioOption>
+                          </RadioGroup>
+                        )}
+
+                        {questionType === 'text' && (
+                          <TextArea
+                            value={value}
+                            onChange={(e) => setFormData(prev => ({ ...prev, [questionId]: e.target.value }))}
+                            placeholder="Enter your feedback..."
+                            disabled={submitting}
+                            required={question.required}
+                          />
+                        )}
+                      </FormGroup>
+                    );
+                  })
+                ) : (
+                  // Default feedback form (fallback if no questions)
+                  <>
+                    <div style={{ 
+                      padding: '1rem', 
+                      background: '#fef3c7', 
+                      borderRadius: '6px', 
+                      marginBottom: '1rem',
+                      border: '1px solid #fbbf24'
+                    }}>
+                      <p style={{ margin: 0, color: '#92400e', fontWeight: '600' }}>
+                        ⚠️ No feedback form questions found. Using default form.
+                      </p>
+                    </div>
+                    <FormGroup>
+                      <Label>Comments</Label>
+                      <TextArea
+                        value={formData.comments || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, comments: e.target.value }))}
+                        placeholder="Enter your feedback comments..."
+                        disabled={submitting}
+                      />
+                    </FormGroup>
+
+                    <FormGroup>
+                      <Label>Recommendation</Label>
+                      <Select
+                        value={formData.recommendation || 'neutral'}
+                        onChange={(e) => setFormData(prev => ({ ...prev, recommendation: e.target.value }))}
+                        disabled={submitting}
+                      >
+                        <option value="strong_accept">Strong Accept</option>
+                        <option value="accept">Accept</option>
+                        <option value="neutral">Neutral</option>
+                        <option value="reject">Reject</option>
+                        <option value="strong_reject">Strong Reject</option>
+                      </Select>
+                    </FormGroup>
+                  </>
+                )}
+              </div>
+
+              <ModalActions>
+                <CancelButton onClick={() => !submitting && setShowFeedbackModal(false)} disabled={submitting}>
+                  Cancel
+                </CancelButton>
+                <SubmitButton onClick={handleSubmitFeedback} disabled={submitting}>
+                  {submitting ? 'Submitting...' : 'Submit Feedback'}
+                </SubmitButton>
+              </ModalActions>
+            </ModalContent>
+          </ModalOverlay>
         )}
       </Wrapper>
     </Container>

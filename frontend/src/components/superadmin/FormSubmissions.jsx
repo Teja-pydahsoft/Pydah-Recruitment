@@ -46,6 +46,13 @@ const FormSubmissions = () => {
       return true; // 'all' tab
     });
 
+    // Filter out candidates who have already been approved/moved to next phase
+    // Only show pending candidates in the submissions list
+    filtered = filtered.filter(c => {
+      const status = c.status || 'pending';
+      return status === 'pending' || status === 'on_hold';
+    });
+
     // Filter by job role (position/department)
     if (selectedJobRole !== 'all' && selectedJobRole) {
       filtered = filtered.filter(c => {
@@ -511,6 +518,7 @@ const FormSubmissions = () => {
                       <th style={{ width: '50px' }}>Select</th>
                       <th style={{ width: '60px' }}>Photo</th>
                       <th>Name</th>
+                      <th>Candidate Number</th>
                       <th>Email</th>
                       <th>Position</th>
                       <th>Department</th>
@@ -558,6 +566,13 @@ const FormSubmissions = () => {
                           </div>
                         </td>
                         <td>{candidate.user?.name || 'N/A'}</td>
+                        <td>
+                          {candidate.candidateNumber ? (
+                            <Badge bg="secondary">{candidate.candidateNumber}</Badge>
+                          ) : (
+                            <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Not assigned</span>
+                          )}
+                        </td>
                         <td>{candidate.user?.email || 'N/A'}</td>
                         <td>{candidate.form?.position || 'N/A'}</td>
                         <td>{candidate.form?.department || 'N/A'}</td>
