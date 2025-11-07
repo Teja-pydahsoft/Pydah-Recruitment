@@ -24,11 +24,11 @@ const SidebarContainer = styled.div`
   left: 0;
   height: 100vh;
   width: ${props => props.$isOpen ? '300px' : '70px'};
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  background: linear-gradient(180deg, #7f1d1d 0%, #431407 100%);
   color: white;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 6px 0 24px rgba(127, 29, 29, 0.3);
   overflow: hidden;
 
   @media (max-width: 768px) {
@@ -38,11 +38,11 @@ const SidebarContainer = styled.div`
 
 const SidebarHeader = styled.div`
   padding: 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: ${props => props.$isOpen ? 'space-between' : 'center'};
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(10px);
 `;
 
@@ -59,8 +59,8 @@ const Logo = styled.div`
 
 const LogoIcon = styled(FaUserTie)`
   font-size: 1.5rem;
-  color: #3b82f6;
-  filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3));
+  color: #f97316;
+  filter: drop-shadow(0 2px 6px rgba(249, 115, 22, 0.35));
 `;
 
 const LogoText = styled.span`
@@ -69,7 +69,7 @@ const LogoText = styled.span`
   white-space: nowrap;
   opacity: ${props => props.$isOpen ? 1 : 0};
   transition: opacity 0.3s ease;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(135deg, #ef4444, #f97316);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -78,7 +78,7 @@ const LogoText = styled.span`
 const ToggleButton = styled.button`
   background: none;
   border: none;
-  color: white;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 1.2rem;
   cursor: pointer;
   padding: 0.5rem;
@@ -86,7 +86,7 @@ const ToggleButton = styled.button`
   transition: all 0.3s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.18);
     transform: scale(1.1);
   }
 `;
@@ -126,7 +126,7 @@ const NavSection = styled.div`
 const SectionTitle = styled.h6`
   font-size: 0.75rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 0.75rem;
@@ -168,13 +168,13 @@ const NavLink = styled(Link)`
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
     transition: left 0.5s ease;
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff7ed;
     transform: translateX(4px);
   }
 
@@ -183,10 +183,10 @@ const NavLink = styled(Link)`
   }
 
   &.active {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(139, 92, 246, 0.3));
-    color: white;
-    border-left: 3px solid #3b82f6;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.35), rgba(249, 115, 22, 0.3));
+    color: #fff7ed;
+    border-left: 3px solid #f97316;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
   }
 
   svg {
@@ -199,6 +199,7 @@ const NavLink = styled(Link)`
 
   &:hover svg {
     transform: scale(1.1);
+    color: #f97316;
   }
 `;
 
@@ -226,9 +227,9 @@ const NotificationBadge = styled.div`
 `;
 
 const UserSection = styled.div`
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
 `;
 
@@ -239,11 +240,11 @@ const UserInfo = styled.div`
   margin-bottom: 1rem;
   padding: 0.75rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
   transition: background 0.3s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.12);
   }
 `;
 
@@ -251,13 +252,13 @@ const UserAvatar = styled.div`
   width: 45px;
   height: 45px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(135deg, #ef4444, #f97316);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
   position: relative;
 
   &::after {
@@ -267,8 +268,8 @@ const UserAvatar = styled.div`
     right: 0;
     width: 12px;
     height: 12px;
-    background: #10b981;
-    border: 2px solid #1e293b;
+    background: #16a34a;
+    border: 2px solid #431407;
     border-radius: 50%;
   }
 `;
@@ -302,9 +303,9 @@ const QuickActions = styled.div`
 `;
 
 const QuickActionButton = styled.button`
-  background: rgba(59, 130, 246, 0.2);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  color: #60a5fa;
+  background: rgba(249, 115, 22, 0.2);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  color: #fb923c;
   padding: 0.5rem;
   border-radius: 8px;
   cursor: pointer;
@@ -316,12 +317,13 @@ const QuickActionButton = styled.button`
   gap: 0.25rem;
 
   &:hover {
-    background: rgba(59, 130, 246, 0.3);
+    background: rgba(249, 115, 22, 0.3);
     transform: translateY(-2px);
   }
 
   svg {
     font-size: 0.9rem;
+    color: #f97316;
   }
 
   span {
@@ -335,9 +337,9 @@ const LogoutButton = styled.button`
   display: flex;
   align-items: center;
   padding: 0.875rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fecaca;
   text-decoration: none;
   border-radius: 12px;
   transition: all 0.3s ease;
@@ -358,8 +360,8 @@ const LogoutButton = styled.button`
   }
 
   &:hover {
-    background: rgba(239, 68, 68, 0.2);
-    color: white;
+    background: rgba(239, 68, 68, 0.25);
+    color: #fff5f5;
     transform: translateX(4px);
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
   }

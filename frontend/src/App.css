@@ -70,8 +70,8 @@
 
 /* Navigation */
 .navbar {
-  background: linear-gradient(135deg, var(--bg-dark) 0%, #1e293b 100%);
-  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(135deg, var(--primary-dark) 0%, #7c2d12 100%);
+  border-bottom: 1px solid rgba(249, 115, 22, 0.25);
   box-shadow: var(--shadow);
 }
 

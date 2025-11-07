@@ -346,6 +346,56 @@ router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => 
   }
 });
 
+// Public endpoint to fetch active recruitment forms grouped by category
+router.get('/public/active', async (req, res) => {
+  try {
+    const now = new Date();
+    const baseFilters = {
+      formType: 'candidate_profile',
+      isActive: true,
+      $or: [
+        { closingDate: { $exists: false } },
+        { closingDate: null },
+        { closingDate: { $gte: now } }
+      ]
+    };
+
+    const selectFields = 'title description position department closingDate vacancies filledVacancies formCategory uniqueLink requirements createdAt';
+
+    const [teachingForms, nonTeachingForms] = await Promise.all([
+      RecruitmentForm.find({ ...baseFilters, formCategory: 'teaching' })
+        .sort({ createdAt: -1 })
+        .select(selectFields)
+        .lean(),
+      RecruitmentForm.find({ ...baseFilters, formCategory: 'non_teaching' })
+        .sort({ createdAt: -1 })
+        .select(selectFields)
+        .lean()
+    ]);
+
+    const sanitizeForm = (form) => ({
+      id: form._id,
+      title: form.title,
+      description: form.description,
+      position: form.position,
+      department: form.department,
+      closingDate: form.closingDate,
+      vacancies: form.vacancies,
+      filledVacancies: form.filledVacancies,
+      uniqueLink: form.uniqueLink,
+      requirements: form.requirements || {}
+    });
+
+    res.json({
+      teaching: teachingForms.map(sanitizeForm),
+      nonTeaching: nonTeachingForms.map(sanitizeForm)
+    });
+  } catch (error) {
+    console.error('❌ [PUBLIC FORMS FETCH] Error:', error.message);
+    res.status(500).json({ message: 'Server error fetching recruitment forms' });
+  }
+});
+
 // Get public form by unique link (for candidates)
 router.get('/public/:uniqueLink', async (req, res) => {
   try {

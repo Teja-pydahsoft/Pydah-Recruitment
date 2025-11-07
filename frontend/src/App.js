@@ -12,6 +12,7 @@ import PublicForm from './components/PublicForm';
 import TakeTest from './components/TakeTest';
 import Sidebar from './components/Sidebar';
 import LoadingSpinner from './components/LoadingSpinner';
+import CareersPage from './components/CareersPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
@@ -67,6 +68,19 @@ const AppLayout = ({ children, showSidebar = true }) => {
   );
 };
 
+const getRedirectPathForRole = (role) => {
+  switch (role) {
+    case 'super_admin':
+      return '/super-admin';
+    case 'panel_member':
+      return '/panel-member';
+    case 'candidate':
+      return '/candidate';
+    default:
+      return '/login';
+  }
+};
+
 // Main App Component
 function App() {
   return (
@@ -75,6 +89,7 @@ function App() {
         <Routes>
           {/* Public Routes - No Sidebar */}
           <Route path="/login" element={<AppLayout showSidebar={false}><Login /></AppLayout>} />
+          <Route path="/careers" element={<AppLayout showSidebar={false}><CareersPage /></AppLayout>} />
           <Route path="/form/:uniqueLink" element={<AppLayout showSidebar={false}><PublicForm /></AppLayout>} />
           <Route path="/test/:testLink" element={<AppLayout showSidebar={false}><TakeTest /></AppLayout>} />
 
@@ -117,7 +132,7 @@ function App() {
             path="/"
             element={
               <AppLayout showSidebar={false}>
-                <RoleBasedRedirect />
+                <PublicLanding />
               </AppLayout>
             }
           />
@@ -143,8 +158,7 @@ function App() {
   );
 }
 
-// Component to redirect based on user role
-const RoleBasedRedirect = () => {
+const PublicLanding = () => {
   const { isAuthenticated, user, loading } = useAuth();
 
   if (loading) {
@@ -152,19 +166,10 @@ const RoleBasedRedirect = () => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/careers" replace />;
   }
 
-  switch (user.role) {
-    case 'super_admin':
-      return <Navigate to="/super-admin" replace />;
-    case 'panel_member':
-      return <Navigate to="/panel-member" replace />;
-    case 'candidate':
-      return <Navigate to="/candidate" replace />;
-    default:
-      return <Navigate to="/login" replace />;
-  }
+  return <Navigate to={getRedirectPathForRole(user.role)} replace />;
 };
 
 export default App;

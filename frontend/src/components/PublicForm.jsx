@@ -41,29 +41,29 @@ const bounce = keyframes`
 
 const FormContainer = styled.div`
   min-height: 100vh;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  background: linear-gradient(135deg, #fee2e2 0%, #fff7ed 100%);
   padding: 2rem 0;
   animation: ${fadeIn} 0.6s ease-out;
 `;
 
 const FormWrapper = styled.div`
-  max-width: 800px;
+  max-width: 920px;
   margin: 0 auto;
   padding: 0 1rem;
 `;
 
 const FormCard = styled.div`
-  background: white;
-  border-radius: 20px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 24px 45px rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   overflow: hidden;
   animation: ${slideInUp} 0.8s ease-out;
 `;
 
 const FormHeader = styled.div`
-  background: linear-gradient(135deg, #0ea5e9, #0284c7);
-  color: white;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  color: #fff7ed;
   padding: 3rem 2rem;
   text-align: center;
   position: relative;
@@ -101,7 +101,8 @@ const FormDescription = styled.p`
 `;
 
 const FormBody = styled.div`
-  padding: 3rem 2rem;
+  padding: 3rem 2.5rem;
+  background: #fffaf5;
 `;
 
 const ErrorAlert = styled.div`
@@ -119,7 +120,7 @@ const ErrorAlert = styled.div`
 const SectionTitle = styled.h3`
   font-size: 1.5rem;
   font-weight: 700;
-  color: #1e293b;
+  color: #9f1239;
   margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
@@ -129,18 +130,18 @@ const SectionTitle = styled.h3`
     content: '';
     width: 4px;
     height: 24px;
-    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    background: linear-gradient(135deg, #ef4444, #f97316);
     border-radius: 2px;
   }
 `;
 
 const JobDetailsCard = styled.div`
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 2px solid #e2e8f0;
-  border-radius: 16px;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffe4e6 100%);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 20px;
   padding: 2rem;
   margin-bottom: 2.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 24px rgba(239, 68, 68, 0.08);
 `;
 
 const JobDetailRow = styled.div`
@@ -149,9 +150,9 @@ const JobDetailRow = styled.div`
   gap: 1rem;
   margin-bottom: 1rem;
   padding: 0.75rem;
-  background: white;
-  border-radius: 8px;
-  border-left: 3px solid #0ea5e9;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  border-left: 4px solid #f97316;
 
   &:last-child {
     margin-bottom: 0;
@@ -160,15 +161,15 @@ const JobDetailRow = styled.div`
 
 const JobDetailLabel = styled.span`
   font-weight: 600;
-  color: #475569;
-  min-width: 120px;
+  color: #9f1239;
+  min-width: 140px;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 `;
 
 const JobDetailValue = styled.span`
-  color: #1e293b;
+  color: #1f2937;
   flex: 1;
 `;
 
@@ -186,7 +187,7 @@ const RequirementsList = styled.ul`
       content: '•';
       position: absolute;
       left: 0;
-      color: #0ea5e9;
+      color: #ef4444;
       font-weight: bold;
       font-size: 1.2rem;
     }
@@ -198,10 +199,10 @@ const ClosingDateBadge = styled.div`
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: ${props => props.isUrgent ? '#fef2f2' : '#f0fdf4'};
-  border: 1px solid ${props => props.isUrgent ? '#fecaca' : '#bbf7d0'};
+  background: ${props => props.isUrgent ? '#fee2e2' : '#fef3c7'};
+  border: 1px solid ${props => props.isUrgent ? '#fca5a5' : '#facc15'};
   border-radius: 8px;
-  color: ${props => props.isUrgent ? '#dc2626' : '#16a34a'};
+  color: ${props => props.isUrgent ? '#b91c1c' : '#b45309'};
   font-weight: 600;
   margin-top: 0.5rem;
 `;
@@ -210,19 +211,42 @@ const FormSection = styled.div`
   margin-bottom: 2.5rem;
 `;
 
+const TwoColumnGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const FieldsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
 const FieldGroup = styled.div`
-  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
 `;
 
 const FieldLabel = styled.label`
   display: block;
   font-weight: 600;
-  color: #374151;
+  color: #7f1d1d;
   margin-bottom: 0.5rem;
   font-size: 0.95rem;
 
   span {
-    color: #dc2626;
+    color: #b91c1c;
     margin-left: 0.25rem;
   }
 `;
@@ -230,8 +254,8 @@ const FieldLabel = styled.label`
 const StyledInput = styled.input`
   width: 100%;
   padding: 0.875rem 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1.5px solid rgba(249, 115, 22, 0.25);
+  border-radius: 10px;
   font-size: 1rem;
   transition: all 0.3s ease;
   background: white;
@@ -239,8 +263,8 @@ const StyledInput = styled.input`
 
   &:focus {
     outline: none;
-    border-color: #0ea5e9;
-    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
   }
 
   &::placeholder {
@@ -251,8 +275,8 @@ const StyledInput = styled.input`
 const StyledTextarea = styled.textarea`
   width: 100%;
   padding: 0.875rem 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1.5px solid rgba(249, 115, 22, 0.25);
+  border-radius: 10px;
   font-size: 1rem;
   transition: all 0.3s ease;
   background: white;
@@ -262,8 +286,8 @@ const StyledTextarea = styled.textarea`
 
   &:focus {
     outline: none;
-    border-color: #0ea5e9;
-    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
   }
 
   &::placeholder {
@@ -274,8 +298,8 @@ const StyledTextarea = styled.textarea`
 const StyledSelect = styled.select`
   width: 100%;
   padding: 0.875rem 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1.5px solid rgba(249, 115, 22, 0.25);
+  border-radius: 10px;
   font-size: 1rem;
   transition: all 0.3s ease;
   background: white;
@@ -283,16 +307,16 @@ const StyledSelect = styled.select`
 
   &:focus {
     outline: none;
-    border-color: #0ea5e9;
-    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
   }
 `;
 
 const FileInput = styled.input`
   width: 100%;
   padding: 0.875rem 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1.5px solid rgba(249, 115, 22, 0.25);
+  border-radius: 10px;
   font-size: 1rem;
   transition: all 0.3s ease;
   background: white;
@@ -300,14 +324,14 @@ const FileInput = styled.input`
 
   &:focus {
     outline: none;
-    border-color: #0ea5e9;
-    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
   }
 `;
 
 const SubmitButton = styled.button`
   width: 100%;
-  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  background: linear-gradient(135deg, #ef4444, #f97316);
   color: white;
   border: none;
   border-radius: 12px;
@@ -340,7 +364,7 @@ const SubmitButton = styled.button`
 
   &:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.4);
+    box-shadow: 0 12px 28px rgba(239, 68, 68, 0.35);
   }
 
   &:disabled {
@@ -355,18 +379,18 @@ const SubmitButton = styled.button`
   }
 
   &.processing {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
+    background: linear-gradient(135deg, #fb923c, #ea580c);
     animation: ${pulse} 2s ease-in-out infinite;
   }
 
   &.uploading {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: linear-gradient(135deg, #f97316, #ea580c);
   }
 `;
 
 const FilePreviewCard = styled.div`
-  background: #f8fafc;
-  border: 2px solid #e2e8f0;
+  background: #fffaf5;
+  border: 2px solid rgba(249, 115, 22, 0.2);
   border-radius: 12px;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -377,42 +401,41 @@ const FilePreviewCard = styled.div`
   animation: ${slideInUp} 0.4s ease-out;
 
   &:hover {
-    border-color: #0ea5e9;
-    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.1);
+    border-color: #f97316;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
   }
 
   &.uploading {
-    border-color: #10b981;
-    background: #f0fdf4;
+    border-color: #f97316;
+    background: #fff7ed;
   }
 
   &.uploaded {
-    border-color: #10b981;
-    background: #f0fdf4;
+    border-color: #f97316;
+    background: #fff7ed;
   }
 
   &.error {
-    border-color: #dc2626;
-    background: #fef2f2;
+    border-color: #b91c1c;
+    background: #fee2e2;
   }
 `;
 
 const FileIcon = styled.div`
   font-size: 2rem;
-  color: #64748b;
+  color: #b75b1f;
   flex-shrink: 0;
 
   &.uploading {
-    color: #10b981;
-    /* No rotation animation - icon stays static */
+    color: #f97316;
   }
 
   &.uploaded {
-    color: #10b981;
+    color: #f97316;
   }
 
   &.error {
-    color: #dc2626;
+    color: #b91c1c;
   }
 `;
 
@@ -423,7 +446,7 @@ const FileInfo = styled.div`
 
 const FileName = styled.div`
   font-weight: 600;
-  color: #1e293b;
+  color: #7f1d1d;
   margin-bottom: 0.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -432,13 +455,13 @@ const FileName = styled.div`
 
 const FileSize = styled.div`
   font-size: 0.875rem;
-  color: #64748b;
+  color: #b75b1f;
 `;
 
 const ProgressBar = styled.div`
   width: 100%;
   height: 6px;
-  background: #e2e8f0;
+  background: rgba(249, 115, 22, 0.15);
   border-radius: 3px;
   overflow: hidden;
   margin-top: 0.5rem;
@@ -447,7 +470,7 @@ const ProgressBar = styled.div`
 
 const ProgressFill = styled.div`
   height: 100%;
-  background: linear-gradient(90deg, #10b981, #059669);
+  background: linear-gradient(90deg, #ef4444, #f97316);
   border-radius: 3px;
   transition: width 0.3s ease;
   width: ${props => props.progress || 0}%;
@@ -456,7 +479,7 @@ const ProgressFill = styled.div`
   &.indeterminate {
     width: 30%;
     animation: ${shimmer} 1.5s ease-in-out infinite;
-    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.8), transparent);
+    background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.7), transparent);
     background-size: 200% 100%;
   }
 `;
@@ -472,34 +495,39 @@ const StatusBadge = styled.div`
   margin-top: 0.5rem;
 
   &.uploading {
-    background: #dbeafe;
-    color: #1e40af;
+    background: #fff7ed;
+    color: #b75b1f;
   }
 
   &.uploaded {
-    background: #d1fae5;
-    color: #065f46;
+    background: #fef3c7;
+    color: #b45309;
   }
 
   &.error {
     background: #fee2e2;
     color: #991b1b;
   }
+
+  &.pending {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
 `;
 
 const UploadProgressContainer = styled.div`
   margin: 2rem 0;
   padding: 1.5rem;
-  background: #f8fafc;
+  background: #fff7ed;
   border-radius: 12px;
-  border: 2px dashed #cbd5e1;
+  border: 2px dashed rgba(249, 115, 22, 0.35);
   animation: ${slideInUp} 0.4s ease-out;
 `;
 
 const UploadProgressTitle = styled.h4`
   font-size: 1.1rem;
   font-weight: 700;
-  color: #1e293b;
+  color: #b91c1c;
   margin-bottom: 1rem;
   display: flex;
   align-items: center;
@@ -507,8 +535,8 @@ const UploadProgressTitle = styled.h4`
 `;
 
 const SubmissionStatus = styled.div`
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  border: 2px solid #fbbf24;
+  background: linear-gradient(135deg, #fee2e2, #fecdd3);
+  border: 2px solid rgba(239, 68, 68, 0.35);
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 2rem;
@@ -518,13 +546,13 @@ const SubmissionStatus = styled.div`
   animation: ${slideInUp} 0.4s ease-out;
 
   &.processing {
-    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-    border-color: #3b82f6;
+    background: linear-gradient(135deg, #ffe4e6, #fecdd3);
+    border-color: rgba(239, 68, 68, 0.45);
   }
 
   &.uploading {
-    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-    border-color: #10b981;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-color: #f59e0b;
   }
 `;
 
@@ -544,13 +572,13 @@ const StatusText = styled.div`
 const StatusTitle = styled.div`
   font-weight: 700;
   font-size: 1.1rem;
-  color: #1e293b;
+  color: #7f1d1d;
   margin-bottom: 0.25rem;
 `;
 
 const StatusDescription = styled.div`
   font-size: 0.9rem;
-  color: #64748b;
+  color: #b75b1f;
 `;
 
 const SubmissionModal = styled.div`
@@ -627,32 +655,32 @@ const SuccessMessage = styled.div`
   text-align: center;
   padding: 3rem 2rem;
   background: white;
-  border-radius: 20px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  border-radius: 24px;
+  box-shadow: 0 24px 45px rgba(239, 68, 68, 0.12);
   animation: ${slideInUp} 0.6s ease-out;
 `;
 
 const SuccessIcon = styled.div`
   font-size: 4rem;
-  color: #10b981;
+  color: #f97316;
   margin-bottom: 1.5rem;
 `;
 
 const SuccessTitle = styled.h2`
   font-size: 2rem;
   font-weight: 800;
-  color: #1e293b;
+  color: #9f1239;
   margin-bottom: 1rem;
 `;
 
 const SuccessText = styled.p`
   font-size: 1.1rem;
-  color: #64748b;
+  color: #b75b1f;
   margin-bottom: 2rem;
 `;
 
 const BackButton = styled.button`
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, #ef4444, #f97316);
   color: white;
   border: none;
   border-radius: 8px;
@@ -663,7 +691,7 @@ const BackButton = styled.button`
 
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 6px 14px rgba(239, 68, 68, 0.3);
   }
 `;
 
@@ -1274,7 +1302,7 @@ const PublicForm = () => {
                   <FaUser />
                   Personal Information
                 </SectionTitle>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <TwoColumnGrid style={{ marginBottom: '1rem' }}>
                   <FieldGroup>
                     <FieldLabel>
                       Full Name<span>*</span>
@@ -1299,7 +1327,7 @@ const PublicForm = () => {
                       required
                     />
                   </FieldGroup>
-                </div>
+                </TwoColumnGrid>
               </FormSection>
 
               {/* Dynamic Form Fields */}
@@ -1308,15 +1336,25 @@ const PublicForm = () => {
                   <FaFileAlt />
                   Application Details
                 </SectionTitle>
-                {form.formFields.map((field, index) => (
-                  <FieldGroup key={index}>
-                    <FieldLabel>
-                      {field.fieldName}
-                      {field.required && <span>*</span>}
-                    </FieldLabel>
-                    {renderFormField(field)}
-                  </FieldGroup>
-                ))}
+                <FieldsGrid>
+                  {form.formFields.map((field, index) => {
+                    const fullWidthTypes = ['textarea', 'file', 'file_multiple', 'radio', 'checkbox'];
+                    const isFullWidth = fullWidthTypes.includes(field.fieldType);
+
+                    return (
+                      <FieldGroup
+                        key={index}
+                        style={isFullWidth ? { gridColumn: 'span 2' } : undefined}
+                      >
+                        <FieldLabel>
+                          {field.fieldName}
+                          {field.required && <span>*</span>}
+                        </FieldLabel>
+                        {renderFormField(field)}
+                      </FieldGroup>
+                    );
+                  })}
+                </FieldsGrid>
               </FormSection>
 
 
@@ -1329,19 +1367,19 @@ const PublicForm = () => {
                   <>
                     {submissionState === 'pending' && (
                       <>
-                        <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                        <FaSpinner style={{ animation: 'spin 1s linear infinite', color: '#b91c1c' }} />
                         Preparing...
                       </>
                     )}
                     {submissionState === 'processing' && (
                       <>
-                        <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                        <FaSpinner style={{ animation: 'spin 1s linear infinite', color: '#b91c1c' }} />
                         Processing...
                       </>
                     )}
                     {submissionState === 'uploading' && (
                       <>
-                        <FaCloudUploadAlt style={{ animation: 'bounce 1s ease-in-out infinite' }} />
+                        <FaCloudUploadAlt style={{ animation: 'bounce 1s ease-in-out infinite', color: '#f97316' }} />
                         Uploading... {uploadProgress}%
                       </>
                     )}
@@ -1353,7 +1391,7 @@ const PublicForm = () => {
                     )}
                     {(!submissionState || submissionState === 'idle') && (
                       <>
-                        <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                        <FaSpinner style={{ animation: 'spin 1s linear infinite', color: '#b91c1c' }} />
                         Submitting Application...
                       </>
                     )}
@@ -1399,9 +1437,9 @@ const PublicForm = () => {
               {(submissionState === 'pending' || submissionState === 'processing' || submissionState === 'uploading') && (
                 <SubmissionStatus className={submissionState}>
                   <StatusIcon className={submissionState === 'pending' ? 'pulse' : ''}>
-                    {submissionState === 'pending' && <FaSpinner />}
-                    {submissionState === 'processing' && <FaSpinner />}
-                    {submissionState === 'uploading' && <FaCloudUploadAlt />}
+                    {submissionState === 'pending' && <FaSpinner color="#b91c1c" />}
+                    {submissionState === 'processing' && <FaSpinner color="#b91c1c" />}
+                    {submissionState === 'uploading' && <FaCloudUploadAlt color="#f97316" />}
                   </StatusIcon>
                   <StatusText>
                     <StatusTitle>
@@ -1420,13 +1458,16 @@ const PublicForm = () => {
 
               {/* Completion Status */}
               {submissionState === 'complete' && (
-                <SubmissionStatus className="uploading" style={{ background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)', borderColor: '#10b981' }}>
+                <SubmissionStatus
+                  className="uploading"
+                  style={{ background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderColor: '#f59e0b' }}
+                >
                   <StatusIcon style={{ animation: 'none' }}>
-                    <FaCheckCircle style={{ color: '#10b981', fontSize: '2rem' }} />
+                    <FaCheckCircle style={{ color: '#f97316', fontSize: '2rem' }} />
                   </StatusIcon>
                   <StatusText>
-                    <StatusTitle style={{ color: '#065f46' }}>Application Submitted Successfully!</StatusTitle>
-                    <StatusDescription style={{ color: '#047857' }}>
+                    <StatusTitle style={{ color: '#92400e' }}>Application Submitted Successfully!</StatusTitle>
+                    <StatusDescription style={{ color: '#b45309' }}>
                       Your application has been submitted. You will receive further updates via email.
                     </StatusDescription>
                   </StatusText>

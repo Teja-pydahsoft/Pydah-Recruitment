@@ -5,24 +5,24 @@ import { useNavigate } from 'react-router-dom';
 
 // Modern Color Palette
 const colors = {
-  primary: '#4f46e5',          // Indigo-600
-  primaryHover: '#4338ca',     // Indigo-700
-  primaryLight: '#6366f1',     // Indigo-500
-  secondary: '#64748b',        // Slate-500
-  secondaryHover: '#475569',   // Slate-600
-  accent: '#0ea5e9',           // Sky-500
-  success: '#10b981',          // Emerald-500
+  primary: '#b91c1c',          // Crimson
+  primaryHover: '#991b1b',     // Dark Red
+  primaryLight: '#f97316',     // Warm Orange
+  secondary: '#b75b1f',        // Burnt Orange
+  secondaryHover: '#9a3412',   // Copper
+  accent: '#f97316',           // Warm Accent
+  success: '#16a34a',          // Emerald-600
   warning: '#f59e0b',          // Amber-500
-  error: '#ef4444',            // Red-500
-  background: '#f8fafc',       // Slate-50
+  error: '#dc2626',            // Red-600
+  background: '#fff7ed',       // Peach Tint
   surface: '#ffffff',          // White
-  surfaceLight: '#f1f5f9',     // Slate-100
-  textPrimary: '#0f172a',      // Slate-900
-  textSecondary: '#475569',    // Slate-600
-  textMuted: '#64748b',        // Slate-500
-  borderLight: '#e2e8f0',      // Slate-200
-  borderMedium: '#cbd5e1',     // Slate-300
-  overlay: 'rgba(15, 23, 42, 0.6)', // Slate-900 with opacity
+  surfaceLight: '#ffe4e6',     // Blush
+  textPrimary: '#1f2937',      // Slate-800
+  textSecondary: '#7c2d12',    // Chestnut
+  textMuted: '#b75b1f',        // Muted Orange
+  borderLight: 'rgba(249, 115, 22, 0.2)',
+  borderMedium: 'rgba(239, 68, 68, 0.3)',
+  overlay: 'rgba(127, 29, 29, 0.6)', // Warm overlay
 };
 
 // Shadow System
