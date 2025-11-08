@@ -21,7 +21,16 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem('user');
 
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser({
+          ...parsedUser,
+          permissions: parsedUser.permissions || []
+        });
+      } catch (error) {
+        console.error('Failed to parse saved user from storage', error);
+        localStorage.removeItem('user');
+      }
     }
     setLoading(false);
   }, []);
@@ -30,10 +39,14 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { email, password });
       const { token, user: userData } = response.data;
+      const normalizedUser = {
+        ...userData,
+        permissions: userData.permissions || []
+      };
 
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      setUser(normalizedUser);
 
       return { success: true };
     } catch (error) {
@@ -65,7 +78,11 @@ export const AuthProvider = ({ children }) => {
   const updateProfile = async (profileData) => {
     try {
       const response = await api.put('/auth/profile', profileData);
-      const updatedUser = { ...user, ...response.data.user };
+      const updatedUser = {
+        ...user,
+        ...response.data.user,
+        permissions: response.data.user?.permissions || user?.permissions || []
+      };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
       return { success: true };
@@ -77,6 +94,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const hasPermission = (permission) => {
+    if (!permission || !user) {
+      return false;
+    }
+
+    if (user.role === 'super_admin') {
+      return true;
+    }
+
+    if (user.role === 'sub_admin') {
+      const userPermissions = Array.isArray(user.permissions) ? user.permissions : [];
+      return userPermissions.includes(permission) || userPermissions.includes('*');
+    }
+
+    return false;
+  };
+
   const value = {
     user,
     loading,
@@ -86,8 +120,11 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     isAuthenticated: !!user,
     isSuperAdmin: user?.role === 'super_admin',
+    isSubAdmin: user?.role === 'sub_admin',
     isPanelMember: user?.role === 'panel_member',
-    isCandidate: user?.role === 'candidate'
+    isCandidate: user?.role === 'candidate',
+    permissions: user?.permissions || [],
+    hasPermission
   };
 
   return (

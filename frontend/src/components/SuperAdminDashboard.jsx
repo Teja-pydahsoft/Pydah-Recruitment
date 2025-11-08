@@ -11,6 +11,7 @@ import DashboardOverview from './superadmin/DashboardOverview';
 import FormsManagement from './superadmin/FormsManagement';
 import TestResults from './superadmin/TestResults';
 import InterviewFeedback from './superadmin/InterviewFeedback';
+import SubAdminManagement from './superadmin/SubAdminManagement';
 
 const SuperAdminDashboard = () => {
   return (
@@ -20,6 +21,7 @@ const SuperAdminDashboard = () => {
       <Route path="submissions/*" element={<FormSubmissions />} />
       <Route path="tests/*" element={<TestsManagement />} />
       <Route path="users/*" element={<UsersManagement />} />
+      <Route path="sub-admins/*" element={<SubAdminManagement />} />
       <Route path="interviews/*" element={<InterviewsManagement />} />
       <Route path="test-results/*" element={<TestResults />} />
       <Route path="interview-feedback/*" element={<InterviewFeedback />} />

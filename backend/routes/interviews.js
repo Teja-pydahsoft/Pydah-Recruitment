@@ -2,14 +2,14 @@ const express = require('express');
 const Interview = require('../models/Interview');
 const Candidate = require('../models/Candidate');
 const User = require('../models/User');
-const { authenticateToken, requireSuperAdmin, requirePanelMember } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, requirePanelMember, hasPermission } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
 const crypto = require('crypto');
 
 const router = express.Router();
 
 // Create new interview (Super Admin only)
-router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const {
       title,
@@ -298,7 +298,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     // Check if user has access to this interview
-    if (req.user.role !== 'super_admin') {
+    const canManageInterviews = hasPermission(req.user, 'interviews.manage');
+
+    if (!canManageInterviews && req.user.role !== 'super_admin') {
       const isPanelMember = interview.panelMembers.some(
         pm => pm.panelMember._id.toString() === req.user._id.toString()
       );
@@ -316,7 +318,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Update interview (Super Admin only)
-router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/:id', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const {
       title,
@@ -371,7 +373,7 @@ router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
 });
 
 // Delete interview (Super Admin only)
-router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.delete('/:id', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const interview = await Interview.findById(req.params.id);
 
@@ -401,7 +403,7 @@ router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => 
 });
 
 // Assign candidates to interview (Super Admin only)
-router.post('/:id/assign-candidates', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/:id/assign-candidates', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const { candidateIds } = req.body;
     const interview = await Interview.findById(req.params.id);
@@ -436,7 +438,7 @@ router.post('/:id/assign-candidates', authenticateToken, requireSuperAdmin, asyn
 });
 
 // Schedule interview slots (Super Admin only)
-router.post('/:id/schedule', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/:id/schedule', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const { schedules } = req.body; // Array of { candidateId, scheduledDate, scheduledTime, duration, meetingLink }
     const interview = await Interview.findById(req.params.id);
@@ -472,7 +474,7 @@ router.post('/:id/schedule', authenticateToken, requireSuperAdmin, async (req, r
 });
 
 // Update individual candidate schedule (Super Admin only)
-router.put('/:id/candidate/:candidateId/schedule', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/:id/candidate/:candidateId/schedule', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const { scheduledDate, scheduledTime, duration, meetingLink, notes, status, sendNotification } = req.body;
     const interview = await Interview.findById(req.params.id)
@@ -901,7 +903,9 @@ router.get('/:id/feedback-summary', authenticateToken, async (req, res) => {
     }
 
     // Check access
-    if (req.user.role !== 'super_admin') {
+    const canManageInterviews = hasPermission(req.user, 'interviews.manage');
+
+    if (!canManageInterviews && req.user.role !== 'super_admin') {
       const isAssigned = interview.panelMembers.some(
         pm => pm.panelMember._id.toString() === req.user._id.toString()
       );
@@ -951,7 +955,7 @@ router.get('/candidate/feedback', authenticateToken, async (req, res) => {
 });
 
 // Update interview candidate status (Super Admin only)
-router.put('/:id/candidate/:candidateId/status', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/:id/candidate/:candidateId/status', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const { status, notes } = req.body;
     const interview = await Interview.findById(req.params.id);
@@ -985,7 +989,7 @@ router.put('/:id/candidate/:candidateId/status', authenticateToken, requireSuper
 });
 
 // Remove candidate from interview (Super Admin only)
-router.delete('/:id/candidate/:candidateId', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.delete('/:id/candidate/:candidateId', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const interview = await Interview.findById(req.params.id);
 
@@ -1015,7 +1019,7 @@ router.delete('/:id/candidate/:candidateId', authenticateToken, requireSuperAdmi
 });
 
 // Assign panel members to interview with email notification (Super Admin only)
-router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     const { panelMemberIds } = req.body;
     const interview = await Interview.findById(req.params.id)
@@ -1207,7 +1211,7 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdmin, a
 
 
 // Feedback management route for super admins
-router.get('/feedback/management', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/feedback/management', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
     // Get all feedback from candidates
     const candidates = await Candidate.find({

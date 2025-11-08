@@ -13,7 +13,8 @@ import {
   FaTimes,
   FaUser,
   FaClipboardCheck,
-  FaHome
+  FaHome,
+  FaUserShield
 } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -407,7 +408,7 @@ const Overlay = styled.div`
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const [notifications, setNotifications] = useState({ feedback: 0, interviews: 0 });
 
   useEffect(() => {
@@ -438,6 +439,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/super-admin/tests', icon: FaClipboardList, label: 'Test Management' },
       { path: '/super-admin/test-results', icon: FaClipboardCheck, label: 'Test Results' },
       { path: '/super-admin/users', icon: FaUserTie, label: 'Panel Members' },
+      { path: '/super-admin/sub-admins', icon: FaUserShield, label: 'Sub Admins' },
       { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Scheduling' },
       { path: '/super-admin/interview-feedback', icon: FaChartBar, label: 'Interview Feedback' },
       { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
@@ -456,7 +458,23 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     ]
   };
 
-  const currentNavItems = navigationItems[user?.role] || [];
+  const subAdminNavigation = [
+    { path: '/sub-admin', icon: FaHome, label: 'Dashboard' },
+    { path: '/sub-admin/forms', icon: FaFileAlt, label: 'Forms', permission: 'forms.manage' },
+    { path: '/sub-admin/submissions', icon: FaFileAlt, label: 'Submissions', permission: 'forms.manage' },
+    { path: '/sub-admin/candidates', icon: FaUsers, label: 'Candidates', permission: 'candidates.manage' },
+    { path: '/sub-admin/tests', icon: FaClipboardList, label: 'Tests', permission: 'tests.manage' },
+    { path: '/sub-admin/test-results', icon: FaClipboardCheck, label: 'Test Results', permission: 'tests.manage' },
+    { path: '/sub-admin/interviews', icon: FaCalendarAlt, label: 'Interviews', permission: 'interviews.manage' },
+    { path: '/sub-admin/interview-feedback', icon: FaChartBar, label: 'Interview Feedback', permission: 'interviews.manage' },
+    { path: '/sub-admin/users', icon: FaUserTie, label: 'Panel Members', permission: 'users.manage' },
+  ];
+
+  let currentNavItems = navigationItems[user?.role] || [];
+
+  if (user?.role === 'sub_admin') {
+    currentNavItems = subAdminNavigation.filter(item => !item.permission || hasPermission(item.permission));
+  }
 
   const formatUserRole = (role) => {
     return role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());

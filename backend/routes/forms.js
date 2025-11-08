@@ -6,12 +6,12 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const { uploadToDrive, ensureFolder, verifyFolderAccess } = require('../config/googleDrive');
-const { authenticateToken, requireSuperAdmin } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, hasPermission } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Create new recruitment form (Super Admin only)
-router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     console.log('\n📝 [FORM CREATION] Request received from:', req.user.email);
     console.log('📝 [FORM CREATION] Request body:', {
@@ -70,7 +70,7 @@ router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
 });
 
 // Get all forms (Super Admin only)
-router.get('/', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     console.log('\n📋 [FORMS FETCH] Request received from:', req.user.email);
     console.log('📋 [FORMS FETCH] Fetching all forms...');
@@ -91,7 +91,7 @@ router.get('/', authenticateToken, requireSuperAdmin, async (req, res) => {
 });
 
 // Get forms by type (Super Admin only) - MUST BE BEFORE /:id route
-router.get('/type/:formType', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/type/:formType', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     const { formType } = req.params;
     console.log('\n📋 [FORMS BY TYPE] Request received from:', req.user.email);
@@ -118,7 +118,7 @@ router.get('/type/:formType', authenticateToken, requireSuperAdmin, async (req, 
 });
 
 // Get forms by category (Teaching/Non-Teaching) (Super Admin only) - MUST BE BEFORE /:id route
-router.get('/category/:formCategory', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/category/:formCategory', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     const { formCategory } = req.params;
     console.log('\n📋 [FORMS BY CATEGORY] Request received from:', req.user.email);
@@ -148,7 +148,7 @@ router.get('/category/:formCategory', authenticateToken, requireSuperAdmin, asyn
 });
 
 // Get form statistics (Super Admin only) - MUST BE BEFORE /:id route
-router.get('/:id/stats', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/:id/stats', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     const form = await RecruitmentForm.findById(req.params.id);
 
@@ -173,7 +173,7 @@ router.get('/:id/stats', authenticateToken, requireSuperAdmin, async (req, res) 
 });
 
 // Get form with QR code info (Super Admin only) - MUST BE BEFORE /:id route
-router.get('/:id/qr-code', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/:id/qr-code', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     const form = await RecruitmentForm.findById(req.params.id);
 
@@ -212,7 +212,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     // Only super admin or form creator can view full details
-    if (req.user.role !== 'super_admin' && form.createdBy._id.toString() !== req.user._id.toString()) {
+    const canManageForms = hasPermission(req.user, 'forms.manage');
+
+    if (!canManageForms && form.createdBy._id.toString() !== req.user._id.toString()) {
       console.error('❌ [FORM FETCH BY ID] Access denied for user:', req.user.email);
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -230,7 +232,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Update form (Super Admin only)
-router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/:id', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     console.log('\n📝 [FORM UPDATE] Request received from:', req.user.email);
     console.log('📝 [FORM UPDATE] Form ID:', req.params.id);
@@ -311,7 +313,7 @@ router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
 });
 
 // Delete form (Super Admin only)
-router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.delete('/:id', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     console.log('\n🗑️  [FORM DELETE] Request received from:', req.user.email);
     console.log('🗑️  [FORM DELETE] Form ID:', req.params.id);
@@ -681,7 +683,7 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
 });
 
 // Regenerate QR code (Super Admin only)
-router.post('/:id/qr-code', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/:id/qr-code', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
     console.log('\n📱 [QR CODE REGENERATE] Request received from:', req.user.email);
     console.log('📱 [QR CODE REGENERATE] Form ID:', req.params.id);

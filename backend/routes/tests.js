@@ -10,14 +10,14 @@ const User = require('../models/User');
 const QuestionBank = require('../models/QuestionBank');
 const PreviousPaper = require('../models/PreviousPaper');
 const Interview = require('../models/Interview');
-const { authenticateToken, requireSuperAdmin } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
 
 const router = express.Router();
 const upload = multer({ dest: path.join(os.tmpdir(), 'uploads') });
 
 // Create new test (Super Admin only)
-router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { title, description, form, questions, duration, passingPercentage, instructions } = req.body;
 
@@ -45,7 +45,7 @@ router.post('/', authenticateToken, requireSuperAdmin, async (req, res) => {
 });
 
 // Question Bank CRUD (Super Admin only)
-router.get('/questions', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/questions', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { topic, q, page = 1, limit = 20 } = req.query;
     const filter = { isActive: true };
@@ -63,7 +63,7 @@ router.get('/questions', authenticateToken, requireSuperAdmin, async (req, res) 
   }
 });
 
-router.post('/questions', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/questions', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { topic, subTopic, questionText, options, correctAnswer, explanation, difficulty, tags } = req.body;
     if (!questionText || !topic) {
@@ -111,7 +111,7 @@ router.post('/questions', authenticateToken, requireSuperAdmin, async (req, res)
   }
 });
 
-router.put('/questions/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/questions/:id', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const updates = req.body;
     if (updates.options && (!Array.isArray(updates.options) || updates.options.length < 2)) {
@@ -129,7 +129,7 @@ router.put('/questions/:id', authenticateToken, requireSuperAdmin, async (req, r
   }
 });
 
-router.delete('/questions/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.delete('/questions/:id', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const deleted = await QuestionBank.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: 'Question not found' });
@@ -141,7 +141,7 @@ router.delete('/questions/:id', authenticateToken, requireSuperAdmin, async (req
 });
 
 // Create test from question bank selections
-router.post('/create-from-bank', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/create-from-bank', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { title, description, form, questionIds, duration, passingPercentage, cutoffPercentage, instructions } = req.body;
     if (!Array.isArray(questionIds) || questionIds.length === 0) {
@@ -184,7 +184,7 @@ router.post('/create-from-bank', authenticateToken, requireSuperAdmin, async (re
 });
 
 // Upload previous paper (expects JSON payload of questions)
-router.post('/previous-papers/upload', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/previous-papers/upload', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { title, description, year, subject, topic, questions, originalFileUrl, fileName } = req.body;
     if (!title || !Array.isArray(questions) || questions.length === 0) {
@@ -298,7 +298,7 @@ router.get('/assigned', authenticateToken, async (req, res) => {
 });
 
 // Get all tests (Super Admin only)
-router.get('/', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const tests = await Test.find({})
       .populate('form', 'title position department')
@@ -336,7 +336,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Update test (Super Admin only)
-router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/:id', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { title, description, questions, duration, passingPercentage, instructions, isActive } = req.body;
 
@@ -370,7 +370,7 @@ router.put('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
 });
 
 // Delete test (Super Admin only)
-router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.delete('/:id', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const test = await Test.findById(req.params.id);
 
@@ -720,7 +720,7 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
 });
 
 // Assign test to candidates (Super Admin only)
-router.post('/:id/assign', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/:id/assign', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { candidateIds, scheduledDate, scheduledTime } = req.body;
     const test = await Test.findById(req.params.id);
@@ -762,7 +762,7 @@ router.post('/:id/assign', authenticateToken, requireSuperAdmin, async (req, res
 });
 
 // Get detailed test results for a specific candidate (Super Admin only)
-router.get('/:testId/results/:candidateId', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/:testId/results/:candidateId', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { testId, candidateId } = req.params;
     
@@ -930,7 +930,7 @@ router.get('/:testId/results/:candidateId', authenticateToken, requireSuperAdmin
 });
 
 // Get test results (Super Admin only)
-router.get('/:id/results', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/:id/results', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const test = await Test.findById(req.params.id)
       .populate({
@@ -986,7 +986,7 @@ router.get('/:id/results', authenticateToken, requireSuperAdmin, async (req, res
 });
 
 // Suggest/move candidates to next round based on cutoff (Super Admin only)
-router.post('/:id/suggest-next-round', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/:id/suggest-next-round', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const test = await Test.findById(req.params.id);
     if (!test) return res.status(404).json({ message: 'Test not found' });
@@ -1011,7 +1011,7 @@ router.post('/:id/suggest-next-round', authenticateToken, requireSuperAdmin, asy
 });
 
 // Conduct test from CSV upload (Super Admin only)
-router.post('/conduct-from-csv', authenticateToken, requireSuperAdmin, upload.single('csvFile'), async (req, res) => {
+router.post('/conduct-from-csv', authenticateToken, requireSuperAdminOrPermission('tests.manage'), upload.single('csvFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'CSV file is required' });
@@ -1270,7 +1270,7 @@ This is an automated message from the Faculty Recruitment System.
 });
 
 // Release test results and promote/reject candidates (Super Admin only)
-router.post('/:id/release-results', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.post('/:id/release-results', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { candidateId, promote, interviewDate, interviewTime, rejectReason } = req.body;
     const test = await Test.findById(req.params.id).populate('candidates.candidate');

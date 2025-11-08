@@ -20,8 +20,12 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['super_admin', 'panel_member', 'candidate'],
+    enum: ['super_admin', 'sub_admin', 'panel_member', 'candidate'],
     required: true
+  },
+  permissions: {
+    type: [String],
+    default: []
   },
   isActive: {
     type: Boolean,

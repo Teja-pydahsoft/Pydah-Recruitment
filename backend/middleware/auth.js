@@ -36,6 +36,22 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+const hasPermission = (user, permission) => {
+  if (!user) return false;
+  if (user.role === 'super_admin') return true;
+
+  if (user.role === 'sub_admin') {
+    if (!permission) {
+      return true;
+    }
+
+    const userPermissions = Array.isArray(user.permissions) ? user.permissions : [];
+    return userPermissions.includes(permission) || userPermissions.includes('*');
+  }
+
+  return false;
+};
+
 // Middleware to check if user has required role
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
@@ -59,6 +75,49 @@ const authorizeRoles = (...roles) => {
 
     console.log('✅ [AUTHORIZATION] Access granted');
     next();
+  };
+};
+
+const requirePermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    if (hasPermission(req.user, permission)) {
+      return next();
+    }
+
+    console.error('❌ [AUTHORIZATION] Permission denied. User:', req.user.email, 'Permission:', permission);
+    return res.status(403).json({
+      message: 'Access denied. Insufficient permissions',
+      requiredPermission: permission,
+      userRole: req.user.role,
+      userPermissions: req.user.permissions || []
+    });
+  };
+};
+
+const requireSuperAdminOrPermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    if (req.user.role === 'super_admin') {
+      return next();
+    }
+
+    if (hasPermission(req.user, permission)) {
+      return next();
+    }
+
+    console.error('❌ [AUTHORIZATION] Access denied. Missing permission:', permission);
+    return res.status(403).json({
+      message: 'Access denied. Insufficient permissions',
+      requiredPermission: permission,
+      userRole: req.user.role
+    });
   };
 };
 
@@ -96,5 +155,8 @@ module.exports = {
   requireSuperAdmin,
   requirePanelMember,
   requireCandidate,
-  requireOwnershipOrAdmin
+  requireOwnershipOrAdmin,
+  hasPermission,
+  requirePermission,
+  requireSuperAdminOrPermission
 };

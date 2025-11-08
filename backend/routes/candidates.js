@@ -1,12 +1,12 @@
 const express = require('express');
 const Candidate = require('../models/Candidate');
 const User = require('../models/User');
-const { authenticateToken, requireSuperAdmin } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, hasPermission } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Get all candidates (Super Admin only)
-router.get('/', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const candidates = await Candidate.find({})
       .populate('user', 'name email')
@@ -55,7 +55,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     // Check access permissions
-    if (req.user.role !== 'super_admin' && candidate.user._id.toString() !== req.user._id.toString()) {
+    const canManageCandidates = hasPermission(req.user, 'candidates.manage');
+
+    if (!canManageCandidates && candidate.user._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -158,7 +160,7 @@ const generateCandidateNumber = async () => {
 };
 
 // Update candidate status (Super Admin only)
-router.put('/:id/status', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/:id/status', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const { status } = req.body;
     const candidate = await Candidate.findById(req.params.id)
@@ -204,7 +206,7 @@ router.put('/:id/status', authenticateToken, requireSuperAdmin, async (req, res)
 });
 
 // Set final decision (Super Admin only)
-router.put('/:id/final-decision', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/:id/final-decision', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const { decision, notes } = req.body;
     const candidate = await Candidate.findById(req.params.id);
@@ -308,7 +310,7 @@ router.put('/profile/me', authenticateToken, async (req, res) => {
 });
 
 // Get candidates by form (Super Admin only)
-router.get('/form/:formId', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/form/:formId', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const candidates = await Candidate.find({ form: req.params.formId })
       .populate('user', 'name email')
@@ -323,7 +325,7 @@ router.get('/form/:formId', authenticateToken, requireSuperAdmin, async (req, re
 });
 
 // Get candidates by status (Super Admin only)
-router.get('/status/:status', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/status/:status', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const candidates = await Candidate.find({ status: req.params.status })
       .populate('user', 'name email')
@@ -338,7 +340,7 @@ router.get('/status/:status', authenticateToken, requireSuperAdmin, async (req, 
 });
 
 // Bulk update candidate status (Super Admin only)
-router.put('/bulk/status', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.put('/bulk/status', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const { candidateIds, status } = req.body;
 
@@ -400,7 +402,7 @@ router.put('/bulk/status', authenticateToken, requireSuperAdmin, async (req, res
 });
 
 // Get candidate statistics (Super Admin only)
-router.get('/stats/overview', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/stats/overview', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const stats = await Candidate.aggregate([
       {
@@ -448,7 +450,7 @@ router.get('/stats/overview', authenticateToken, requireSuperAdmin, async (req, 
 });
 
 // Export candidates data (Super Admin only)
-router.get('/export/all', authenticateToken, requireSuperAdmin, async (req, res) => {
+router.get('/export/all', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const candidates = await Candidate.find({})
       .populate('user', 'name email profile')

@@ -6,6 +6,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 // Components
 import Login from './components/Login';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
+import SubAdminDashboard from './components/SubAdminDashboard';
 import PanelMemberDashboard from './components/PanelMemberDashboard';
 import CandidateDashboard from './components/CandidateDashboard';
 import PublicForm from './components/PublicForm';
@@ -72,6 +73,8 @@ const getRedirectPathForRole = (role) => {
   switch (role) {
     case 'super_admin':
       return '/super-admin';
+    case 'sub_admin':
+      return '/sub-admin';
     case 'panel_member':
       return '/panel-member';
     case 'candidate':
@@ -100,6 +103,17 @@ function App() {
               <AppLayout>
                 <ProtectedRoute allowedRoles={['super_admin']}>
                   <SuperAdminDashboard />
+                </ProtectedRoute>
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/sub-admin/*"
+            element={
+              <AppLayout>
+                <ProtectedRoute allowedRoles={['sub_admin']}>
+                  <SubAdminDashboard />
                 </ProtectedRoute>
               </AppLayout>
             }

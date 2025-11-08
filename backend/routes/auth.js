@@ -1,10 +1,48 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdmin, requireSuperAdminOrPermission, hasPermission } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
 
 const router = express.Router();
+
+const AVAILABLE_PERMISSIONS = [
+  {
+    key: 'forms.manage',
+    label: 'Manage Forms & Submissions',
+    description: 'Create recruitment forms, update workflows, and review submissions.'
+  },
+  {
+    key: 'candidates.manage',
+    label: 'Manage Candidates & Decisions',
+    description: 'Review candidate profiles, update statuses, and record final decisions.'
+  },
+  {
+    key: 'tests.manage',
+    label: 'Manage Tests, Question Bank & Results',
+    description: 'Build assessments, assign tests, and publish results.'
+  },
+  {
+    key: 'interviews.manage',
+    label: 'Manage Interviews & Feedback',
+    description: 'Schedule interviews, assign panels, and analyse feedback.'
+  },
+  {
+    key: 'users.manage',
+    label: 'Manage Users & Panel Members',
+    description: 'Add or update panel members and manage user account status.'
+  }
+];
+
+const PERMISSION_KEYS = new Set(AVAILABLE_PERMISSIONS.map(permission => permission.key));
+
+const normalizePermissions = (permissionList = []) => {
+  if (!Array.isArray(permissionList)) {
+    return [];
+  }
+
+  return [...new Set(permissionList.filter(key => PERMISSION_KEYS.has(key)))];
+};
 
 // Register new user (only super admin can create panel members and other admins)
 router.post('/register', authenticateToken, async (req, res) => {
@@ -17,7 +55,7 @@ router.post('/register', authenticateToken, async (req, res) => {
       profile: req.body.profile
     });
 
-    const { name, email, password, role, profile } = req.body;
+    const { name, email, password, role, profile, permissions } = req.body;
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -26,9 +64,22 @@ router.post('/register', authenticateToken, async (req, res) => {
     }
 
     // Only super admin can create panel members and other admins
-    if ((role === 'panel_member' || role === 'super_admin') && req.user.role !== 'super_admin') {
-      console.error('❌ [USER REGISTRATION] Unauthorized attempt to create', role);
-      return res.status(403).json({ message: 'Only super admin can create panel members or admins' });
+    if (role === 'super_admin' && req.user.role !== 'super_admin') {
+      console.error('❌ [USER REGISTRATION] Unauthorized attempt to create super admin');
+      return res.status(403).json({ message: 'Only super admin can create other super admins' });
+    }
+
+    if (role === 'sub_admin' && req.user.role !== 'super_admin') {
+      console.error('❌ [USER REGISTRATION] Unauthorized attempt to create sub admin');
+      return res.status(403).json({ message: 'Only super admin can create sub admins' });
+    }
+
+    if (role === 'panel_member') {
+      const canManageUsers = hasPermission(req.user, 'users.manage');
+      if (!canManageUsers) {
+        console.error('❌ [USER REGISTRATION] Unauthorized attempt to create panel member');
+        return res.status(403).json({ message: 'Insufficient permissions to create panel members' });
+      }
     }
 
     // Check if user already exists
@@ -51,7 +102,10 @@ router.post('/register', authenticateToken, async (req, res) => {
       email,
       password,
       role: role || 'candidate',
-      profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined
+      profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined,
+      permissions: role === 'sub_admin'
+        ? normalizePermissions(permissions)
+        : undefined
     });
 
     await user.save();
@@ -132,7 +186,8 @@ router.post('/register', authenticateToken, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        permissions: user.permissions || []
       }
     });
   } catch (error) {
@@ -151,6 +206,11 @@ router.post('/register', authenticateToken, async (req, res) => {
     
     res.status(500).json({ message: 'Server error during registration' });
   }
+});
+
+// Get available permission options (Super Admin only)
+router.get('/permissions', authenticateToken, requireSuperAdmin, (req, res) => {
+  res.json({ permissions: AVAILABLE_PERMISSIONS });
 });
 
 // Login
@@ -248,7 +308,8 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        profile: user.profile
+        profile: user.profile,
+        permissions: user.permissions || []
       }
     });
   } catch (error) {
@@ -321,12 +382,8 @@ router.put('/change-password', authenticateToken, async (req, res) => {
 });
 
 // Get all users (super admin only)
-router.get('/users', authenticateToken, async (req, res) => {
+router.get('/users', authenticateToken, requireSuperAdminOrPermission('users.manage'), async (req, res) => {
   try {
-    if (req.user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Access denied. Super admin only' });
-    }
-
     const users = await User.find({}).select('-password').sort({ createdAt: -1 });
     res.json({ users });
   } catch (error) {
@@ -336,12 +393,8 @@ router.get('/users', authenticateToken, async (req, res) => {
 });
 
 // Update user status (super admin only)
-router.put('/users/:userId/status', authenticateToken, async (req, res) => {
+router.put('/users/:userId/status', authenticateToken, requireSuperAdminOrPermission('users.manage'), async (req, res) => {
   try {
-    if (req.user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Access denied. Super admin only' });
-    }
-
     const { isActive } = req.body;
     const user = await User.findByIdAndUpdate(
       req.params.userId,
@@ -364,7 +417,7 @@ router.put('/users/:userId/status', authenticateToken, async (req, res) => {
 });
 
 // Update panel member details (super admin only)
-router.put('/panel-members/:userId', authenticateToken, async (req, res) => {
+router.put('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermission('users.manage'), async (req, res) => {
   try {
     console.log('\n👤 [PANEL MEMBER UPDATE] Request received from:', req.user.email);
     console.log('👤 [PANEL MEMBER UPDATE] User ID:', req.params.userId);
@@ -373,11 +426,6 @@ router.put('/panel-members/:userId', authenticateToken, async (req, res) => {
       email: req.body.email,
       profile: req.body.profile
     });
-
-    if (req.user.role !== 'super_admin') {
-      console.error('❌ [PANEL MEMBER UPDATE] Unauthorized access');
-      return res.status(403).json({ message: 'Access denied. Super admin only' });
-    }
 
     const { name, email, password, profile } = req.body;
 
@@ -456,12 +504,8 @@ router.put('/panel-members/:userId', authenticateToken, async (req, res) => {
 });
 
 // Delete panel member (super admin only)
-router.delete('/panel-members/:userId', authenticateToken, async (req, res) => {
+router.delete('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermission('users.manage'), async (req, res) => {
   try {
-    if (req.user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Access denied. Super admin only' });
-    }
-
     const user = await User.findById(req.params.userId);
 
     if (!user) {
@@ -484,17 +528,139 @@ router.delete('/panel-members/:userId', authenticateToken, async (req, res) => {
 });
 
 // Get all panel members (super admin only)
-router.get('/panel-members', authenticateToken, async (req, res) => {
+router.get('/panel-members', authenticateToken, requireSuperAdminOrPermission('users.manage'), async (req, res) => {
   try {
-    if (req.user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Access denied. Super admin only' });
-    }
-
     const panelMembers = await User.find({ role: 'panel_member' }).select('-password').sort({ createdAt: -1 });
     res.json({ panelMembers });
   } catch (error) {
     console.error('Panel members fetch error:', error);
     res.status(500).json({ message: 'Server error fetching panel members' });
+  }
+});
+
+// Sub Admin Management (Super Admin only)
+router.get('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const subAdmins = await User.find({ role: 'sub_admin' })
+      .select('-password')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      subAdmins,
+      availablePermissions: AVAILABLE_PERMISSIONS
+    });
+  } catch (error) {
+    console.error('Sub admin fetch error:', error);
+    res.status(500).json({ message: 'Server error fetching sub admins' });
+  }
+});
+
+router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, email, password, profile, permissions } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists with this email' });
+    }
+
+    const cleanedProfile = profile ? Object.fromEntries(
+      Object.entries(profile).filter(([_, value]) => value !== '' && value !== null && value !== undefined)
+    ) : {};
+
+    const subAdmin = new User({
+      name,
+      email,
+      password,
+      role: 'sub_admin',
+      profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined,
+      permissions: normalizePermissions(permissions)
+    });
+
+    await subAdmin.save();
+
+    const userResponse = subAdmin.toObject();
+    delete userResponse.password;
+
+    res.status(201).json({
+      message: 'Sub admin created successfully',
+      subAdmin: userResponse
+    });
+  } catch (error) {
+    console.error('Sub admin creation error:', error);
+    res.status(500).json({ message: 'Server error creating sub admin' });
+  }
+});
+
+router.put('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, email, password, profile, permissions, isActive } = req.body;
+    const subAdmin = await User.findById(req.params.userId);
+
+    if (!subAdmin) {
+      return res.status(404).json({ message: 'Sub admin not found' });
+    }
+
+    if (subAdmin.role !== 'sub_admin') {
+      return res.status(400).json({ message: 'User is not a sub admin' });
+    }
+
+    if (name !== undefined) subAdmin.name = name;
+    if (email !== undefined) subAdmin.email = email;
+    if (typeof isActive === 'boolean') subAdmin.isActive = isActive;
+
+    if (profile !== undefined) {
+      const cleanedProfile = profile ? Object.fromEntries(
+        Object.entries(profile).filter(([_, value]) => value !== '' && value !== null && value !== undefined)
+      ) : {};
+      subAdmin.profile = Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined;
+    }
+
+    if (password && password.trim() !== '') {
+      subAdmin.password = password;
+    }
+
+    if (permissions !== undefined) {
+      subAdmin.permissions = normalizePermissions(permissions);
+    }
+
+    await subAdmin.save();
+
+    const userResponse = subAdmin.toObject();
+    delete userResponse.password;
+
+    res.json({
+      message: 'Sub admin updated successfully',
+      subAdmin: userResponse
+    });
+  } catch (error) {
+    console.error('Sub admin update error:', error);
+    res.status(500).json({ message: 'Server error updating sub admin' });
+  }
+});
+
+router.delete('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    const subAdmin = await User.findById(req.params.userId);
+
+    if (!subAdmin) {
+      return res.status(404).json({ message: 'Sub admin not found' });
+    }
+
+    if (subAdmin.role !== 'sub_admin') {
+      return res.status(400).json({ message: 'User is not a sub admin' });
+    }
+
+    await User.findByIdAndDelete(req.params.userId);
+
+    res.json({ message: 'Sub admin deleted successfully' });
+  } catch (error) {
+    console.error('Sub admin delete error:', error);
+    res.status(500).json({ message: 'Server error deleting sub admin' });
   }
 });
 

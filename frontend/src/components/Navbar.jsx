@@ -1,12 +1,12 @@
 import React from 'react';
 import { Navbar, Nav, NavDropdown, Container } from 'react-bootstrap';
-import { FaUser, FaCog, FaSignOutAlt, FaUserTie, FaUsers, FaFileAlt, FaClipboardList, FaCalendarAlt } from 'react-icons/fa';
+import { FaUser, FaCog, FaSignOutAlt, FaUserTie, FaUsers, FaFileAlt, FaClipboardList, FaCalendarAlt, FaUserShield } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './Navbar.css';
 
 const NavigationBar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -18,6 +18,8 @@ const NavigationBar = () => {
     switch (user?.role) {
       case 'super_admin':
         return '/super-admin';
+      case 'sub_admin':
+        return '/sub-admin';
       case 'panel_member':
         return '/panel-member';
       case 'candidate':
@@ -60,6 +62,10 @@ const NavigationBar = () => {
                   <FaUserTie className="me-2" size={16} />
                   Panel Members
                 </Nav.Link>
+                <Nav.Link href="/super-admin/sub-admins" className="d-flex align-items-center">
+                  <FaUserShield className="me-2" size={16} />
+                  Sub Admins
+                </Nav.Link>
                 <Nav.Link href="/super-admin/interviews" className="d-flex align-items-center">
                   <FaCalendarAlt className="me-2" size={16} />
                   Interview Scheduling
@@ -77,6 +83,51 @@ const NavigationBar = () => {
                   <FaClipboardList className="me-2" size={16} />
                   Feedback
                 </Nav.Link>
+              </>
+            )}
+
+            {user?.role === 'sub_admin' && (
+              <>
+                <Nav.Link href="/sub-admin" className="d-flex align-items-center">
+                  <FaUserTie className="me-2" size={16} />
+                  Dashboard
+                </Nav.Link>
+                {hasPermission('forms.manage') && (
+                  <Nav.Link href="/sub-admin/forms" className="d-flex align-items-center">
+                    <FaFileAlt className="me-2" size={16} />
+                    Forms
+                  </Nav.Link>
+                )}
+                {hasPermission('forms.manage') && (
+                  <Nav.Link href="/sub-admin/submissions" className="d-flex align-items-center">
+                    <FaFileAlt className="me-2" size={16} />
+                    Submissions
+                  </Nav.Link>
+                )}
+                {hasPermission('candidates.manage') && (
+                  <Nav.Link href="/sub-admin/candidates" className="d-flex align-items-center">
+                    <FaUsers className="me-2" size={16} />
+                    Candidates
+                  </Nav.Link>
+                )}
+                {hasPermission('tests.manage') && (
+                  <Nav.Link href="/sub-admin/tests" className="d-flex align-items-center">
+                    <FaClipboardList className="me-2" size={16} />
+                    Tests
+                  </Nav.Link>
+                )}
+                {hasPermission('interviews.manage') && (
+                  <Nav.Link href="/sub-admin/interviews" className="d-flex align-items-center">
+                    <FaCalendarAlt className="me-2" size={16} />
+                    Interviews
+                  </Nav.Link>
+                )}
+                {hasPermission('users.manage') && (
+                  <Nav.Link href="/sub-admin/users" className="d-flex align-items-center">
+                    <FaUserShield className="me-2" size={16} />
+                    Panel Members
+                  </Nav.Link>
+                )}
               </>
             )}
 
