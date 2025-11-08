@@ -42,14 +42,14 @@ const bounce = keyframes`
 const FormContainer = styled.div`
   min-height: 100vh;
   background: linear-gradient(135deg, #fee2e2 0%, #fff7ed 100%);
-  padding: 2rem 0;
+  padding: clamp(1.5rem, 4vw, 3rem) 0;
   animation: ${fadeIn} 0.6s ease-out;
 `;
 
 const FormWrapper = styled.div`
-  max-width: 920px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 clamp(0.75rem, 3vw, 2rem);
 `;
 
 const FormCard = styled.div`
@@ -64,7 +64,7 @@ const FormCard = styled.div`
 const FormHeader = styled.div`
   background: linear-gradient(135deg, #ef4444, #f97316);
   color: #fff7ed;
-  padding: 3rem 2rem;
+  padding: clamp(2.5rem, 5vw, 3.5rem) clamp(1.5rem, 4vw, 3rem);
   text-align: center;
   position: relative;
 
@@ -81,27 +81,26 @@ const FormHeader = styled.div`
 `;
 
 const HeaderIcon = styled.div`
-  font-size: 4rem;
-  margin-bottom: 1.5rem;
+  font-size: clamp(3.2rem, 6vw, 4rem);
+  margin-bottom: clamp(1rem, 2.5vw, 1.75rem);
   opacity: 0.9;
 `;
 
 const FormTitle = styled.h1`
-  font-size: 2.25rem;
+  font-size: clamp(1.9rem, 4vw, 2.4rem);
   font-weight: 800;
-  margin-bottom: 1rem;
+  margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
 `;
 
 const FormDescription = styled.p`
-  font-size: 1.1rem;
+  font-size: clamp(1rem, 2.3vw, 1.1rem);
   opacity: 0.9;
-  margin: 0;
   max-width: 600px;
   margin: 0 auto;
 `;
 
 const FormBody = styled.div`
-  padding: 3rem 2.5rem;
+  padding: clamp(2rem, 4.5vw, 3rem) clamp(1.5rem, 3.5vw, 2.5rem);
   background: #fffaf5;
 `;
 
@@ -118,10 +117,10 @@ const ErrorAlert = styled.div`
 `;
 
 const SectionTitle = styled.h3`
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 3vw, 1.45rem);
   font-weight: 700;
   color: #9f1239;
-  margin-bottom: 1.5rem;
+  margin-bottom: clamp(1rem, 2vw, 1.5rem);
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -139,17 +138,17 @@ const JobDetailsCard = styled.div`
   background: linear-gradient(135deg, #fff7ed 0%, #ffe4e6 100%);
   border: 1px solid rgba(239, 68, 68, 0.25);
   border-radius: 20px;
-  padding: 2rem;
-  margin-bottom: 2.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  margin-bottom: clamp(1.75rem, 3vw, 2.5rem);
   box-shadow: 0 12px 24px rgba(239, 68, 68, 0.08);
 `;
 
 const JobDetailRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem;
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+  margin-bottom: clamp(0.75rem, 2vw, 1.1rem);
+  padding: clamp(0.65rem, 1.8vw, 0.9rem);
   background: rgba(255, 255, 255, 0.9);
   border-radius: 12px;
   border-left: 4px solid #f97316;
@@ -162,7 +161,7 @@ const JobDetailRow = styled.div`
 const JobDetailLabel = styled.span`
   font-weight: 600;
   color: #9f1239;
-  min-width: 140px;
+  min-width: clamp(120px, 18vw, 150px);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -171,6 +170,7 @@ const JobDetailLabel = styled.span`
 const JobDetailValue = styled.span`
   color: #1f2937;
   flex: 1;
+  font-size: clamp(0.95rem, 2.4vw, 1rem);
 `;
 
 const RequirementsList = styled.ul`
@@ -208,26 +208,34 @@ const ClosingDateBadge = styled.div`
 `;
 
 const FormSection = styled.div`
-  margin-bottom: 2.5rem;
+  margin-bottom: clamp(1.75rem, 3vw, 2.5rem);
 `;
 
 const TwoColumnGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1rem, 2vw, 1.5rem);
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
   @media (max-width: 768px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 `;
 
 const FieldsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem;
-  margin-top: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1rem, 2.4vw, 1.6rem);
+  margin-top: clamp(0.75rem, 2vw, 1.1rem);
 
-  @media (max-width: 900px) {
+  @media (max-width: 1200px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 768px) {
     grid-template-columns: 1fr;
   }
 `;
@@ -235,15 +243,15 @@ const FieldsGrid = styled.div`
 const FieldGroup = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: clamp(0.5rem, 1.5vw, 0.75rem);
 `;
 
 const FieldLabel = styled.label`
   display: block;
   font-weight: 600;
   color: #7f1d1d;
-  margin-bottom: 0.5rem;
-  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
+  font-size: clamp(0.85rem, 2vw, 0.95rem);
 
   span {
     color: #b91c1c;
@@ -253,10 +261,10 @@ const FieldLabel = styled.label`
 
 const StyledInput = styled.input`
   width: 100%;
-  padding: 0.875rem 1rem;
+  padding: clamp(0.75rem, 1.8vw, 0.9rem) clamp(0.85rem, 2vw, 1rem);
   border: 1.5px solid rgba(249, 115, 22, 0.25);
   border-radius: 10px;
-  font-size: 1rem;
+  font-size: clamp(0.92rem, 2.2vw, 1rem);
   transition: all 0.3s ease;
   background: white;
   color: #1e293b;
@@ -274,10 +282,10 @@ const StyledInput = styled.input`
 
 const StyledTextarea = styled.textarea`
   width: 100%;
-  padding: 0.875rem 1rem;
+  padding: clamp(0.75rem, 1.8vw, 0.9rem) clamp(0.85rem, 2vw, 1rem);
   border: 1.5px solid rgba(249, 115, 22, 0.25);
   border-radius: 10px;
-  font-size: 1rem;
+  font-size: clamp(0.92rem, 2.2vw, 1rem);
   transition: all 0.3s ease;
   background: white;
   color: #1e293b;
@@ -297,10 +305,10 @@ const StyledTextarea = styled.textarea`
 
 const StyledSelect = styled.select`
   width: 100%;
-  padding: 0.875rem 1rem;
+  padding: clamp(0.75rem, 1.8vw, 0.9rem) clamp(0.85rem, 2vw, 1rem);
   border: 1.5px solid rgba(249, 115, 22, 0.25);
   border-radius: 10px;
-  font-size: 1rem;
+  font-size: clamp(0.92rem, 2.1vw, 1rem);
   transition: all 0.3s ease;
   background: white;
   color: #1e293b;
@@ -314,10 +322,10 @@ const StyledSelect = styled.select`
 
 const FileInput = styled.input`
   width: 100%;
-  padding: 0.875rem 1rem;
+  padding: clamp(0.75rem, 1.8vw, 0.9rem) clamp(0.85rem, 2vw, 1rem);
   border: 1.5px solid rgba(249, 115, 22, 0.25);
   border-radius: 10px;
-  font-size: 1rem;
+  font-size: clamp(0.92rem, 2.2vw, 1rem);
   transition: all 0.3s ease;
   background: white;
   color: #1e293b;
@@ -335,15 +343,15 @@ const SubmitButton = styled.button`
   color: white;
   border: none;
   border-radius: 12px;
-  padding: 1rem 2rem;
-  font-size: 1.1rem;
+  padding: clamp(0.85rem, 2.4vw, 1.05rem) clamp(1.2rem, 3vw, 2rem);
+  font-size: clamp(1rem, 2.5vw, 1.1rem);
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: clamp(0.6rem, 1.5vw, 0.75rem);
   position: relative;
   overflow: hidden;
 
@@ -385,6 +393,26 @@ const SubmitButton = styled.button`
 
   &.uploading {
     background: linear-gradient(135deg, #f97316, #ea580c);
+  }
+`;
+
+const FileUploadShell = styled.div`
+  position: relative;
+  border: 2px dashed rgba(249, 115, 22, 0.35);
+  border-radius: 12px;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  background: rgba(255, 247, 237, 0.6);
+  transition: border-color 0.3s ease, background 0.3s ease;
+
+  &:hover {
+    border-color: rgba(249, 115, 22, 0.6);
+    background: rgba(255, 247, 237, 0.85);
+  }
+
+  input[type="file"] {
+    background: transparent;
+    border: none;
+    padding: 0;
   }
 `;
 
@@ -1009,31 +1037,24 @@ const PublicForm = () => {
         );
 
       case 'file':
-        return (
-          <FileInput
-            type="file"
-            onChange={(e) => handleFormDataChange(field.fieldName, e.target.files[0])}
-            required={field.required}
-            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-          />
-        );
-
       case 'file_multiple':
         return (
-          <FileInput
-            type="file"
-            onChange={(e) => handleFormDataChange(field.fieldName, Array.from(e.target.files))}
-            required={field.required}
-            multiple
-            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-          />
+          <FileUploadShell>
+            <FileInput
+              type="file"
+              onChange={(e) => handleFormDataChange(field.fieldName, field.fieldType === 'file_multiple' ? Array.from(e.target.files) : e.target.files[0])}
+              required={field.required}
+              multiple={field.fieldType === 'file_multiple'}
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            />
+          </FileUploadShell>
         );
 
       case 'radio':
         return (
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {(field.options || []).map((opt, idx) => (
-              <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem' }}>
                 <input
                   type="radio"
                   name={field.fieldName}
@@ -1048,16 +1069,15 @@ const PublicForm = () => {
           </div>
         );
 
-      case 'checkbox':
-        // Supports single checkbox declaration or multi-option selection
+      case 'checkbox': {
         const options = field.options && field.options.length > 0 ? field.options : ['Yes'];
         const selected = Array.isArray(value) ? value : (value ? [options[0]] : []);
         return (
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {options.map((opt, idx) => {
               const checked = selected.includes(opt);
               return (
-                <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem' }}>
                   <input
                     type="checkbox"
                     checked={checked}
@@ -1065,7 +1085,6 @@ const PublicForm = () => {
                       const next = new Set(selected);
                       if (e.target.checked) next.add(opt); else next.delete(opt);
                       const arr = Array.from(next);
-                      // If it is a single declaration, store boolean; else store array
                       handleFormDataChange(field.fieldName, options.length === 1 ? (arr.length === 1) : arr);
                     }}
                     required={field.required && options.length === 1}
@@ -1076,6 +1095,7 @@ const PublicForm = () => {
             })}
           </div>
         );
+      }
 
       default:
         return (

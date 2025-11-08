@@ -1,9 +1,98 @@
 const express = require('express');
 const Candidate = require('../models/Candidate');
 const User = require('../models/User');
+const Test = require('../models/Test');
+const Interview = require('../models/Interview');
 const { authenticateToken, requireSuperAdminOrPermission, hasPermission } = require('../middleware/auth');
 
 const router = express.Router();
+
+const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignments = []) => {
+  const tests = testAssignments || [];
+  const interviews = interviewAssignments || [];
+  const testResults = candidate.testResults || [];
+  const finalDecision = candidate.finalDecision?.decision || null;
+
+  const testsPending = tests.filter(t => ['invited', 'started'].includes(t.status)).length;
+  const testsCompleted = tests.filter(t => t.status === 'completed').length;
+  const testsExpired = tests.filter(t => t.status === 'expired').length;
+  const testsAssigned = tests.length;
+
+  const passedTests = testResults.filter(tr => tr.status === 'passed').length;
+  const failedTests = testResults.filter(tr => tr.status === 'failed').length;
+
+  const interviewsScheduled = interviews.filter(i => i.status === 'scheduled').length;
+  const interviewsCompleted = interviews.filter(i => i.status === 'completed').length;
+  const interviewsCancelled = interviews.filter(i => i.status === 'cancelled' || i.status === 'no_show').length;
+
+  let stage = 'application_review';
+  let label = 'Application in Review';
+  let nextAction = 'Review application details';
+
+  const candidateStatus = candidate.status;
+
+  if (candidateStatus === 'rejected' || finalDecision === 'rejected') {
+    stage = 'rejected';
+    label = 'Application Rejected';
+    nextAction = 'Notify candidate of decision';
+  } else if (finalDecision === 'selected' || candidateStatus === 'selected') {
+    stage = 'selected';
+    label = 'Candidate Selected';
+    nextAction = 'Proceed with onboarding';
+  } else if (finalDecision === 'on_hold') {
+    stage = 'on_hold';
+    label = 'Candidate On Hold';
+    nextAction = 'Review hold status regularly';
+  } else if (interviewsCompleted > 0 && !finalDecision) {
+    stage = 'awaiting_decision';
+    label = 'Awaiting Final Decision';
+    nextAction = 'Record final decision';
+  } else if (interviewsScheduled > 0) {
+    stage = 'interview_scheduled';
+    label = 'Interview Scheduled';
+    nextAction = 'Conduct interview and capture feedback';
+  } else if (passedTests > 0) {
+    stage = 'awaiting_interview';
+    label = 'Awaiting Interview Scheduling';
+    nextAction = 'Schedule next interview round';
+  } else if (testsPending > 0) {
+    stage = 'test_in_progress';
+    label = 'Test In Progress';
+    nextAction = 'Monitor test completion';
+  } else if (testsAssigned > 0) {
+    stage = 'test_assigned';
+    label = 'Test Assigned';
+    nextAction = 'Ensure candidate starts the test';
+  } else if (['approved', 'shortlisted'].includes(candidateStatus)) {
+    stage = 'awaiting_test_assignment';
+    label = 'Awaiting Test Assignment';
+    nextAction = 'Assign appropriate assessment';
+  } else if (candidateStatus === 'pending') {
+    stage = 'application_review';
+    label = 'Application in Review';
+    nextAction = 'Review application details';
+  }
+
+  return {
+    stage,
+    label,
+    nextAction,
+    tests: {
+      assigned: testsAssigned,
+      pending: testsPending,
+      completed: testsCompleted,
+      expired: testsExpired,
+      passed: passedTests,
+      failed: failedTests
+    },
+    interviews: {
+      scheduled: interviewsScheduled,
+      completed: interviewsCompleted,
+      cancelled: interviewsCancelled
+    },
+    finalDecision: candidate.finalDecision || null
+  };
+};
 
 // Get all candidates (Super Admin only)
 router.get('/', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
@@ -33,7 +122,78 @@ router.get('/', authenticateToken, requireSuperAdminOrPermission('candidates.man
       };
     });
 
-    res.json({ candidates: candidatesWithPhoto });
+    const candidateIds = candidatesWithPhoto.map(candidate => candidate._id);
+
+    const tests = await Test.find({ 'candidates.candidate': { $in: candidateIds } })
+      .select('title candidates scheduledDate scheduledTime createdAt')
+      .lean();
+
+    const interviews = await Interview.find({ 'candidates.candidate': { $in: candidateIds } })
+      .select('title type round candidates createdAt')
+      .lean();
+
+    const testsByCandidate = new Map();
+    tests.forEach(test => {
+      test.candidates.forEach(entry => {
+        const candidateId = entry.candidate.toString();
+        if (!testsByCandidate.has(candidateId)) {
+          testsByCandidate.set(candidateId, []);
+        }
+        testsByCandidate.get(candidateId).push({
+          testId: test._id,
+          title: test.title,
+          status: entry.status,
+          invitedAt: entry.invitedAt,
+          startedAt: entry.startedAt,
+          completedAt: entry.completedAt,
+          score: entry.score,
+          percentage: entry.percentage,
+          scheduledDate: test.scheduledDate,
+          scheduledTime: test.scheduledTime,
+          createdAt: test.createdAt
+        });
+      });
+    });
+
+    const interviewsByCandidate = new Map();
+    interviews.forEach(interview => {
+      interview.candidates.forEach(entry => {
+        const candidateId = entry.candidate.toString();
+        if (!interviewsByCandidate.has(candidateId)) {
+          interviewsByCandidate.set(candidateId, []);
+        }
+        interviewsByCandidate.get(candidateId).push({
+          interviewId: interview._id,
+          title: interview.title,
+          round: interview.round,
+          type: interview.type,
+          status: entry.status,
+          scheduledDate: entry.scheduledDate,
+          scheduledTime: entry.scheduledTime,
+          notes: entry.notes,
+          createdAt: interview.createdAt
+        });
+      });
+    });
+
+    const enrichedCandidates = candidatesWithPhoto.map(candidate => {
+      const candidateId = candidate._id.toString();
+      const testAssignments = testsByCandidate.get(candidateId) || [];
+      const interviewAssignments = interviewsByCandidate.get(candidateId) || [];
+
+      const workflow = buildWorkflowSnapshot(candidate, testAssignments, interviewAssignments);
+
+      return {
+        ...candidate,
+        workflow,
+        assignments: {
+          tests: testAssignments,
+          interviews: interviewAssignments
+        }
+      };
+    });
+
+    res.json({ candidates: enrichedCandidates });
   } catch (error) {
     console.error('Candidates fetch error:', error);
     res.status(500).json({ message: 'Server error fetching candidates' });
@@ -60,6 +220,56 @@ router.get('/:id', authenticateToken, async (req, res) => {
     if (!canManageCandidates && candidate.user._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
+
+    const tests = await Test.find({ 'candidates.candidate': candidate._id })
+      .select('title candidates scheduledDate scheduledTime createdAt')
+      .lean();
+
+    const interviews = await Interview.find({ 'candidates.candidate': candidate._id })
+      .select('title type round candidates createdAt')
+      .lean();
+
+    const testAssignments = [];
+    tests.forEach(test => {
+      test.candidates.forEach(entry => {
+        if (entry.candidate.toString() === candidate._id.toString()) {
+          testAssignments.push({
+            testId: test._id,
+            title: test.title,
+            status: entry.status,
+            invitedAt: entry.invitedAt,
+            startedAt: entry.startedAt,
+            completedAt: entry.completedAt,
+            score: entry.score,
+            percentage: entry.percentage,
+            scheduledDate: test.scheduledDate,
+            scheduledTime: test.scheduledTime,
+            createdAt: test.createdAt
+          });
+        }
+      });
+    });
+
+    const interviewAssignments = [];
+    interviews.forEach(interview => {
+      interview.candidates.forEach(entry => {
+        if (entry.candidate.toString() === candidate._id.toString()) {
+          interviewAssignments.push({
+            interviewId: interview._id,
+            title: interview.title,
+            round: interview.round,
+            type: interview.type,
+            status: entry.status,
+            scheduledDate: entry.scheduledDate,
+            scheduledTime: entry.scheduledTime,
+            notes: entry.notes,
+            createdAt: interview.createdAt
+          });
+        }
+      });
+    });
+
+    const workflow = buildWorkflowSnapshot(candidate.toObject(), testAssignments, interviewAssignments);
 
     // Structure the response for tabbed view
     const profileData = {
@@ -129,7 +339,12 @@ router.get('/:id', authenticateToken, async (req, res) => {
       },
 
       // Final decision (if any)
-      finalDecision: candidate.finalDecision
+      finalDecision: candidate.finalDecision,
+      workflow,
+      assignments: {
+        tests: testAssignments,
+        interviews: interviewAssignments
+      }
     };
 
     res.json({ candidate: profileData });

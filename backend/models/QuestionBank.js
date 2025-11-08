@@ -2,9 +2,19 @@ const mongoose = require('mongoose');
 
 const mcqSchema = new mongoose.Schema({
   topic: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'QuestionTopic',
+    required: true
+  },
+  topicName: {
     type: String,
     required: true,
     trim: true
+  },
+  category: {
+    type: String,
+    enum: ['teaching', 'non_teaching'],
+    required: true
   },
   subTopic: {
     type: String,

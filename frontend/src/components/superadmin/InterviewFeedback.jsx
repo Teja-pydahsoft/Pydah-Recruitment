@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Badge, Alert } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Container, Row, Col, Card, Badge, Alert, Form, ButtonGroup, ToggleButton } from 'react-bootstrap';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -7,6 +7,8 @@ const InterviewFeedback = () => {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('teaching');
+  const [selectedRole, setSelectedRole] = useState('all');
 
   useEffect(() => {
     fetchCandidates();
@@ -53,6 +55,47 @@ const InterviewFeedback = () => {
     return <Badge bg={variants[recommendation] || 'secondary'}>{recommendation?.replace('_', ' ')}</Badge>;
   };
 
+  const teachingCount = useMemo(
+    () => candidates.filter(c => c.form?.formCategory === 'teaching').length,
+    [candidates]
+  );
+  const nonTeachingCount = useMemo(
+    () => candidates.filter(c => c.form?.formCategory === 'non_teaching').length,
+    [candidates]
+  );
+
+  const roleOptions = useMemo(() => {
+    const roles = new Set();
+    candidates.forEach(candidate => {
+      const category = candidate.form?.formCategory || 'other';
+      if (activeTab === 'all' || category === activeTab) {
+        const roleKey = `${candidate.form?.position || ''} - ${candidate.form?.department || ''}`;
+        if (roleKey.trim()) {
+          roles.add(roleKey);
+        }
+      }
+    });
+    return Array.from(roles).sort();
+  }, [candidates, activeTab]);
+
+  const filteredCandidates = useMemo(
+    () =>
+      candidates.filter(candidate => {
+        const category = candidate.form?.formCategory || 'other';
+        if (activeTab !== 'all' && category !== activeTab) {
+          return false;
+        }
+        if (selectedRole !== 'all') {
+          const roleKey = `${candidate.form?.position || ''} - ${candidate.form?.department || ''}`;
+          if (roleKey !== selectedRole) {
+            return false;
+          }
+        }
+        return true;
+      }),
+    [candidates, activeTab, selectedRole]
+  );
+
   if (loading) {
     return <LoadingSpinner message="Loading interview feedback..." />;
   }
@@ -66,6 +109,58 @@ const InterviewFeedback = () => {
         </Col>
       </Row>
 
+      <Row className="mb-3 align-items-end g-2">
+        <Col xs="auto">
+          <ButtonGroup size="sm">
+            <ToggleButton
+              type="radio"
+              id="toggle-teaching"
+              name="feedback-category"
+              value="teaching"
+              checked={activeTab === 'teaching'}
+              variant={activeTab === 'teaching' ? 'primary' : 'outline-primary'}
+              onChange={() => { setActiveTab('teaching'); setSelectedRole('all'); }}
+            >
+              Teaching ({teachingCount})
+            </ToggleButton>
+            <ToggleButton
+              type="radio"
+              id="toggle-nonteaching"
+              name="feedback-category"
+              value="non_teaching"
+              checked={activeTab === 'non_teaching'}
+              variant={activeTab === 'non_teaching' ? 'primary' : 'outline-primary'}
+              onChange={() => { setActiveTab('non_teaching'); setSelectedRole('all'); }}
+            >
+              Non-Teaching ({nonTeachingCount})
+            </ToggleButton>
+            <ToggleButton
+              type="radio"
+              id="toggle-all"
+              name="feedback-category"
+              value="all"
+              checked={activeTab === 'all'}
+              variant={activeTab === 'all' ? 'primary' : 'outline-primary'}
+              onChange={() => { setActiveTab('all'); setSelectedRole('all'); }}
+            >
+              All ({candidates.length})
+            </ToggleButton>
+          </ButtonGroup>
+        </Col>
+        <Col xs={12} md={4} className="mt-2 mt-md-0">
+          <Form.Select
+            size="sm"
+            value={selectedRole}
+            onChange={(event) => setSelectedRole(event.target.value)}
+          >
+            <option value="all">All Roles</option>
+            {roleOptions.map(role => (
+              <option key={role} value={role}>{role}</option>
+            ))}
+          </Form.Select>
+        </Col>
+      </Row>
+
       {error && (
         <Row className="mb-3">
           <Col>
@@ -76,11 +171,11 @@ const InterviewFeedback = () => {
         </Row>
       )}
 
-      {candidates.length === 0 ? (
+      {filteredCandidates.length === 0 ? (
         <Alert variant="info">No interview feedback available yet.</Alert>
       ) : (
         <Row>
-          {candidates.map((candidate) => {
+          {filteredCandidates.map((candidate) => {
             const totalInterviews = candidate.interviewFeedback?.length || 0;
             const averageRating = candidate.consolidatedInterviewRating || 0;
 

@@ -1,8 +1,39 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar } from 'react-bootstrap';
 import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+
+const WORKFLOW_STAGE_META = {
+  application_review: { label: 'Application Review', variant: 'secondary' },
+  awaiting_test_assignment: { label: 'Awaiting Test Assignment', variant: 'info' },
+  test_assigned: { label: 'Test Assigned', variant: 'primary' },
+  test_in_progress: { label: 'Test In Progress', variant: 'warning' },
+  awaiting_interview: { label: 'Awaiting Interview', variant: 'info' },
+  interview_scheduled: { label: 'Interview Scheduled', variant: 'primary' },
+  awaiting_decision: { label: 'Awaiting Decision', variant: 'warning' },
+  selected: { label: 'Candidate Selected', variant: 'success' },
+  rejected: { label: 'Candidate Rejected', variant: 'danger' },
+  on_hold: { label: 'On Hold', variant: 'secondary' }
+};
+
+const PIPELINE_SEQUENCE = [
+  'application_review',
+  'awaiting_test_assignment',
+  'test_assigned',
+  'test_in_progress',
+  'awaiting_interview',
+  'interview_scheduled',
+  'awaiting_decision',
+  'selected'
+];
+
+const SPECIAL_STAGE_PROGRESS = {
+  on_hold: 55,
+  rejected: 0
+};
+
+const STATUS_OPTIONS = ['pending', 'approved', 'shortlisted', 'selected', 'rejected', 'on_hold'];
 
 const CandidateManagement = () => {
   const [candidates, setCandidates] = useState([]);
@@ -11,10 +42,11 @@ const CandidateManagement = () => {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState('');
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [availableTests, setAvailableTests] = useState([]);
-  const [selectedTestId, setSelectedTestId] = useState('');
-  const [assignLoading, setAssignLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [stageFilter, setStageFilter] = useState('all');
+  const [stageDrawerStage, setStageDrawerStage] = useState(null);
+  const [stageDrawerOpen, setStageDrawerOpen] = useState(false);
 
   useEffect(() => {
     fetchCandidates();
@@ -23,46 +55,12 @@ const CandidateManagement = () => {
   const fetchCandidates = async () => {
     try {
       const response = await api.get('/candidates');
-      // Filter only approved candidates (for test management)
-      const approvedCandidates = response.data.candidates.filter(c => c.status === 'approved');
-      setCandidates(approvedCandidates);
+      setCandidates(response.data.candidates || []);
     } catch (error) {
       setError('Failed to fetch candidates');
       console.error('Candidates fetch error:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const openAssignTestModal = async (candidateId) => {
-    setAssignModalOpen(true);
-    setSelectedCandidate({ _id: candidateId });
-    try {
-      const resp = await api.get('/tests');
-      setAvailableTests(resp.data.tests || []);
-    } catch (err) {
-      console.error('Fetch tests error:', err);
-      setAvailableTests([]);
-    }
-  };
-
-  const assignTestToCandidate = async () => {
-    if (!selectedCandidate || !selectedTestId) return;
-    setAssignLoading(true);
-    try {
-      await api.post(`/tests/${selectedTestId}/assign`, {
-        candidateIds: [selectedCandidate._id],
-        scheduledDate: new Date(),
-        scheduledTime: '00:00'
-      });
-      setAssignModalOpen(false);
-      setSelectedTestId('');
-      fetchCandidates();
-    } catch (err) {
-      console.error('Assign test error:', err);
-      setError('Failed to assign test');
-    } finally {
-      setAssignLoading(false);
     }
   };
 
@@ -91,10 +89,110 @@ const CandidateManagement = () => {
     return <Badge bg={variants[status] || 'secondary'}>{status}</Badge>;
   };
 
+  const getWorkflowBadge = (workflow) => {
+    if (!workflow) {
+      return <Badge bg="secondary">Unknown</Badge>;
+    }
+    const meta = WORKFLOW_STAGE_META[workflow.stage] || { label: workflow.label || 'Workflow', variant: 'secondary' };
+    return <Badge bg={meta.variant}>{workflow.label || meta.label}</Badge>;
+  };
+
+  const stageStats = useMemo(() => {
+    const stats = {};
+    candidates.forEach(candidate => {
+      const stage = candidate.workflow?.stage || 'application_review';
+      stats[stage] = (stats[stage] || 0) + 1;
+    });
+    return stats;
+  }, [candidates]);
+
+  const stageGroups = useMemo(() => {
+    const groups = {};
+    Object.keys(WORKFLOW_STAGE_META).forEach(stage => {
+      groups[stage] = [];
+    });
+
+    candidates.forEach(candidate => {
+      const stage = candidate.workflow?.stage || 'application_review';
+      if (!groups[stage]) {
+        groups[stage] = [];
+      }
+      groups[stage].push(candidate);
+    });
+
+    return groups;
+  }, [candidates]);
+
+  const filteredCandidates = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    return candidates.filter(candidate => {
+      const matchesStatus = statusFilter === 'all' || candidate.status === statusFilter;
+      const matchesStage = stageFilter === 'all' || candidate.workflow?.stage === stageFilter;
+
+      const name = candidate.user?.name?.toLowerCase() || '';
+      const email = candidate.user?.email?.toLowerCase() || '';
+      const position = candidate.form?.position?.toLowerCase() || '';
+      const department = candidate.form?.department?.toLowerCase() || '';
+
+      const matchesTerm = !term ||
+        name.includes(term) ||
+        email.includes(term) ||
+        position.includes(term) ||
+        department.includes(term);
+
+      return matchesStatus && matchesStage && matchesTerm;
+    });
+  }, [candidates, searchTerm, statusFilter, stageFilter]);
+
+  const getStageProgressPercentage = (stage) => {
+    if (!stage) {
+      return 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(SPECIAL_STAGE_PROGRESS, stage)) {
+      return SPECIAL_STAGE_PROGRESS[stage];
+    }
+    const index = PIPELINE_SEQUENCE.indexOf(stage);
+    if (index === -1) {
+      return 0;
+    }
+    return Math.round(((index + 1) / PIPELINE_SEQUENCE.length) * 100);
+  };
+
+  const getProgressVariant = (stage) => {
+    switch (stage) {
+      case 'selected':
+        return 'success';
+      case 'test_in_progress':
+      case 'awaiting_decision':
+        return 'warning';
+      case 'awaiting_interview':
+      case 'interview_scheduled':
+      case 'test_assigned':
+        return 'info';
+      case 'rejected':
+        return 'danger';
+      case 'on_hold':
+        return 'secondary';
+      default:
+        return 'primary';
+    }
+  };
+
+  const openStageDrawer = (stage) => {
+    setStageDrawerStage(stage);
+    setStageDrawerOpen(true);
+  };
+
+  const closeStageDrawer = () => {
+    setStageDrawerOpen(false);
+  };
+
   const renderPersonalDetailsTab = (candidate) => {
     const applicationData = candidate.personalDetails?.applicationData || {};
     const documents = candidate.personalDetails?.documents || [];
     const passportPhoto = candidate.personalDetails?.passportPhoto;
+    const workflow = candidate.workflow;
     
     // Get phone number - check application data for mobile number if phone not provided
     const phone = candidate.personalDetails.phone || 
@@ -127,6 +225,20 @@ const CandidateManagement = () => {
                 <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Personal Information</h5>
               </Card.Header>
               <Card.Body style={{ backgroundColor: '#ffffff' }}>
+                {workflow && (
+                  <Alert variant="light" className="d-flex align-items-center justify-content-between">
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#1f2937' }}>Workflow Stage</div>
+                      <div style={{ color: '#475569', fontSize: '0.9rem' }}>{workflow.label}</div>
+                      {workflow.nextAction && (
+                        <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>
+                          Next action: {workflow.nextAction}
+                        </div>
+                      )}
+                    </div>
+                    {getWorkflowBadge(workflow)}
+                  </Alert>
+                )}
                 {passportPhoto && (
                   <div className="text-center mb-3">
                     <Image 
@@ -331,6 +443,36 @@ const CandidateManagement = () => {
       ) : (
         <Alert variant="info">No test results available yet.</Alert>
       )}
+
+      {candidate.assignments?.tests?.length > 0 && (
+        <Card className="mt-3">
+          <Card.Header>Test Assignments</Card.Header>
+          <Card.Body style={{ padding: 0 }}>
+            <Table striped bordered hover responsive className="mb-0">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Invited</th>
+                  <th>Completed</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidate.assignments.tests.map(assignment => (
+                  <tr key={assignment.testId}>
+                    <td>{assignment.title}</td>
+                    <td><Badge bg="secondary">{assignment.status}</Badge></td>
+                    <td>{assignment.invitedAt ? new Date(assignment.invitedAt).toLocaleString() : '--'}</td>
+                    <td>{assignment.completedAt ? new Date(assignment.completedAt).toLocaleString() : '--'}</td>
+                    <td>{assignment.percentage ? `${assignment.percentage.toFixed(1)}%` : '--'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card.Body>
+        </Card>
+      )}
     </div>
   );
 
@@ -398,6 +540,40 @@ const CandidateManagement = () => {
       ) : (
         <Alert variant="info">No interview feedback available yet.</Alert>
       )}
+
+      {candidate.assignments?.interviews?.length > 0 && (
+        <Card className="mt-3">
+          <Card.Header>Interview Assignments</Card.Header>
+          <Card.Body style={{ padding: 0 }}>
+            <Table striped bordered hover responsive className="mb-0">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Round</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Scheduled</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidate.assignments.interviews.map(assignment => (
+                  <tr key={assignment.interviewId}>
+                    <td>{assignment.title}</td>
+                    <td>{assignment.round}</td>
+                    <td>{assignment.type}</td>
+                    <td><Badge bg="secondary">{assignment.status}</Badge></td>
+                    <td>
+                      {assignment.scheduledDate
+                        ? `${new Date(assignment.scheduledDate).toLocaleDateString()} ${assignment.scheduledTime || ''}`.trim()
+                        : '--'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card.Body>
+        </Card>
+      )}
     </div>
   );
 
@@ -410,7 +586,7 @@ const CandidateManagement = () => {
       <Row className="mb-4">
         <Col>
           <h2>Candidate Management</h2>
-          <p>Manage approved candidates and assign tests. View test results and interview feedback.</p>
+          <p>Manage approved candidates, monitor their progress, and review test results and interview feedback.</p>
         </Col>
       </Row>
 
@@ -424,15 +600,86 @@ const CandidateManagement = () => {
         </Row>
       )}
 
+      <Row className="mb-4 g-3">
+        {['awaiting_test_assignment', 'test_assigned', 'test_in_progress', 'awaiting_interview', 'interview_scheduled', 'awaiting_decision', 'selected', 'rejected'].map(stage => {
+          const meta = WORKFLOW_STAGE_META[stage];
+          if (!meta) return null;
+          const stageCandidates = stageGroups[stage] || [];
+          const topCandidateNames = stageCandidates.slice(0, 3).map(candidate => candidate.user?.name || 'Candidate');
+          const remainingCount = Math.max(stageCandidates.length - topCandidateNames.length, 0);
+
+          return (
+            <Col xs={12} md={6} lg={3} key={stage}>
+              <Card
+                className="h-100 shadow-sm"
+                role="button"
+                style={{ cursor: 'pointer', borderLeft: `4px solid var(--bs-${meta.variant})` }}
+                onClick={() => openStageDrawer(stage)}
+              >
+                <Card.Body>
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <span style={{ color: '#6b7280', fontWeight: 600 }}>{meta.label}</span>
+                    <Badge bg={meta.variant}>{stageStats[stage] || 0}</Badge>
+                  </div>
+                  <div style={{ fontSize: '0.9rem', color: '#94a3b8', minHeight: '40px' }}>
+                    {stageCandidates.length === 0 ? (
+                      meta.label === 'Candidate Selected'
+                        ? 'No candidates selected yet'
+                        : 'No candidates in this stage currently'
+                    ) : (
+                      <>
+                        <div style={{ fontWeight: 500, color: '#475569' }}>
+                          {topCandidateNames.join(', ')}
+                          {remainingCount > 0 ? ` +${remainingCount} more` : ''}
+                        </div>
+                        <small style={{ color: '#94a3b8' }}>Click to view pipeline details</small>
+                      </>
+                    )}
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          );
+        })}
+      </Row>
+
+      <Row className="mb-3 g-3">
+        <Col md={4}>
+          <Form.Control
+            placeholder="Search by name, email, position..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </Col>
+        <Col md={4}>
+          <Form.Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All Candidate Statuses</option>
+            {STATUS_OPTIONS.map(status => (
+              <option key={status} value={status}>
+                {status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </option>
+            ))}
+          </Form.Select>
+        </Col>
+        <Col md={4}>
+          <Form.Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+            <option value="all">All Workflow Stages</option>
+            {Object.entries(WORKFLOW_STAGE_META).map(([stage, meta]) => (
+              <option key={stage} value={stage}>{meta.label}</option>
+            ))}
+          </Form.Select>
+        </Col>
+      </Row>
+
       <Row>
         <Col>
           <Card>
             <Card.Header>
-              <h5>Approved Candidates</h5>
+              <h5>Candidate Pipeline</h5>
             </Card.Header>
             <Card.Body>
-              {candidates.length === 0 ? (
-                <Alert variant="info">No approved candidates yet.</Alert>
+              {filteredCandidates.length === 0 ? (
+                <Alert variant="info">No candidates match the current filters.</Alert>
               ) : (
                 <Table striped bordered hover responsive>
                   <thead>
@@ -443,11 +690,14 @@ const CandidateManagement = () => {
                       <th>Position</th>
                       <th>Department</th>
                       <th>Status</th>
+                      <th>Workflow</th>
+                      <th>Tests</th>
+                      <th>Interviews</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {candidates.map((candidate) => (
+                    {filteredCandidates.map((candidate) => (
                       <tr key={candidate._id}>
                         <td className="text-center">
                           {candidate.passportPhotoUrl ? (
@@ -494,6 +744,28 @@ const CandidateManagement = () => {
                         <td>{candidate.form.department}</td>
                         <td>{getStatusBadge(candidate.status)}</td>
                         <td>
+                          <div className="mb-1">
+                            {getWorkflowBadge(candidate.workflow)}
+                          </div>
+                          <ProgressBar
+                            now={getStageProgressPercentage(candidate.workflow?.stage)}
+                            variant={getProgressVariant(candidate.workflow?.stage)}
+                            style={{ height: '6px' }}
+                          />
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{candidate.workflow?.tests?.assigned || 0} assigned</div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                            {candidate.workflow?.tests?.completed || 0} completed · {candidate.workflow?.tests?.passed || 0} passed
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{candidate.workflow?.interviews?.scheduled || 0} scheduled</div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                            {candidate.workflow?.interviews?.completed || 0} completed
+                          </div>
+                        </td>
+                        <td>
                           <Button
                             variant="primary"
                             size="sm"
@@ -502,13 +774,6 @@ const CandidateManagement = () => {
                             disabled={profileLoading}
                           >
                             {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View Profile'}
-                          </Button>
-                          <Button
-                            variant="success"
-                            size="sm"
-                            onClick={() => openAssignTestModal(candidate._id)}
-                          >
-                            Assign Test
                           </Button>
                         </td>
                       </tr>
@@ -520,6 +785,63 @@ const CandidateManagement = () => {
           </Card>
         </Col>
       </Row>
+
+      <Offcanvas show={stageDrawerOpen} onHide={closeStageDrawer} placement="end">
+        <Offcanvas.Header closeButton>
+          <Offcanvas.Title>
+            {stageDrawerStage ? WORKFLOW_STAGE_META[stageDrawerStage]?.label || 'Pipeline Stage' : 'Pipeline Stage'}
+          </Offcanvas.Title>
+        </Offcanvas.Header>
+        <Offcanvas.Body>
+          {stageDrawerStage ? (
+            <>
+              <p className="text-muted" style={{ marginBottom: '1rem' }}>
+                {stageGroups[stageDrawerStage]?.length || 0} candidate(s) currently tracked in this stage.
+              </p>
+              {stageGroups[stageDrawerStage] && stageGroups[stageDrawerStage].length > 0 ? (
+                stageGroups[stageDrawerStage].map(candidate => (
+                  <Card className="mb-3 shadow-sm" key={candidate._id}>
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-start">
+                        <div>
+                          <h5 className="mb-1">{candidate.user?.name}</h5>
+                          <div className="text-muted" style={{ fontSize: '0.9rem' }}>{candidate.user?.email}</div>
+                        </div>
+                        <Badge bg={WORKFLOW_STAGE_META[candidate.workflow?.stage]?.variant || 'secondary'}>
+                          {WORKFLOW_STAGE_META[candidate.workflow?.stage]?.label || 'In Pipeline'}
+                        </Badge>
+                      </div>
+
+                      <div className="d-flex flex-wrap gap-3 mt-3" style={{ fontSize: '0.85rem', color: '#475569' }}>
+                        <span><strong>Tests:</strong> {candidate.workflow?.tests?.completed || 0} / {candidate.workflow?.tests?.assigned || 0}</span>
+                        <span><strong>Interviews:</strong> {candidate.workflow?.interviews?.completed || 0} / {candidate.workflow?.interviews?.scheduled || 0}</span>
+                        <span><strong>Status:</strong> {candidate.status}</span>
+                      </div>
+
+                      <div className="d-flex gap-2 mt-3">
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => {
+                            fetchCandidateProfile(candidate._id);
+                            closeStageDrawer();
+                          }}
+                        >
+                          View Profile
+                        </Button>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                ))
+              ) : (
+                <Alert variant="light">No candidates found in this stage yet.</Alert>
+              )}
+            </>
+          ) : (
+            <Alert variant="light">Select a stage to view candidate details.</Alert>
+          )}
+        </Offcanvas.Body>
+      </Offcanvas>
 
       {/* Candidate Profile Modal */}
       <Modal
@@ -578,32 +900,6 @@ const CandidateManagement = () => {
             style={{ borderRadius: '6px', padding: '0.5rem 1.5rem' }}
           >
             Close
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
-      {/* Assign Test Modal */}
-      <Modal show={assignModalOpen} onHide={() => setAssignModalOpen(false)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Assign Test to Candidate</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form>
-            <Form.Group className="mb-3">
-              <Form.Label>Select Test</Form.Label>
-              <Form.Select value={selectedTestId} onChange={(e) => setSelectedTestId(e.target.value)}>
-                <option value="">-- Choose a test --</option>
-                {availableTests.map(t => (
-                  <option key={t._id} value={t._id}>{t.title} ({t.duration} min)</option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setAssignModalOpen(false)}>Cancel</Button>
-          <Button variant="primary" onClick={assignTestToCandidate} disabled={!selectedTestId || assignLoading}>
-            {assignLoading ? 'Assigning...' : 'Assign Test'}
           </Button>
         </Modal.Footer>
       </Modal>

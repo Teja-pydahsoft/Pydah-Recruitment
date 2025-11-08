@@ -93,7 +93,12 @@ const testSchema = new mongoose.Schema({
   },
   sourceRefs: {
     bankQuestionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'QuestionBank' }],
-    previousPaper: { type: mongoose.Schema.Types.ObjectId, ref: 'PreviousPaper' }
+    previousPaper: { type: mongoose.Schema.Types.ObjectId, ref: 'PreviousPaper' },
+    topicSelections: [{
+      topicId: { type: mongoose.Schema.Types.ObjectId, ref: 'QuestionTopic' },
+      topicName: String,
+      questionCount: Number
+    }]
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,

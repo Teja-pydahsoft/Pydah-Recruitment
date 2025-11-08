@@ -1,13 +1,16 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const readline = require('readline');
+const XLSX = require('xlsx');
 const Test = require('../models/Test');
 const Candidate = require('../models/Candidate');
 const User = require('../models/User');
 const QuestionBank = require('../models/QuestionBank');
+const QuestionTopic = require('../models/QuestionTopic');
 const PreviousPaper = require('../models/PreviousPaper');
 const Interview = require('../models/Interview');
 const { authenticateToken, requireSuperAdminOrPermission } = require('../middleware/auth');
@@ -44,56 +47,458 @@ router.post('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'
   }
 });
 
-// Question Bank CRUD (Super Admin only)
+// Question Topics & Bank (Super Admin or permitted Sub Admin)
+router.get('/topics', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const { category, includeInactive, includeCounts } = req.query;
+    const filter = {};
+
+    if (category) {
+      filter.category = category;
+    }
+
+    if (includeInactive !== 'true') {
+      filter.isActive = true;
+    }
+
+    const topics = await QuestionTopic.find(filter).sort({ name: 1 }).lean();
+
+    if (includeCounts === 'true' && topics.length > 0) {
+      const topicIds = topics.map(topic => topic._id);
+      const counts = await QuestionBank.aggregate([
+        { $match: { topic: { $in: topicIds }, isActive: true } },
+        { $group: { _id: '$topic', count: { $sum: 1 } } }
+      ]);
+
+      const countMap = new Map(counts.map(item => [item._id.toString(), item.count]));
+      topics.forEach(topic => {
+        topic.questionCount = countMap.get(topic._id.toString()) || 0;
+      });
+    }
+
+    res.json({ topics });
+  } catch (error) {
+    console.error('Question topic fetch error:', error);
+    res.status(500).json({ message: 'Server error fetching topics' });
+  }
+});
+
+router.post('/topics', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const { name, category, description } = req.body;
+
+    if (!name || !category) {
+      return res.status(400).json({ message: 'Name and category are required' });
+    }
+
+    const existing = await QuestionTopic.findOne({
+      name: { $regex: `^${name}$`, $options: 'i' },
+      category
+    });
+
+    if (existing) {
+      return res.status(400).json({ message: 'Topic already exists for this category' });
+    }
+
+    const topic = new QuestionTopic({
+      name: name.trim(),
+      category,
+      description: description?.trim() || undefined,
+      createdBy: req.user._id
+    });
+
+    await topic.save();
+    res.status(201).json({ message: 'Topic created successfully', topic });
+  } catch (error) {
+    console.error('Question topic create error:', error);
+    res.status(500).json({ message: 'Server error creating topic' });
+  }
+});
+
+router.put('/topics/:topicId', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const { name, description, category, isActive } = req.body;
+    const topic = await QuestionTopic.findById(req.params.topicId);
+
+    if (!topic) {
+      return res.status(404).json({ message: 'Topic not found' });
+    }
+
+    if (name !== undefined && name.trim() !== '' && name.trim().toLowerCase() !== topic.name.toLowerCase()) {
+      const duplicate = await QuestionTopic.findOne({
+        _id: { $ne: topic._id },
+        name: { $regex: `^${name}$`, $options: 'i' },
+        category: category || topic.category
+      });
+
+      if (duplicate) {
+        return res.status(400).json({ message: 'Another topic with the same name exists in this category' });
+      }
+
+      topic.name = name.trim();
+    }
+
+    if (category && category !== topic.category) {
+      topic.category = category;
+    }
+
+    if (description !== undefined) {
+      topic.description = description?.trim() || undefined;
+    }
+
+    if (typeof isActive === 'boolean') {
+      topic.isActive = isActive;
+    }
+
+    await topic.save();
+
+    // Keep denormalised values in question bank in sync
+    await QuestionBank.updateMany(
+      { topic: topic._id },
+      {
+        $set: {
+          topicName: topic.name,
+          category: topic.category
+        }
+      }
+    );
+
+    res.json({ message: 'Topic updated successfully', topic });
+  } catch (error) {
+    console.error('Question topic update error:', error);
+    res.status(500).json({ message: 'Server error updating topic' });
+  }
+});
+
+router.delete('/topics/:topicId', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const topic = await QuestionTopic.findById(req.params.topicId);
+
+    if (!topic) {
+      return res.status(404).json({ message: 'Topic not found' });
+    }
+
+    topic.isActive = false;
+    await topic.save();
+
+    // Optionally deactivate related questions
+    await QuestionBank.updateMany(
+      { topic: topic._id },
+      { $set: { isActive: false } }
+    );
+
+    res.json({ message: 'Topic deactivated successfully' });
+  } catch (error) {
+    console.error('Question topic delete error:', error);
+    res.status(500).json({ message: 'Server error deactivating topic' });
+  }
+});
+
 router.get('/questions', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
-    const { topic, q, page = 1, limit = 20 } = req.query;
-    const filter = { isActive: true };
-    if (topic) filter.topic = topic;
-    if (q) filter.questionText = { $regex: q, $options: 'i' };
+    const {
+      topicId,
+      topic,
+      category,
+      search,
+      page = 1,
+      limit = 20,
+      includeInactive
+    } = req.query;
+
+    const filter = {};
+
+    if (includeInactive !== 'true') {
+      filter.isActive = true;
+    }
+
+    if (topicId && mongoose.Types.ObjectId.isValid(topicId)) {
+      filter.topic = topicId;
+    } else if (topic) {
+      const foundTopic = await QuestionTopic.findOne({
+        name: { $regex: `^${topic}$`, $options: 'i' }
+      }).select('_id');
+
+      if (!foundTopic) {
+        return res.json({ questions: [], total: 0 });
+      }
+      filter.topic = foundTopic._id;
+    }
+
+    if (category) {
+      filter.category = category;
+    }
+
+    if (search) {
+      filter.questionText = { $regex: search, $options: 'i' };
+    }
+
+    const numericLimit = Math.min(Number(limit) || 20, 200);
+    const numericPage = Math.max(Number(page) || 1, 1);
+
     const questions = await QuestionBank.find(filter)
+      .populate('topic', 'name category isActive')
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit));
+      .skip((numericPage - 1) * numericLimit)
+      .limit(numericLimit)
+      .lean();
+
     const total = await QuestionBank.countDocuments(filter);
-    res.json({ questions, total });
+
+    res.json({
+      questions,
+      total,
+      page: numericPage,
+      limit: numericLimit
+    });
   } catch (error) {
     console.error('Question bank fetch error:', error);
     res.status(500).json({ message: 'Server error fetching question bank' });
   }
 });
 
+router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPermission('tests.manage'), upload.single('file'), async (req, res) => {
+  let uploadedFilePath;
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Excel file is required' });
+    }
+
+    uploadedFilePath = req.file.path;
+
+    const { topicId } = req.body;
+    let defaultTopic = null;
+
+    if (topicId) {
+      defaultTopic = await QuestionTopic.findById(topicId).lean();
+      if (!defaultTopic) {
+        return res.status(400).json({ message: 'Selected topic not found' });
+      }
+    }
+
+    const workbook = XLSX.readFile(req.file.path);
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) {
+      return res.status(400).json({ message: 'Uploaded file does not contain any sheets' });
+    }
+
+    const sheet = workbook.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({ message: 'Uploaded file does not contain any data rows' });
+    }
+
+    const toLower = (value) => (value || '').toString().trim().toLowerCase();
+    const getCell = (row, keys) => {
+      for (const key of keys) {
+        if (row[key] !== undefined && row[key] !== null) {
+          return row[key];
+        }
+      }
+      return '';
+    };
+
+    const determineCorrectAnswer = (rawValue, options) => {
+      if (rawValue === undefined || rawValue === null || options.length === 0) {
+        return null;
+      }
+
+      const value = rawValue.toString().trim();
+      if (!value) {
+        return null;
+      }
+
+      // Letter based (A, B, C, ...)
+      const letterMatch = value.match(/^[A-Za-z]$/);
+      if (letterMatch) {
+        const index = letterMatch[0].toUpperCase().charCodeAt(0) - 65;
+        return index >= 0 && index < options.length ? index : null;
+      }
+
+      // Numeric (1-based or 0-based)
+      if (!Number.isNaN(Number(value))) {
+        const numeric = Number(value);
+        if (numeric >= 0 && numeric < options.length) {
+          return numeric;
+        }
+        if (numeric > 0 && numeric <= options.length) {
+          return numeric - 1;
+        }
+      }
+
+      // Match option text
+      const lowerOptions = options.map(opt => toLower(opt));
+      const matchIndex = lowerOptions.indexOf(value.toLowerCase());
+      if (matchIndex !== -1) {
+        return matchIndex;
+      }
+
+      return null;
+    };
+
+    let topicsByName;
+    if (!defaultTopic) {
+      const allTopics = await QuestionTopic.find({}).lean();
+      topicsByName = new Map(
+        allTopics.map(topic => [topic.name.trim().toLowerCase(), topic])
+      );
+    }
+
+    const questionsToInsert = [];
+    const errors = [];
+
+    rows.forEach((row, index) => {
+      const rowNumber = index + 2; // considering header row
+      let effectiveTopic = defaultTopic;
+
+      if (!effectiveTopic) {
+        const topicNameFromRow = getCell(row, ['Topic', 'topic', 'Topic Name', 'TopicName']).toString().trim();
+        if (!topicNameFromRow) {
+          errors.push(`Row ${rowNumber}: Topic name is missing`);
+          return;
+        }
+
+        const topicLookup = topicsByName.get(topicNameFromRow.toLowerCase());
+        if (!topicLookup) {
+          errors.push(`Row ${rowNumber}: Topic "${topicNameFromRow}" not found`);
+          return;
+        }
+
+        effectiveTopic = topicLookup;
+      }
+
+      const questionText = getCell(row, ['Question', 'question', 'Question Text']).toString().trim();
+      if (!questionText) {
+        errors.push(`Row ${rowNumber}: Question text is empty`);
+        return;
+      }
+
+      const options = [
+        getCell(row, ['OptionA', 'A', 'Option A']),
+        getCell(row, ['OptionB', 'B', 'Option B']),
+        getCell(row, ['OptionC', 'C', 'Option C']),
+        getCell(row, ['OptionD', 'D', 'Option D']),
+        getCell(row, ['OptionE', 'E', 'Option E'])
+      ]
+        .map(opt => opt.toString().trim())
+        .filter(opt => opt !== '');
+
+      if (options.length < 2) {
+        errors.push(`Row ${rowNumber}: At least two answer options are required`);
+        return;
+      }
+
+      const rawCorrectAnswer = getCell(row, ['CorrectAnswer', 'Correct Answer', 'Answer', 'Correct']);
+      const correctAnswerIndex = determineCorrectAnswer(rawCorrectAnswer, options);
+
+      if (correctAnswerIndex === null) {
+        errors.push(`Row ${rowNumber}: Unable to determine correct answer`);
+        return;
+      }
+
+      const difficulty = toLower(getCell(row, ['Difficulty', 'difficulty']));
+      const explanation = getCell(row, ['Explanation', 'explanation']).toString().trim();
+      const tagsValue = getCell(row, ['Tags', 'tags']).toString().trim();
+
+      questionsToInsert.push({
+        topic: effectiveTopic._id,
+        topicName: effectiveTopic.name,
+        category: effectiveTopic.category,
+        questionText,
+        options,
+        correctAnswer: correctAnswerIndex,
+        difficulty: ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium',
+        explanation: explanation || undefined,
+        tags: tagsValue ? tagsValue.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+        createdBy: req.user._id
+      });
+    });
+
+    if (questionsToInsert.length === 0) {
+      return res.status(400).json({
+        message: 'No questions were imported. Please review the errors.',
+        errors
+      });
+    }
+
+    const inserted = await QuestionBank.insertMany(questionsToInsert, { ordered: false });
+
+    res.status(201).json({
+      message: `Bulk upload completed. Imported ${inserted.length} question(s).`,
+      insertedCount: inserted.length,
+      skippedCount: errors.length,
+      errors
+    });
+  } catch (error) {
+    console.error('Bulk question upload error:', error);
+    res.status(500).json({ message: 'Server error processing bulk upload' });
+  } finally {
+    if (uploadedFilePath) {
+      try {
+        fs.unlinkSync(uploadedFilePath);
+      } catch (cleanupError) {
+        console.warn('Failed to remove uploaded file:', cleanupError.message);
+      }
+    }
+  }
+});
+
 router.post('/questions', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
-    const { topic, subTopic, questionText, options, correctAnswer, explanation, difficulty, tags } = req.body;
-    if (!questionText || !topic) {
-      return res.status(400).json({ message: 'topic and questionText are required' });
+    const {
+      topicId,
+      subTopic,
+      questionText,
+      options,
+      correctAnswer,
+      explanation,
+      difficulty,
+      tags
+    } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(topicId)) {
+      return res.status(400).json({ message: 'Valid topicId is required' });
     }
-    if (!Array.isArray(options) || options.length < 2) {
-      return res.status(400).json({ message: 'At least two options are required' });
+
+    const topic = await QuestionTopic.findById(topicId);
+
+    if (!topic || !topic.isActive) {
+      return res.status(404).json({ message: 'Topic not found or inactive' });
     }
+
+    if (!questionText || !Array.isArray(options) || options.length < 2) {
+      return res.status(400).json({ message: 'Question text and at least two options are required' });
+    }
+
     if (correctAnswer === undefined || correctAnswer === null) {
-      return res.status(400).json({ message: 'correctAnswer is required' });
+      return res.status(400).json({ message: 'Correct answer is required' });
     }
-    // Validate correctAnswer index or content exists in options
-    const isIndex = typeof correctAnswer === 'number' || (Array.isArray(correctAnswer) && correctAnswer.every(a => typeof a === 'number'));
-    const isValue = typeof correctAnswer === 'string' || (Array.isArray(correctAnswer) && correctAnswer.every(a => typeof a === 'string'));
+
+    const isIndex = typeof correctAnswer === 'number' ||
+      (Array.isArray(correctAnswer) && correctAnswer.every(a => typeof a === 'number'));
+    const isValue = typeof correctAnswer === 'string' ||
+      (Array.isArray(correctAnswer) && correctAnswer.every(a => typeof a === 'string'));
+
     if (isIndex) {
       const indices = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
-      if (indices.some(i => i < 0 || i >= options.length)) {
-        return res.status(400).json({ message: 'correctAnswer index out of bounds' });
+      if (indices.some(index => index < 0 || index >= options.length)) {
+        return res.status(400).json({ message: 'Correct answer index out of bounds' });
       }
     } else if (isValue) {
       const values = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
-      if (values.some(v => !options.includes(v))) {
-        return res.status(400).json({ message: 'correctAnswer not present in options' });
+      if (values.some(value => !options.includes(value))) {
+        return res.status(400).json({ message: 'Correct answer value must be one of the provided options' });
       }
     } else {
-      return res.status(400).json({ message: 'correctAnswer must be index(es) or value(s)' });
+      return res.status(400).json({ message: 'Correct answer must be option index(es) or option value(s)' });
     }
 
     const question = new QuestionBank({
-      topic,
+      topic: topic._id,
+      topicName: topic.name,
+      category: topic.category,
       subTopic,
       questionText,
       options,
@@ -103,6 +508,7 @@ router.post('/questions', authenticateToken, requireSuperAdminOrPermission('test
       tags,
       createdBy: req.user._id
     });
+
     await question.save();
     res.status(201).json({ message: 'Question added to bank', question });
   } catch (error) {
@@ -113,15 +519,67 @@ router.post('/questions', authenticateToken, requireSuperAdminOrPermission('test
 
 router.put('/questions/:id', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
-    const updates = req.body;
-    if (updates.options && (!Array.isArray(updates.options) || updates.options.length < 2)) {
-      return res.status(400).json({ message: 'At least two options are required' });
+    const question = await QuestionBank.findById(req.params.id);
+
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
     }
-    if ('correctAnswer' in updates && (updates.correctAnswer === undefined || updates.correctAnswer === null)) {
-      return res.status(400).json({ message: 'correctAnswer is required' });
+
+    const updates = { ...req.body };
+
+    if (updates.topicId) {
+      if (!mongoose.Types.ObjectId.isValid(updates.topicId)) {
+        return res.status(400).json({ message: 'Valid topicId is required' });
+      }
+
+      const topic = await QuestionTopic.findById(updates.topicId);
+      if (!topic) {
+        return res.status(404).json({ message: 'Topic not found' });
+      }
+
+      updates.topic = topic._id;
+      updates.topicName = topic.name;
+      updates.category = topic.category;
+      delete updates.topicId;
     }
-    const question = await QuestionBank.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
-    if (!question) return res.status(404).json({ message: 'Question not found' });
+
+    if (updates.options) {
+      if (!Array.isArray(updates.options) || updates.options.length < 2) {
+        return res.status(400).json({ message: 'At least two options are required' });
+      }
+    }
+
+    if ('correctAnswer' in updates) {
+      const correctAnswer = updates.correctAnswer;
+      const options = updates.options || question.options;
+
+      if (correctAnswer === undefined || correctAnswer === null) {
+        return res.status(400).json({ message: 'Correct answer is required' });
+      }
+
+      const isIndex = typeof correctAnswer === 'number' ||
+        (Array.isArray(correctAnswer) && correctAnswer.every(a => typeof a === 'number'));
+      const isValue = typeof correctAnswer === 'string' ||
+        (Array.isArray(correctAnswer) && correctAnswer.every(a => typeof a === 'string'));
+
+      if (isIndex) {
+        const indices = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
+        if (indices.some(index => index < 0 || index >= options.length)) {
+          return res.status(400).json({ message: 'Correct answer index out of bounds' });
+        }
+      } else if (isValue) {
+        const values = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
+        if (values.some(value => !options.includes(value))) {
+          return res.status(400).json({ message: 'Correct answer value must be one of the provided options' });
+        }
+      } else {
+        return res.status(400).json({ message: 'Correct answer must be option index(es) or option value(s)' });
+      }
+    }
+
+    Object.assign(question, updates);
+    await question.save();
+
     res.json({ message: 'Question updated', question });
   } catch (error) {
     console.error('Question bank update error:', error);
@@ -131,36 +589,129 @@ router.put('/questions/:id', authenticateToken, requireSuperAdminOrPermission('t
 
 router.delete('/questions/:id', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
-    const deleted = await QuestionBank.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: 'Question not found' });
-    res.json({ message: 'Question deleted' });
+    const question = await QuestionBank.findById(req.params.id);
+
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    await QuestionBank.findByIdAndUpdate(
+      req.params.id,
+      { $set: { isActive: false } }
+    );
+
+    res.json({ message: 'Question archived successfully' });
   } catch (error) {
     console.error('Question bank delete error:', error);
-    res.status(500).json({ message: 'Server error deleting question' });
+    res.status(500).json({ message: 'Server error archiving question' });
   }
 });
+
+const buildQuestionsFromTopicSelections = async (topicSelections = []) => {
+  if (!Array.isArray(topicSelections) || topicSelections.length === 0) {
+    throw new Error('Topic selections are required');
+  }
+
+  const compiledQuestions = [];
+  const questionIds = [];
+
+  for (const selection of topicSelections) {
+    const { topicId, questionCount } = selection || {};
+
+    if (!mongoose.Types.ObjectId.isValid(topicId)) {
+      throw new Error('Each selection requires a valid topicId');
+    }
+
+    const count = Number(questionCount) || 0;
+    if (count <= 0) {
+      throw new Error('Question count must be greater than zero');
+    }
+
+    const topic = await QuestionTopic.findById(topicId);
+    if (!topic || !topic.isActive) {
+      throw new Error('One or more topics are inactive or missing');
+    }
+
+    const availableQuestions = await QuestionBank.countDocuments({
+      topic: topic._id,
+      isActive: true
+    });
+
+    if (availableQuestions < count) {
+      throw new Error(`Not enough questions in topic "${topic.name}". Requested ${count}, available ${availableQuestions}.`);
+    }
+
+    const sampled = await QuestionBank.aggregate([
+      { $match: { topic: topic._id, isActive: true } },
+      { $sample: { size: count } }
+    ]);
+
+    sampled.forEach(question => {
+      compiledQuestions.push({
+        questionText: question.questionText,
+        questionType: 'mcq',
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        marks: 1,
+        difficulty: question.difficulty,
+        tags: question.tags || [],
+        sourceTopic: topic.name,
+        sourceTopicId: topic._id
+      });
+      questionIds.push(question._id);
+    });
+  }
+
+  return { compiledQuestions, questionIds };
+};
 
 // Create test from question bank selections
 router.post('/create-from-bank', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
-    const { title, description, form, questionIds, duration, passingPercentage, cutoffPercentage, instructions } = req.body;
-    if (!Array.isArray(questionIds) || questionIds.length === 0) {
-      return res.status(400).json({ message: 'questionIds are required' });
+    const {
+      title,
+      description,
+      form,
+      questionIds = [],
+      topicSelections = [],
+      duration,
+      passingPercentage,
+      cutoffPercentage,
+      instructions
+    } = req.body;
+
+    let testQuestions = [];
+    let sourceQuestionIds = [];
+
+    if (Array.isArray(questionIds) && questionIds.length > 0) {
+      const questions = await QuestionBank.find({ _id: { $in: questionIds } });
+      if (questions.length !== questionIds.length) {
+        return res.status(400).json({ message: 'Some questions not found' });
+      }
+
+      testQuestions = questions.map(q => ({
+        questionText: q.questionText,
+        questionType: 'mcq',
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        marks: 1,
+        difficulty: q.difficulty,
+        tags: q.tags || [],
+        sourceTopic: q.topicName,
+        sourceTopicId: q.topic
+      }));
+      sourceQuestionIds = questions.map(q => q._id);
+    } else if (Array.isArray(topicSelections) && topicSelections.length > 0) {
+      const { compiledQuestions, questionIds: sampledIds } = await buildQuestionsFromTopicSelections(topicSelections);
+      testQuestions = compiledQuestions;
+      sourceQuestionIds = sampledIds;
+    } else {
+      return res.status(400).json({ message: 'Provide either questionIds or topicSelections' });
     }
-    const questions = await QuestionBank.find({ _id: { $in: questionIds } });
-    if (questions.length !== questionIds.length) {
-      return res.status(400).json({ message: 'Some questions not found' });
+
+    if (!testQuestions.length) {
+      return res.status(400).json({ message: 'Unable to compile questions for the test' });
     }
-    // Map to Test question structure, validate answers exist
-    const testQuestions = questions.map(q => ({
-      questionText: q.questionText,
-      questionType: 'mcq',
-      options: q.options,
-      correctAnswer: q.correctAnswer,
-      marks: 1,
-      difficulty: q.difficulty,
-      tags: q.tags
-    }));
 
     const test = new Test({
       title,
@@ -172,14 +723,163 @@ router.post('/create-from-bank', authenticateToken, requireSuperAdminOrPermissio
       cutoffPercentage,
       instructions,
       questionSource: 'bank',
-      sourceRefs: { bankQuestionIds: questionIds },
+      sourceRefs: { bankQuestionIds: sourceQuestionIds },
       createdBy: req.user._id
     });
+
     await test.save();
     res.status(201).json({ message: 'Test created from bank', test });
   } catch (error) {
     console.error('Create test from bank error:', error);
     res.status(500).json({ message: 'Server error creating test from bank' });
+  }
+});
+
+router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      instructions,
+      duration,
+      passingPercentage,
+      cutoffPercentage,
+      topicSelections,
+      candidateIds,
+      formId,
+      scheduledDate,
+      scheduledTime
+    } = req.body;
+
+    if (!title || !duration) {
+      return res.status(400).json({ message: 'Title and duration are required' });
+    }
+
+    if (!Array.isArray(topicSelections) || topicSelections.length === 0) {
+      return res.status(400).json({ message: 'At least one topic selection is required' });
+    }
+
+    const normalizedSelections = topicSelections.map(selection => ({
+      topicId: selection.topicId,
+      questionCount: Number(selection.questionCount || 0)
+    })).filter(selection => selection.topicId && selection.questionCount > 0);
+
+    if (normalizedSelections.length === 0) {
+      return res.status(400).json({ message: 'Every topic selection must include a topicId and questionCount greater than 0' });
+    }
+
+    // Fetch topic metadata
+    const topicIds = normalizedSelections.map(selection => selection.topicId);
+    const topics = await QuestionTopic.find({ _id: { $in: topicIds } }).lean();
+    const topicMap = new Map(topics.map(topic => [topic._id.toString(), topic]));
+
+    if (topicMap.size !== normalizedSelections.length) {
+      return res.status(400).json({ message: 'One or more selected topics could not be found' });
+    }
+
+    // Gather questions for each topic
+    const bankQuestionIds = [];
+    const testQuestions = [];
+
+    for (const selection of normalizedSelections) {
+      const topicObjectId = new mongoose.Types.ObjectId(selection.topicId);
+      const sampledQuestions = await QuestionBank.aggregate([
+        { $match: { topic: topicObjectId, isActive: true } },
+        { $sample: { size: selection.questionCount } }
+      ]);
+
+      if (sampledQuestions.length < selection.questionCount) {
+        const topicName = topicMap.get(selection.topicId)?.name || 'Selected topic';
+        return res.status(400).json({
+          message: `Not enough active questions available for topic "${topicName}". Requested ${selection.questionCount}, found ${sampledQuestions.length}.`
+        });
+      }
+
+      sampledQuestions.forEach(question => {
+        bankQuestionIds.push(question._id);
+        testQuestions.push({
+          questionText: question.questionText,
+          questionType: 'mcq',
+          options: question.options,
+          correctAnswer: question.correctAnswer,
+          marks: 1,
+          difficulty: question.difficulty || 'medium',
+          tags: question.tags || []
+        });
+      });
+    }
+
+    if (testQuestions.length === 0) {
+      return res.status(400).json({ message: 'No questions were generated for this test' });
+    }
+
+    let resolvedFormId = formId ? new mongoose.Types.ObjectId(formId) : null;
+    let candidateAssignments = [];
+
+    if (Array.isArray(candidateIds) && candidateIds.length > 0) {
+      const uniqueCandidateIds = [...new Set(candidateIds.map(id => id.toString()))];
+      const candidateObjectIds = uniqueCandidateIds.map(id => new mongoose.Types.ObjectId(id));
+      const candidates = await Candidate.find({ _id: { $in: candidateObjectIds } })
+        .select('form user')
+        .populate('form', 'title')
+        .lean();
+
+      if (candidates.length !== uniqueCandidateIds.length) {
+        return res.status(400).json({ message: 'One or more selected candidates could not be found' });
+      }
+
+      const formIds = [...new Set(candidates.map(candidate => candidate.form?.toString()))];
+
+      if (formIds.length > 1 && !resolvedFormId) {
+        return res.status(400).json({ message: 'Selected candidates belong to different forms. Please ensure they are from the same recruitment form or specify a target form.' });
+      }
+
+      resolvedFormId = resolvedFormId || candidates[0].form;
+
+      candidateAssignments = candidates.map(candidate => ({
+        candidate: candidate._id,
+        status: 'invited',
+        invitedAt: new Date()
+      }));
+    }
+
+    if (!resolvedFormId) {
+      return res.status(400).json({ message: 'Unable to determine the recruitment form. Please select at least one candidate or provide a formId.' });
+    }
+
+    const test = new Test({
+      title: title.trim(),
+      description: description?.trim() || '',
+      instructions: instructions?.trim() || '',
+      form: resolvedFormId,
+      questions: testQuestions,
+      duration: Number(duration),
+      passingPercentage: Number.isFinite(Number(passingPercentage)) ? Number(passingPercentage) : 50,
+      cutoffPercentage: Number.isFinite(Number(cutoffPercentage)) ? Number(cutoffPercentage) : (Number.isFinite(Number(passingPercentage)) ? Number(passingPercentage) : 50),
+      questionSource: 'bank',
+      sourceRefs: {
+        bankQuestionIds,
+        topicSelections: normalizedSelections.map(selection => ({
+          topicId: new mongoose.Types.ObjectId(selection.topicId),
+          topicName: topicMap.get(selection.topicId)?.name || '',
+          questionCount: selection.questionCount
+        }))
+      },
+      createdBy: req.user._id,
+      candidates: candidateAssignments,
+      scheduledDate: scheduledDate ? new Date(scheduledDate) : undefined,
+      scheduledTime
+    });
+
+    await test.save();
+
+    res.status(201).json({
+      message: 'Assessment generated successfully',
+      test
+    });
+  } catch (error) {
+    console.error('Auto-generate test error:', error);
+    res.status(500).json({ message: 'Server error generating assessment from topics' });
   }
 });
 
@@ -232,6 +932,164 @@ router.post('/previous-papers/upload', authenticateToken, requireSuperAdminOrPer
   } catch (error) {
     console.error('Previous paper upload error:', error);
     res.status(500).json({ message: 'Server error uploading previous paper' });
+  }
+});
+
+router.post('/conduct-from-topics', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const {
+      candidateId,
+      title,
+      description = '',
+      duration,
+      passingPercentage,
+      cutoffPercentage,
+      instructions,
+      topicSelections,
+      scheduledDate,
+      scheduledTime
+    } = req.body;
+
+    if (!candidateId || !mongoose.Types.ObjectId.isValid(candidateId)) {
+      return res.status(400).json({ message: 'A valid candidateId is required' });
+    }
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ message: 'Test title is required' });
+    }
+
+    if (!duration || Number(duration) <= 0) {
+      return res.status(400).json({ message: 'Duration must be greater than zero' });
+    }
+
+    if (!Array.isArray(topicSelections) || topicSelections.length === 0) {
+      return res.status(400).json({ message: 'At least one topic selection is required' });
+    }
+
+    const candidate = await Candidate.findById(candidateId)
+      .populate('user', 'name email profile')
+      .populate('form', 'title position department formCategory');
+
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    const { compiledQuestions, questionIds } = await buildQuestionsFromTopicSelections(topicSelections);
+
+    const test = new Test({
+      title: title.trim(),
+      description: description.trim(),
+      form: candidate.form?._id,
+      questions: compiledQuestions,
+      duration: Number(duration),
+      passingPercentage: Number(passingPercentage) || 50,
+      cutoffPercentage: Number(cutoffPercentage) || Number(passingPercentage) || 60,
+      instructions: instructions?.trim() || description?.trim() || 'Please answer all questions carefully.',
+      questionSource: 'bank',
+      sourceRefs: { bankQuestionIds: questionIds },
+      candidates: [{
+        candidate: candidateId,
+        status: 'invited',
+        invitedAt: new Date()
+      }],
+      scheduledDate: scheduledDate ? new Date(scheduledDate) : undefined,
+      scheduledTime: scheduledTime || undefined,
+      createdBy: req.user._id
+    });
+
+    await test.save();
+
+    if (!test.testLink) {
+      test.testLink = `test_${test._id}_${Date.now()}`;
+      await test.save();
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const testLink = `${frontendUrl}/test/${test.testLink}`;
+
+    const user = candidate.user;
+    const phone = user.profile?.phone || '';
+    const username = phone || user.email;
+    const password = phone || user.email;
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
+          Test Invitation: ${test.title}
+        </h2>
+        <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+          Dear ${user.name},
+        </p>
+        <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+          You have been invited to complete the "${test.title}" assessment as part of the recruitment process.
+        </p>
+        <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+          <h3 style="color: #1e40af; margin-top: 0;">Test Details</h3>
+          <p style="margin: 5px 0;"><strong>Duration:</strong> ${test.duration} minutes</p>
+          ${test.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${test.description}</p>` : ''}
+          ${test.scheduledDate ? `<p style="margin: 5px 0;"><strong>Scheduled Date:</strong> ${new Date(test.scheduledDate).toLocaleDateString()}</p>` : ''}
+          ${test.scheduledTime ? `<p style="margin: 5px 0;"><strong>Scheduled Time:</strong> ${test.scheduledTime}</p>` : ''}
+        </div>
+        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+          <h3 style="color: #92400e; margin-top: 0;">Login Credentials</h3>
+          <p style="margin: 5px 0;"><strong>Username:</strong> ${username}</p>
+          <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${testLink}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+            Start Test
+          </a>
+        </div>
+        <p style="color: #6b7280; font-size: 14px;">
+          Or copy and paste this link into your browser:<br>
+          <a href="${testLink}" style="color: #3b82f6;">${testLink}</a>
+        </p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #6b7280; font-size: 12px;">
+          This is an automated message from the Staff Recruitment System. Please do not reply to this email.
+        </p>
+      </div>
+    `;
+
+    const emailText = `
+Test Invitation: ${test.title}
+
+Dear ${user.name},
+
+You have been invited to complete the "${test.title}" assessment as part of the recruitment process.
+
+Duration: ${test.duration} minutes
+${test.description ? `Description: ${test.description}\n` : ''}
+${test.scheduledDate ? `Scheduled Date: ${new Date(test.scheduledDate).toLocaleDateString()}\n` : ''}
+${test.scheduledTime ? `Scheduled Time: ${test.scheduledTime}\n` : ''}
+
+Login Credentials:
+- Username: ${username}
+- Password: ${password}
+
+Test Link: ${testLink}
+
+This is an automated message from the Staff Recruitment System.
+    `;
+
+    try {
+      await sendEmail(user.email, `Test Invitation: ${test.title}`, emailHtml, emailText);
+    } catch (emailError) {
+      console.error('Email send error (topics):', emailError);
+      // Do not fail request if email fails
+    }
+
+    res.status(201).json({
+      message: 'Test generated and candidate notified successfully',
+      test: {
+        _id: test._id,
+        title: test.title,
+        testLink: test.testLink
+      }
+    });
+  } catch (error) {
+    console.error('Conduct test from topics error:', error);
+    res.status(500).json({ message: error.message || 'Server error conducting test from topics' });
   }
 });
 

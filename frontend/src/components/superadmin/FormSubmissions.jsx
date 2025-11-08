@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup } from 'react-bootstrap';
 import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaCheckCircle, FaTimes } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -15,6 +16,9 @@ const FormSubmissions = () => {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('teaching');
   const [selectedJobRole, setSelectedJobRole] = useState('all');
+  const [quickSearch, setQuickSearch] = useState('');
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchCandidates();
@@ -55,10 +59,21 @@ const FormSubmissions = () => {
 
     // Filter by job role (position/department)
     if (selectedJobRole !== 'all' && selectedJobRole) {
-      filtered = filtered.filter(c => {
-        const jobRole = `${c.form?.position || ''} - ${c.form?.department || ''}`;
-        return jobRole === selectedJobRole;
-      });
+    filtered = filtered.filter(c => {
+      const jobRole = `${c.form?.position || ''} - ${c.form?.department || ''}`.trim();
+      return jobRole === selectedJobRole;
+    });
+  }
+
+  if (quickSearch.trim()) {
+    const term = quickSearch.trim().toLowerCase();
+    filtered = filtered.filter(candidate => {
+      const name = candidate.user?.name?.toLowerCase() || '';
+      const email = candidate.user?.email?.toLowerCase() || '';
+      const position = candidate.form?.position?.toLowerCase() || '';
+      const department = candidate.form?.department?.toLowerCase() || '';
+      return name.includes(term) || email.includes(term) || position.includes(term) || department.includes(term);
+    });
     }
 
     return filtered;
@@ -199,241 +214,215 @@ const FormSubmissions = () => {
   const renderPersonalDetailsTab = (candidate) => {
     const applicationData = candidate.personalDetails?.applicationData || {};
     const documents = candidate.personalDetails?.documents || [];
-    const passportPhoto = candidate.personalDetails?.passportPhoto;
-    
-    const resume = documents.find(d => d.name?.toLowerCase().includes('resume') || d.name?.toLowerCase().includes('cv'));
-    const certificates = documents.filter(d => 
-      d.name?.toLowerCase().includes('certificate') || 
-      d.name?.toLowerCase().includes('certification')
-    );
-    const otherDocs = documents.filter(d => 
-      !d.name?.toLowerCase().includes('resume') && 
-      !d.name?.toLowerCase().includes('cv') && 
-      !d.name?.toLowerCase().includes('certificate') &&
-      !d.name?.toLowerCase().includes('certification') &&
-      !d.name?.toLowerCase().includes('photo') &&
-      !d.name?.toLowerCase().includes('passport')
-    );
+    const resume = documents.find(doc => {
+      const name = doc.name?.toLowerCase() || '';
+      return name.includes('resume') || name.includes('cv');
+    });
+    const certificates = documents.filter(doc => (doc.name?.toLowerCase() || '').includes('certificate'));
+    const otherDocs = documents.filter(doc => {
+      const name = doc.name?.toLowerCase() || '';
+      const isResume = resume ? (doc.name === resume.name && doc.url === resume.url) : false;
+      return !isResume && !name.includes('certificate');
+    });
 
     return (
-      <div>
-        <Row className="mb-4">
-          <Col md={6}>
-            <Card>
-              <Card.Header>
-                <h5>Personal Information</h5>
-              </Card.Header>
-              <Card.Body>
-                {passportPhoto && (
-                  <div className="text-center mb-3">
-                    <Image 
-                      src={passportPhoto} 
-                      alt="Profile Photo" 
-                      rounded 
-                      style={{ maxWidth: '150px', maxHeight: '150px', objectFit: 'cover' }}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
-                    />
+      <div className="pb-3">
+        <Card className="border-0 shadow-sm mb-4">
+          <Card.Body className="d-flex flex-wrap gap-3 align-items-center">
+            <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{candidate.personalDetails?.name}</div>
+            <Badge bg="light" text="dark">{candidate.personalDetails?.email}</Badge>
+            {candidate.personalDetails?.phone && (
+              <Badge bg="light" text="dark">📞 {candidate.personalDetails.phone}</Badge>
+            )}
+          </Card.Body>
+        </Card>
+
+        <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em', fontSize: '0.75rem' }}>Application Responses</h6>
+        <Row className="g-3 mb-4">
+          {Object.entries(applicationData).filter(([_, value]) => !(typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://')))).map(([key, value]) => (
+            <Col xs={12} md={6} lg={4} key={key}>
+              <Card className="h-100 border-0 shadow-sm">
+                <Card.Body style={{ fontSize: '0.9rem' }}>
+                  <div className="text-muted text-uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+                    {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                   </div>
-                )}
-                <p><strong>Name:</strong> {candidate.personalDetails.name}</p>
-                <p><strong>Email:</strong> {candidate.personalDetails.email}</p>
-                <p><strong>Phone:</strong> {candidate.personalDetails.phone || 'Not provided'}</p>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col md={6}>
-            <Card>
-              <Card.Header>
-                <h5>Application Form Details</h5>
-              </Card.Header>
-              <Card.Body style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {Object.keys(applicationData).length > 0 ? (
-                  Object.entries(applicationData).map(([key, value]) => {
-                    if (typeof value === 'string' && (value.startsWith('http') || value.startsWith('https'))) {
-                      return null;
-                    }
-                    return (
-                      <p key={key}>
-                        <strong>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong>{' '}
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                      </p>
-                    );
-                  })
-                ) : (
-                  <p className="text-muted">No application data available</p>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
+                  <div>
+                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+          {Object.keys(applicationData).length === 0 && (
+            <Col>
+              <Alert variant="light" className="mb-0">No additional application data provided.</Alert>
+            </Col>
+          )}
         </Row>
 
-        <Row className="mb-4">
-          <Col md={12}>
-            <Card>
-              <Card.Header>
-                <h5>Documents</h5>
-              </Card.Header>
-              <Card.Body>
-                {resume && (
-                  <div className="mb-3">
-                    <h6><FaFilePdf className="me-2" />Resume</h6>
-                    <div className="d-flex align-items-center gap-2">
-                      <span>{resume.name}</span>
-                      <Button 
-                        variant="outline-primary" 
-                        size="sm"
-                        href={resume.url} 
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <FaExternalLinkAlt className="me-1" />
-                        View
-                      </Button>
-                      <Button 
-                        variant="outline-secondary" 
-                        size="sm"
-                        href={resume.url} 
-                        download
-                      >
-                        <FaDownload className="me-1" />
-                        Download
-                      </Button>
-                    </div>
+        <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em', fontSize: '0.75rem' }}>Documents</h6>
+        <Row className="g-3">
+          {resume && (
+            <Col xs={12} md={6} lg={4}>
+              <Card className="h-100 border-0 shadow-sm">
+                <Card.Body>
+                  <h6 className="d-flex align-items-center gap-2 mb-2" style={{ fontSize: '0.95rem' }}>
+                    <FaFilePdf /> Resume
+                  </h6>
+                  <div className="d-flex flex-wrap gap-2">
+                    <Button variant="outline-primary" size="sm" href={resume.url} target="_blank" rel="noopener noreferrer">
+                      View
+                    </Button>
+                    <Button variant="outline-secondary" size="sm" href={resume.url} download>
+                      Download
+                    </Button>
                   </div>
-                )}
+                </Card.Body>
+              </Card>
+            </Col>
+          )}
 
-                {certificates.length > 0 && (
-                  <div className="mb-3">
-                    <h6><FaFileImage className="me-2" />Certificates ({certificates.length})</h6>
-                    <div className="d-flex flex-wrap gap-2">
-                      {certificates.map((cert, index) => (
-                        <div key={index} className="border rounded p-2" style={{ minWidth: '200px' }}>
-                          <div className="d-flex align-items-center justify-content-between">
-                            <span className="text-truncate" style={{ maxWidth: '150px' }}>{cert.name}</span>
-                            <div>
-                              <Button 
-                                variant="outline-primary" 
-                                size="sm"
-                                href={cert.url} 
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="me-1"
-                              >
-                                <FaExternalLinkAlt />
-                              </Button>
-                              <Button 
-                                variant="outline-secondary" 
-                                size="sm"
-                                href={cert.url} 
-                                download
-                              >
-                                <FaDownload />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+          {certificates.map((cert, index) => (
+            <Col xs={12} md={6} lg={4} key={`cert-${index}`}>
+              <Card className="h-100 border-0 shadow-sm">
+                <Card.Body>
+                  <h6 className="d-flex align-items-center gap-2 mb-2" style={{ fontSize: '0.95rem' }}>
+                    <FaFileImage /> Certificate
+                  </h6>
+                  <div className="d-flex flex-wrap gap-2">
+                    <Button variant="outline-primary" size="sm" href={cert.url} target="_blank" rel="noopener noreferrer">
+                      View
+                    </Button>
+                    <Button variant="outline-secondary" size="sm" href={cert.url} download>
+                      Download
+                    </Button>
                   </div>
-                )}
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
 
-                {otherDocs.length > 0 && (
-                  <div className="mb-3">
-                    <h6>Other Documents ({otherDocs.length})</h6>
-                    <div className="d-flex flex-wrap gap-2">
-                      {otherDocs.map((doc, index) => (
-                        <div key={index} className="border rounded p-2" style={{ minWidth: '200px' }}>
-                          <div className="d-flex align-items-center justify-content-between">
-                            <span className="text-truncate" style={{ maxWidth: '150px' }}>{doc.name}</span>
-                            <div>
-                              <Button 
-                                variant="outline-primary" 
-                                size="sm"
-                                href={doc.url} 
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="me-1"
-                              >
-                                <FaExternalLinkAlt />
-                              </Button>
-                              <Button 
-                                variant="outline-secondary" 
-                                size="sm"
-                                href={doc.url} 
-                                download
-                              >
-                                <FaDownload />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+          {otherDocs.map((doc, index) => (
+            <Col xs={12} md={6} lg={4} key={`doc-${index}`}>
+              <Card className="h-100 border-0 shadow-sm">
+                <Card.Body>
+                  <h6 className="mb-2" style={{ fontSize: '0.95rem' }}>{doc.name}</h6>
+                  <div className="d-flex flex-wrap gap-2">
+                    <Button variant="outline-primary" size="sm" href={doc.url} target="_blank" rel="noopener noreferrer">
+                      View
+                    </Button>
+                    <Button variant="outline-secondary" size="sm" href={doc.url} download>
+                      Download
+                    </Button>
                   </div>
-                )}
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
 
-                {!resume && certificates.length === 0 && otherDocs.length === 0 && (
-                  <p className="text-muted">No documents available</p>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
+          {!resume && certificates.length === 0 && otherDocs.length === 0 && (
+            <Col>
+              <Alert variant="light" className="mb-0">No supporting documents were uploaded.</Alert>
+            </Col>
+          )}
         </Row>
       </div>
     );
   };
+
+  const teachingCount = useMemo(() => allCandidates.filter(c => c.form?.formCategory === 'teaching').length, [allCandidates]);
+  const nonTeachingCount = useMemo(() => allCandidates.filter(c => c.form?.formCategory === 'non_teaching').length, [allCandidates]);
 
   if (loading) {
     return <LoadingSpinner message="Loading form submissions..." />;
   }
 
   return (
-    <Container>
-      <Row className="mb-4">
-        <Col>
-          <h2>Form Submissions</h2>
-          <p>Review candidate applications and approve/reject them to move to the testing phase.</p>
+    <Container fluid style={{ maxWidth: '1200px' }}>
+      <Row className="mb-3 align-items-center">
+        <Col xs={12} md={8}>
+          <h2 className="mb-1" style={{ fontSize: '1.8rem', fontWeight: 600 }}>Form Submissions</h2>
+          <p className="text-muted mb-0" style={{ fontSize: '0.95rem' }}>Review, shortlist, or reject submissions before moving candidates to assessments.</p>
+        </Col>
+        <Col xs={12} md={4} className="mt-2 mt-md-0 text-md-end">
+          <Button
+            variant="outline-primary"
+            onClick={() => navigate('/super-admin/creation/forms')}
+          >
+            Create / Upload Submission
+          </Button>
         </Col>
       </Row>
 
       {/* Category Tabs */}
-      <Row className="mb-3">
-        <Col>
-          <Card>
-            <Card.Header>
-              <Tabs activeKey={activeTab} onSelect={(k) => { setActiveTab(k); setSelectedJobRole('all'); }} className="mb-0">
-                <Tab eventKey="teaching" title="Teaching Positions" />
-                <Tab eventKey="non_teaching" title="Non-Teaching Positions" />
-                <Tab eventKey="all" title="All Submissions" />
-              </Tabs>
-            </Card.Header>
-            <Card.Body>
-              <Row className="align-items-center">
-                <Col md={4}>
-                  <Form.Group>
-                    <Form.Label>Filter by Job Role:</Form.Label>
-                    <Form.Select
-                      value={selectedJobRole}
-                      onChange={(e) => setSelectedJobRole(e.target.value)}
-                    >
-                      <option value="all">All Job Roles</option>
-                      {getJobRoles().map((role, idx) => (
-                        <option key={idx} value={role}>{role}</option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-                <Col md={8} className="text-end">
-                  <Alert variant="info" className="mb-0">
-                    Showing <strong>{candidates.length}</strong> candidate(s) for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'All'} positions
-                    {selectedJobRole !== 'all' && ` - ${selectedJobRole}`}
-                  </Alert>
-                </Col>
-              </Row>
-            </Card.Body>
-          </Card>
+      <Row className="mb-3 g-2 align-items-end">
+        <Col xs="auto">
+          <Button
+            size="sm"
+            variant={activeTab === 'teaching' ? 'primary' : 'outline-primary'}
+            onClick={() => { setActiveTab('teaching'); setSelectedJobRole('all'); }}
+          >
+            Teaching ({teachingCount})
+          </Button>
+        </Col>
+        <Col xs="auto">
+          <Button
+            size="sm"
+            variant={activeTab === 'non_teaching' ? 'primary' : 'outline-primary'}
+            onClick={() => { setActiveTab('non_teaching'); setSelectedJobRole('all'); }}
+          >
+            Non-Teaching ({nonTeachingCount})
+          </Button>
+        </Col>
+        <Col xs="auto">
+          <Button
+            size="sm"
+            variant={activeTab === 'all' ? 'primary' : 'outline-primary'}
+            onClick={() => { setActiveTab('all'); setSelectedJobRole('all'); }}
+          >
+            All ({allCandidates.length})
+          </Button>
+        </Col>
+        <Col xs={12} md={4} className="mt-2 mt-md-0">
+          <Form.Select
+            size="sm"
+            value={selectedJobRole}
+            onChange={(e) => setSelectedJobRole(e.target.value)}
+          >
+            <option value="all">All Job Roles</option>
+            {getJobRoles().map((role, idx) => (
+              <option key={idx} value={role}>{role}</option>
+            ))}
+          </Form.Select>
+        </Col>
+        <Col xs={12} md={4} className="mt-2 mt-md-0">
+          <InputGroup size="sm">
+            <Form.Control
+              placeholder="Search by name, email, position, or department"
+              value={quickSearch}
+              onChange={(e) => setQuickSearch(e.target.value)}
+            />
+            {quickSearch && (
+              <Button variant="outline-secondary" onClick={() => setQuickSearch('')}>
+                Clear
+              </Button>
+            )}
+          </InputGroup>
+        </Col>
+        <Col xs="auto" className="mt-2 mt-md-0">
+          {candidates.length > 0 && (
+            <FormCheck
+              type="checkbox"
+              label="Select all"
+              checked={selectedCandidates.size === candidates.length}
+              onChange={handleSelectAll}
+            />
+          )}
+        </Col>
+        <Col xs={12} md className="mt-2 mt-md-0 text-md-end">
+          <small className="text-muted">
+            Showing <strong>{candidates.length}</strong> candidate(s){selectedJobRole !== 'all' ? ` for ${selectedJobRole}` : ''}
+          </small>
         </Col>
       </Row>
 
@@ -485,140 +474,104 @@ const FormSubmissions = () => {
         </Row>
       )}
 
-      <Row>
-        <Col>
-          <Card>
-            <Card.Header>
-              <div className="d-flex align-items-center justify-content-between">
-                <h5 className="mb-0">
-                  Submissions
-                  {activeTab === 'teaching' && ' - Teaching'}
-                  {activeTab === 'non_teaching' && ' - Non-Teaching'}
-                </h5>
-                {candidates.length > 0 && (
-                  <FormCheck
-                    type="checkbox"
-                    checked={selectedCandidates.size === candidates.length && candidates.length > 0}
-                    onChange={handleSelectAll}
-                    label="Select All"
-                  />
-                )}
-              </div>
-            </Card.Header>
-            <Card.Body>
-              {candidates.length === 0 ? (
-                <Alert variant="info">
-                  No submissions found for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'this category'}
-                  {selectedJobRole !== 'all' && ` in ${selectedJobRole}`}.
-                </Alert>
-              ) : (
-                <Table striped bordered hover responsive>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '50px' }}>Select</th>
-                      <th style={{ width: '60px' }}>Photo</th>
-                      <th>Name</th>
-                      <th>Candidate Number</th>
-                      <th>Email</th>
-                      <th>Position</th>
-                      <th>Department</th>
-                      <th>Category</th>
-                      <th>Applied Date</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {candidates.map((candidate) => (
-                      <tr key={candidate._id}>
-                        <td className="text-center">
-                          <FormCheck
-                            type="checkbox"
-                            checked={selectedCandidates.has(candidate._id)}
-                            onChange={() => handleSelectCandidate(candidate._id)}
-                          />
-                        </td>
-                        <td className="text-center">
-                          {candidate.passportPhotoUrl ? (
-                            <Image
-                              src={candidate.passportPhotoUrl}
-                              alt={candidate.user.name}
-                              roundedCircle
-                              style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div 
-                            style={{ 
-                              width: '40px', 
-                              height: '40px', 
-                              borderRadius: '50%', 
-                              background: '#e2e8f0',
-                              display: candidate.passportPhotoUrl ? 'none' : 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              margin: '0 auto'
-                            }}
-                          >
-                            <FaUser style={{ color: '#64748b' }} />
-                          </div>
-                        </td>
-                        <td>{candidate.user?.name || 'N/A'}</td>
-                        <td>
-                          {candidate.candidateNumber ? (
-                            <Badge bg="secondary">{candidate.candidateNumber}</Badge>
-                          ) : (
-                            <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Not assigned</span>
-                          )}
-                        </td>
-                        <td>{candidate.user?.email || 'N/A'}</td>
-                        <td>{candidate.form?.position || 'N/A'}</td>
-                        <td>{candidate.form?.department || 'N/A'}</td>
-                        <td>{candidate.form?.formCategory && (
-                          <Badge bg={candidate.form.formCategory === 'teaching' ? 'primary' : 'secondary'} className="me-1">
-                            {candidate.form.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
-                          </Badge>
-                        )}</td>
-                        <td>{new Date(candidate.createdAt).toLocaleDateString()}</td>
-                        <td>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            className="me-2"
-                            onClick={() => fetchCandidateProfile(candidate._id)}
-                            disabled={profileLoading}
-                          >
-                            {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
-                          </Button>
-                          <Button
-                            variant="success"
-                            size="sm"
-                            className="me-2"
-                            onClick={() => handleApprove(candidate._id)}
-                          >
-                            <FaCheckCircle className="me-1" />
-                            Approve
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleReject(candidate._id)}
-                          >
-                            <FaTimes className="me-1" />
-                            Reject
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              )}
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      {candidates.length === 0 ? (
+        <Row>
+          <Col>
+            <Alert variant="info">
+              No submissions found for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'the selected filters'}.
+            </Alert>
+          </Col>
+        </Row>
+      ) : (
+        <Row className="g-3">
+          {candidates.map(candidate => (
+            <Col xs={12} md={6} lg={4} key={candidate._id}>
+              <Card className="h-100 shadow-sm border-0">
+                <Card.Body className="d-flex flex-column">
+                  <div className="d-flex align-items-start justify-content-between mb-2">
+                    <div className="d-flex align-items-center gap-2">
+                      {candidate.passportPhotoUrl ? (
+                        <Image
+                          src={candidate.passportPhotoUrl}
+                          alt={candidate.user?.name}
+                          roundedCircle
+                          style={{ width: '42px', height: '42px', objectFit: 'cover' }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '50%',
+                            background: '#e2e8f0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <FaUser style={{ color: '#64748b' }} />
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '1rem' }}>{candidate.user?.name || 'N/A'}</div>
+                        <small className="text-muted">{candidate.user?.email || 'N/A'}</small>
+                      </div>
+                    </div>
+                    <FormCheck
+                      type="checkbox"
+                      checked={selectedCandidates.has(candidate._id)}
+                      onChange={() => handleSelectCandidate(candidate._id)}
+                    />
+                  </div>
+                  <div className="mb-2 text-muted" style={{ fontSize: '0.85rem' }}>
+                    <div><strong>Position:</strong> {candidate.form?.position || 'N/A'}</div>
+                    <div><strong>Department:</strong> {candidate.form?.department || 'N/A'}</div>
+                    <div><strong>Applied:</strong> {new Date(candidate.createdAt).toLocaleDateString()}</div>
+                  </div>
+                  <div className="mb-3 d-flex flex-wrap gap-2">
+                    <Badge bg={candidate.form?.formCategory === 'teaching' ? 'primary' : 'secondary'}>
+                      {candidate.form?.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
+                    </Badge>
+                    {candidate.candidateNumber ? (
+                      <Badge bg="dark">{candidate.candidateNumber}</Badge>
+                    ) : (
+                      <Badge bg="light" text="dark">No Candidate ID</Badge>
+                    )}
+                    {getStatusBadge(candidate.status || 'pending')}
+                  </div>
+                  <div className="mt-auto d-flex gap-2">
+                    <Button
+                      variant="outline-primary"
+                      size="sm"
+                      onClick={() => fetchCandidateProfile(candidate._id)}
+                      disabled={profileLoading}
+                    >
+                      {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
+                    </Button>
+                    <Button
+                      variant="success"
+                      size="sm"
+                      onClick={() => handleApprove(candidate._id)}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      onClick={() => handleReject(candidate._id)}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      )}
 
       {/* Candidate Profile Modal */}
       <Modal
@@ -632,10 +585,10 @@ const FormSubmissions = () => {
             Candidate Profile - {selectedCandidate?.personalDetails?.name}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto', background: '#f8fafc' }}>
           {selectedCandidate && (
-            <Tabs defaultActiveKey="personal" className="mb-3">
-              <Tab eventKey="personal" title="Personal & Form Details">
+            <Tabs defaultActiveKey="application" className="mb-3">
+              <Tab eventKey="application" title="Application Details">
                 {renderPersonalDetailsTab(selectedCandidate)}
               </Tab>
             </Tabs>
