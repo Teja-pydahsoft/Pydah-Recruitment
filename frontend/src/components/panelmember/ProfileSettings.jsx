@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import styled from 'styled-components';
 import { FaUser, FaEnvelope, FaPhone, FaBriefcase, FaSave, FaExclamationTriangle, FaCheckCircle, FaEdit } from 'react-icons/fa';
@@ -107,23 +107,6 @@ const Input = styled.input`
     background-color: #f3f4f6;
     color: #6b7280;
     cursor: not-allowed;
-  }
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 1rem;
-  color: #1e293b;
-  background-color: white;
-  transition: all 0.2s ease;
-
-  &:focus {
-    outline: none;
-    border-color: #ea580c;
-    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.1);
   }
 `;
 
@@ -236,11 +219,7 @@ const ProfileSettings = () => {
     }
   });
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     setProfileLoading(true);
     try {
       const response = await api.get('/auth/profile');
@@ -271,7 +250,11 @@ const ProfileSettings = () => {
     } finally {
       setProfileLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   useEffect(() => {
     if (userProfile) {

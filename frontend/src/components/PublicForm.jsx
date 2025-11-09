@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { FaFileAlt, FaUser, FaPaperPlane, FaCheckCircle, FaExclamationTriangle, FaUpload, FaSpinner, FaTimes, FaCloudUploadAlt, FaBriefcase, FaCalendarAlt, FaInfoCircle, FaClock } from 'react-icons/fa';
@@ -32,11 +32,6 @@ const shimmer = keyframes`
 
 const progressFill = keyframes`
   0% { width: 0%; }
-`;
-
-const bounce = keyframes`
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
 `;
 
 const FormContainer = styled.div`
@@ -740,7 +735,7 @@ const PublicForm = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fileUploads, setFileUploads] = useState({}); // Track individual file uploads
 
-  const fetchForm = async () => {
+  const fetchForm = useCallback(async () => {
     try {
       const response = await api.get(`/forms/public/${uniqueLink}`);
       const formData = response.data.form;
@@ -768,11 +763,11 @@ const PublicForm = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [uniqueLink]);
 
   useEffect(() => {
     fetchForm();
-  }, [uniqueLink]);
+  }, [fetchForm]);
 
   const handleFormDataChange = (fieldName, value) => {
     setFormData(prev => ({
@@ -794,11 +789,6 @@ const PublicForm = () => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  const getFileIcon = (fileName) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    return <FaFileAlt />;
   };
 
   const handleSubmit = async (e) => {

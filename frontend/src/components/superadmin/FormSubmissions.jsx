@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaCheckCircle, FaTimes } from 'react-icons/fa';
+import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
@@ -38,46 +38,55 @@ const FormSubmissions = () => {
     }
   };
 
-  // Get filtered candidates based on active tab and job role
-  const getFilteredCandidates = () => {
+  const filteredCandidates = useMemo(() => {
     let filtered = allCandidates.filter(c => {
-      // Filter by form category
       if (activeTab === 'teaching') {
         return c.form?.formCategory === 'teaching';
       } else if (activeTab === 'non_teaching') {
         return c.form?.formCategory === 'non_teaching';
       }
-      return true; // 'all' tab
+      return true;
     });
 
-    // Filter out candidates who have already been approved/moved to next phase
-    // Only show pending candidates in the submissions list
-    filtered = filtered.filter(c => {
-      const status = c.status || 'pending';
-      return status === 'pending' || status === 'on_hold';
-    });
-
-    // Filter by job role (position/department)
     if (selectedJobRole !== 'all' && selectedJobRole) {
-    filtered = filtered.filter(c => {
-      const jobRole = `${c.form?.position || ''} - ${c.form?.department || ''}`.trim();
-      return jobRole === selectedJobRole;
-    });
-  }
+      filtered = filtered.filter(c => {
+        const jobRole = `${c.form?.position || ''} - ${c.form?.department || ''}`.trim();
+        return jobRole === selectedJobRole;
+      });
+    }
 
-  if (quickSearch.trim()) {
-    const term = quickSearch.trim().toLowerCase();
-    filtered = filtered.filter(candidate => {
-      const name = candidate.user?.name?.toLowerCase() || '';
-      const email = candidate.user?.email?.toLowerCase() || '';
-      const position = candidate.form?.position?.toLowerCase() || '';
-      const department = candidate.form?.department?.toLowerCase() || '';
-      return name.includes(term) || email.includes(term) || position.includes(term) || department.includes(term);
-    });
+    if (quickSearch.trim()) {
+      const term = quickSearch.trim().toLowerCase();
+      filtered = filtered.filter(candidate => {
+        const name = candidate.user?.name?.toLowerCase() || '';
+        const email = candidate.user?.email?.toLowerCase() || '';
+        const position = candidate.form?.position?.toLowerCase() || '';
+        const department = candidate.form?.department?.toLowerCase() || '';
+        return (
+          name.includes(term) ||
+          email.includes(term) ||
+          position.includes(term) ||
+          department.includes(term)
+        );
+      });
     }
 
     return filtered;
-  };
+  }, [allCandidates, activeTab, selectedJobRole, quickSearch]);
+
+  const pendingCandidates = useMemo(() => (
+    filteredCandidates.filter(candidate => {
+      const status = candidate.status || 'pending';
+      return status === 'pending' || status === 'on_hold';
+    })
+  ), [filteredCandidates]);
+
+  const progressedCandidates = useMemo(() => (
+    filteredCandidates.filter(candidate => {
+      const status = candidate.status || '';
+      return ['approved', 'shortlisted', 'selected'].includes(status);
+    })
+  ), [filteredCandidates]);
 
   // Get unique job roles for the current tab
   const getJobRoles = () => {
@@ -99,8 +108,6 @@ const FormSubmissions = () => {
 
     return Array.from(roles).sort();
   };
-
-  const candidates = getFilteredCandidates();
 
   const fetchCandidateProfile = async (candidateId) => {
     setProfileLoading(true);
@@ -193,10 +200,10 @@ const FormSubmissions = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedCandidates.size === candidates.length) {
+    if (selectedCandidates.size === pendingCandidates.length) {
       setSelectedCandidates(new Set());
     } else {
-      setSelectedCandidates(new Set(candidates.map(c => c._id)));
+      setSelectedCandidates(new Set(pendingCandidates.map(c => c._id)));
     }
   };
 
@@ -410,18 +417,18 @@ const FormSubmissions = () => {
           </InputGroup>
         </Col>
         <Col xs="auto" className="mt-2 mt-md-0">
-          {candidates.length > 0 && (
+          {pendingCandidates.length > 0 && (
             <FormCheck
               type="checkbox"
-              label="Select all"
-              checked={selectedCandidates.size === candidates.length}
+              label="Select all pending"
+              checked={selectedCandidates.size === pendingCandidates.length}
               onChange={handleSelectAll}
             />
           )}
         </Col>
         <Col xs={12} md className="mt-2 mt-md-0 text-md-end">
           <small className="text-muted">
-            Showing <strong>{candidates.length}</strong> candidate(s){selectedJobRole !== 'all' ? ` for ${selectedJobRole}` : ''}
+            Showing <strong>{pendingCandidates.length}</strong> pending candidate(s){selectedJobRole !== 'all' ? ` for ${selectedJobRole}` : ''}
           </small>
         </Col>
       </Row>
@@ -474,17 +481,17 @@ const FormSubmissions = () => {
         </Row>
       )}
 
-      {candidates.length === 0 ? (
+      {pendingCandidates.length === 0 ? (
         <Row>
           <Col>
             <Alert variant="info">
-              No submissions found for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'the selected filters'}.
+              No pending submissions found for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'the selected filters'}.
             </Alert>
           </Col>
         </Row>
       ) : (
         <Row className="g-3">
-          {candidates.map(candidate => (
+          {pendingCandidates.map(candidate => (
             <Col xs={12} md={6} lg={4} key={candidate._id}>
               <Card className="h-100 shadow-sm border-0">
                 <Card.Body className="d-flex flex-column">
@@ -571,6 +578,100 @@ const FormSubmissions = () => {
             </Col>
           ))}
         </Row>
+      )}
+
+      {progressedCandidates.length > 0 && (
+        <>
+          <Row className="mt-4">
+            <Col>
+              <h4 className="mb-1" style={{ fontWeight: 600 }}>Selected Candidates</h4>
+              <p className="text-muted mb-0" style={{ fontSize: '0.95rem' }}>
+                Candidates approved from submissions appear here so you can coordinate assessments and interviews.
+              </p>
+            </Col>
+          </Row>
+          <Row className="g-3 mt-1">
+            {progressedCandidates.map(candidate => (
+              <Col xs={12} md={6} lg={4} key={candidate._id}>
+                <Card className="h-100 shadow-sm border-0 bg-light">
+                  <Card.Body className="d-flex flex-column">
+                    <div className="d-flex align-items-start justify-content-between mb-2">
+                      <div className="d-flex align-items-center gap-2">
+                        {candidate.passportPhotoUrl ? (
+                          <Image
+                            src={candidate.passportPhotoUrl}
+                            alt={candidate.user?.name}
+                            roundedCircle
+                            style={{ width: '42px', height: '42px', objectFit: 'cover' }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '50%',
+                              background: '#e2e8f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <FaUser style={{ color: '#64748b' }} />
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '1rem' }}>{candidate.user?.name || 'N/A'}</div>
+                          <small className="text-muted">{candidate.user?.email || 'N/A'}</small>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mb-2 text-muted" style={{ fontSize: '0.85rem' }}>
+                      <div><strong>Position:</strong> {candidate.form?.position || 'N/A'}</div>
+                      <div><strong>Department:</strong> {candidate.form?.department || 'N/A'}</div>
+                      <div><strong>Approved:</strong> {candidate.updatedAt ? new Date(candidate.updatedAt).toLocaleDateString() : '—'}</div>
+                    </div>
+                    <div className="mb-3 d-flex flex-wrap gap-2">
+                      <Badge bg={candidate.form?.formCategory === 'teaching' ? 'primary' : 'secondary'}>
+                        {candidate.form?.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
+                      </Badge>
+                      {candidate.candidateNumber ? (
+                        <Badge bg="dark">{candidate.candidateNumber}</Badge>
+                      ) : (
+                        <Badge bg="light" text="dark">Awaiting ID</Badge>
+                      )}
+                      {['approved', 'selected'].includes(candidate.status) ? (
+                        <Badge bg="success">Selected Candidate</Badge>
+                      ) : (
+                        <Badge bg="warning" text="dark">Shortlisted</Badge>
+                      )}
+                      {getStatusBadge(candidate.status || 'approved')}
+                    </div>
+                    <div className="mt-auto d-flex gap-2">
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => fetchCandidateProfile(candidate._id)}
+                        disabled={profileLoading}
+                      >
+                        {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
+                      </Button>
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => navigate('/super-admin/candidates')}
+                      >
+                        Next Steps
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </>
       )}
 
       {/* Candidate Profile Modal */}

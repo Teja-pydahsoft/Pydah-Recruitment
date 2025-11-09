@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { Container, Row, Col, Card, Button, Alert, Modal, ProgressBar } from 'react-bootstrap';
+import { Container, Card, Button, Alert, Modal, ProgressBar } from 'react-bootstrap';
 import { FaCheckCircle, FaClock, FaExclamationTriangle, FaCheck, FaSignInAlt, FaCamera } from 'react-icons/fa';
 import api from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
@@ -129,7 +129,7 @@ const SubmitButton = styled(Button)`
 const TakeTest = () => {
   const { testLink } = useParams();
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [test, setTest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -144,75 +144,11 @@ const TakeTest = () => {
   const [candidatePhotos, setCandidatePhotos] = useState([]);
   const [webcamStream, setWebcamStream] = useState(null);
   const [webcamPermissionGranted, setWebcamPermissionGranted] = useState(false);
-  const [showCameraModal, setShowCameraModal] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  useEffect(() => {
-    // Check if user is authenticated
-    const token = localStorage.getItem('token');
-    if (!token || !isAuthenticated) {
-      setNeedsLogin(true);
-      setLoading(false);
-      setError('Please login first to access the test. Use the credentials provided in your email.');
-      return;
-    }
-
-    if (testLink) {
-      fetchTest();
-    }
-  }, [testLink, isAuthenticated]);
-
-  useEffect(() => {
-    if (test && test.duration && !submitted) {
-      setTimeRemaining(test.duration * 60); // Convert minutes to seconds
-      const timer = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            handleAutoSubmit();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(timer);
-    }
-  }, [test, submitted]);
-
-  const fetchTest = async () => {
-    try {
-      const response = await api.get(`/tests/take/${testLink}`);
-      setTest(response.data.test);
-      // Initialize answers object and question start times
-      const initialAnswers = {};
-      const initialStartTimes = {};
-      response.data.test.questions.forEach((q) => {
-        initialAnswers[q._id] = null;
-        initialStartTimes[q._id] = Date.now();
-      });
-      setAnswers(initialAnswers);
-      setQuestionStartTimes(initialStartTimes);
-      setTestStartTime(Date.now());
-      
-      // Request webcam access and capture initial photo
-      const hasAccess = await requestWebcamAccess();
-      if (hasAccess) {
-        // Wait a bit for video to be ready
-        setTimeout(async () => {
-          await captureCandidatePhoto('Test started - Before test');
-        }, 500);
-      }
-    } catch (error) {
-      setError(error.response?.data?.message || 'Test not found or you are not authorized to take this test.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Request webcam access
-  const requestWebcamAccess = async () => {
+  const requestWebcamAccess = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
@@ -233,10 +169,10 @@ const TakeTest = () => {
       setWebcamPermissionGranted(false);
       return false;
     }
-  };
+  }, []);
 
   // Capture candidate photo from webcam
-  const captureCandidatePhoto = async (description) => {
+  const captureCandidatePhoto = useCallback(async (description) => {
     try {
       if (!videoRef.current || !canvasRef.current || !webcamStream) {
         console.error('Webcam not available');
@@ -270,7 +206,52 @@ const TakeTest = () => {
       console.error('Error capturing photo:', error);
       return null;
     }
-  };
+  }, [webcamStream]);
+
+  const fetchTest = useCallback(async () => {
+    try {
+      const response = await api.get(`/tests/take/${testLink}`);
+      setTest(response.data.test);
+      // Initialize answers object and question start times
+      const initialAnswers = {};
+      const initialStartTimes = {};
+      response.data.test.questions.forEach((q) => {
+        initialAnswers[q._id] = null;
+        initialStartTimes[q._id] = Date.now();
+      });
+      setAnswers(initialAnswers);
+      setQuestionStartTimes(initialStartTimes);
+      setTestStartTime(Date.now());
+      
+      // Request webcam access and capture initial photo
+      const hasAccess = await requestWebcamAccess();
+      if (hasAccess) {
+        // Wait a bit for video to be ready
+        setTimeout(async () => {
+          await captureCandidatePhoto('Test started - Before test');
+        }, 500);
+      }
+    } catch (error) {
+      setError(error.response?.data?.message || 'Test not found or you are not authorized to take this test.');
+    } finally {
+      setLoading(false);
+    }
+  }, [testLink, captureCandidatePhoto, requestWebcamAccess]);
+
+  useEffect(() => {
+    // Check if user is authenticated
+    const token = localStorage.getItem('token');
+    if (!token || !isAuthenticated) {
+      setNeedsLogin(true);
+      setLoading(false);
+      setError('Please login first to access the test. Use the credentials provided in your email.');
+      return;
+    }
+
+    if (testLink) {
+      fetchTest();
+    }
+  }, [testLink, isAuthenticated, fetchTest]);
 
   // Cleanup webcam stream on unmount
   useEffect(() => {
@@ -283,9 +264,6 @@ const TakeTest = () => {
 
   const handleAnswerSelect = async (questionId, answer) => {
     // Calculate time taken for previous answer if exists
-    const startTime = questionStartTimes[questionId] || Date.now();
-    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-    
     // Update answers first
     const updatedAnswers = {
       ...answers,
@@ -321,14 +299,7 @@ const TakeTest = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleAutoSubmit = () => {
-    setShowSubmitModal(true);
-    setTimeout(() => {
-      handleSubmit();
-    }, 2000);
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     setSubmitting(true);
     try {
       // Capture final photo before submission (end of test)
@@ -374,7 +345,32 @@ const TakeTest = () => {
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [answers, candidatePhotos, captureCandidatePhoto, questionStartTimes, test, testStartTime, webcamPermissionGranted, webcamStream]);
+
+  const handleAutoSubmit = useCallback(() => {
+    setShowSubmitModal(true);
+    setTimeout(() => {
+      handleSubmit();
+    }, 2000);
+  }, [handleSubmit]);
+
+  useEffect(() => {
+    if (test && test.duration && !submitted) {
+      setTimeRemaining(test.duration * 60); // Convert minutes to seconds
+      const timer = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            handleAutoSubmit();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [test, submitted, handleAutoSubmit]);
 
   if (loading) {
     return <LoadingSpinner message="Loading test..." />;

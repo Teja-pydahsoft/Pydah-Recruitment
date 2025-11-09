@@ -52,26 +52,6 @@ const formatISTDateTime = (dateString, timeString = '') => {
   }
 };
 
-// Utility function to format time only in IST (12-hour format)
-const formatISTTime = (timeString) => {
-  if (!timeString) return 'Not scheduled';
-  
-  try {
-    const [hours, minutes] = timeString.split(':');
-    if (hours && minutes) {
-      const hour24 = parseInt(hours, 10);
-      const min = minutes.padStart(2, '0');
-      const hour12 = hour24 % 12 || 12;
-      const ampm = hour24 >= 12 ? 'PM' : 'AM';
-      return `${hour12.toString().padStart(2, '0')}:${min} ${ampm} IST`;
-    }
-    return timeString;
-  } catch (error) {
-    console.error('Error formatting time:', error);
-    return timeString;
-  }
-};
-
 // Convert 24-hour time to 12-hour format object
 const convertTo12Hour = (time24) => {
   if (!time24) return { hour: 12, minute: 0, ampm: 'AM' };
@@ -331,35 +311,11 @@ const MetaItem = styled.span`
   color: #374151;
 `;
 
-const PanelMembersSection = styled.div`
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-`;
-
 const SectionTitle = styled.h4`
   margin: 0 0 1rem 0;
   color: #1e293b;
   font-size: 1.1rem;
   font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const PanelMemberList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-`;
-
-const PanelMemberTag = styled.span`
-  background: #dbeafe;
-  color: #1e40af;
-  padding: 0.25rem 0.75rem;
-  border-radius: 16px;
-  font-size: 0.875rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -378,16 +334,6 @@ const AssignButton = styled.button`
   &:hover {
     background: #059669;
   }
-`;
-
-const ActionButtons = styled.div`
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-  flex-wrap: wrap;
-  align-items: center;
 `;
 
 const CandidatesList = styled.div`
@@ -637,7 +583,6 @@ const InterviewsManagement = () => {
   const [interviews, setInterviews] = useState([]);
   const [panelMembers, setPanelMembers] = useState([]);
   const [recruitmentForms, setRecruitmentForms] = useState([]);
-  const [feedbackForms, setFeedbackForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -669,7 +614,6 @@ const InterviewsManagement = () => {
     fetchInterviews();
     fetchPanelMembers();
     fetchRecruitmentForms();
-    fetchFeedbackForms();
   }, []);
 
   const fetchInterviews = async () => {
@@ -710,15 +654,6 @@ const InterviewsManagement = () => {
       setRecruitmentForms(candidateForms);
     } catch (error) {
       console.error('Error fetching recruitment forms:', error);
-    }
-  };
-
-  const fetchFeedbackForms = async () => {
-    try {
-      const response = await api.get('/forms/type/feedback_form');
-      setFeedbackForms(response.data.forms || []);
-    } catch (error) {
-      console.error('Error fetching feedback forms:', error);
     }
   };
 
@@ -773,18 +708,6 @@ const InterviewsManagement = () => {
         console.error('Error assigning panel members:', error);
         const errorMessage = error.response?.data?.message || error.message || 'Error assigning panel members. Please try again.';
         alert(errorMessage);
-      }
-    };
-  
-    const handleViewFeedback = async (interview) => {
-      try {
-        setSelectedInterview(interview);
-        const response = await api.get(`/interviews/${interview._id}/feedback-summary`);
-        setFeedbackSummary(response.data);
-        setShowFeedbackModal(true);
-      } catch (error) {
-        console.error('Error fetching feedback:', error);
-        alert('Error fetching feedback data.');
       }
     };
   

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner, Image, Tabs, Tab } from 'react-bootstrap';
-import { FaCheckCircle, FaTimes, FaCalendarAlt, FaEye, FaCheck, FaClock, FaUser, FaCamera } from 'react-icons/fa';
+import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner, Image } from 'react-bootstrap';
+import { FaCheckCircle, FaEye, FaCamera } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -221,16 +221,6 @@ const TestResults = () => {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const getStatusBadge = (status) => {
-    const variants = {
-      pending: 'secondary',
-      completed: 'info',
-      passed: 'success',
-      failed: 'danger'
-    };
-    return <Badge bg={variants[status] || 'secondary'}>{status}</Badge>;
   };
 
   if (loading) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
-import { FaFileAlt, FaClipboardCheck, FaCalendarAlt, FaUser, FaChartLine, FaPlay, FaCheckCircle, FaClock } from 'react-icons/fa';
+import { FaFileAlt, FaClipboardCheck, FaCalendarAlt, FaUser, FaPlay, FaCheckCircle, FaClock } from 'react-icons/fa';
 import { Button, Badge, Card, Table, Alert } from 'react-bootstrap';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -172,47 +172,6 @@ const StatusBadge = styled.span`
   font-size: 0.75rem;
   font-weight: 600;
   margin-top: 1rem;
-`;
-
-const ProgressSection = styled.div`
-  background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  margin-top: 2rem;
-  animation: ${fadeInUp} 0.6s ease-out 0.8s both;
-`;
-
-const ProgressTitle = styled.h3`
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-`;
-
-const ProgressItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 0;
-  border-bottom: 1px solid #e2e8f0;
-
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const ProgressLabel = styled.span`
-  font-weight: 600;
-  color: #374151;
-`;
-
-const ProgressValue = styled.span`
-  font-weight: 700;
-  color: #2563eb;
 `;
 
 const TestCard = styled(Card)`

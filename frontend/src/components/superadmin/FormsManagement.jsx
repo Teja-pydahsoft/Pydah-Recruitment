@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Button, Modal, Form, Alert, Badge, Spinner, Tabs, Tab } from 'react-bootstrap';
-import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
 const FormsManagement = () => {
-  // const { user } = useAuth(); // Temporarily unused for ESLint compliance
   const [forms, setForms] = useState([]);
   const [teachingForms, setTeachingForms] = useState([]);
   const [nonTeachingForms, setNonTeachingForms] = useState([]);

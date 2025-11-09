@@ -356,22 +356,22 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 // Generate unique candidate number
 const generateCandidateNumber = async () => {
-  const year = new Date().getFullYear();
-  const prefix = `CAND-${year}-`;
-  
-  // Find the highest candidate number for this year
+  const prefix = 'PYS';
+
   const lastCandidate = await Candidate.findOne({
-    candidateNumber: { $regex: `^${prefix}` }
+    candidateNumber: { $regex: `^${prefix}\\d+$` }
   }).sort({ candidateNumber: -1 });
-  
+
   let sequence = 1;
-  if (lastCandidate && lastCandidate.candidateNumber) {
-    const lastSequence = parseInt(lastCandidate.candidateNumber.split('-')[2] || '0');
-    sequence = lastSequence + 1;
+  if (lastCandidate?.candidateNumber) {
+    const match = lastCandidate.candidateNumber.match(/^PYS(\d+)$/);
+    if (match) {
+      sequence = parseInt(match[1], 10) + 1;
+    }
   }
-  
-  // Format: CAND-YYYY-XXXXX (5 digits)
-  return `${prefix}${sequence.toString().padStart(5, '0')}`;
+
+  // Format: PYS + zero-padded sequence (e.g., PYS001)
+  return `${prefix}${sequence.toString().padStart(3, '0')}`;
 };
 
 // Update candidate status (Super Admin only)

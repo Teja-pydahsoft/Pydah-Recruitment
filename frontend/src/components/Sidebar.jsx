@@ -296,43 +296,6 @@ const UserRole = styled.div`
   gap: 0.25rem;
 `;
 
-const QuickActions = styled.div`
-  display: ${props => props.$isOpen ? 'flex' : 'none'};
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  padding: 0 0.75rem;
-`;
-
-const QuickActionButton = styled.button`
-  background: rgba(249, 115, 22, 0.2);
-  border: 1px solid rgba(249, 115, 22, 0.35);
-  color: #fb923c;
-  padding: 0.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-
-  &:hover {
-    background: rgba(249, 115, 22, 0.3);
-    transform: translateY(-2px);
-  }
-
-  svg {
-    font-size: 0.9rem;
-    color: #f97316;
-  }
-
-  span {
-    font-size: 0.75rem;
-    font-weight: 500;
-  }
-`;
-
 const LogoutButton = styled.button`
   width: 100%;
   display: flex;

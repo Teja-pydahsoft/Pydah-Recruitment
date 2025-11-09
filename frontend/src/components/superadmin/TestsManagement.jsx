@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Container,
   Row,
@@ -106,12 +106,6 @@ const TestsManagement = () => {
     bootstrap();
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'questionBank') {
-      fetchQuestions();
-    }
-  }, [activeTab]);
-
   const fetchTests = async () => {
     try {
       const response = await api.get('/tests');
@@ -140,7 +134,7 @@ const TestsManagement = () => {
     }
   };
 
-  const fetchQuestions = async () => {
+  const fetchQuestions = useCallback(async () => {
     setQuestionLoading(true);
     try {
       const params = {
@@ -168,13 +162,19 @@ const TestsManagement = () => {
     } finally {
       setQuestionLoading(false);
     }
-  };
+  }, [questionFilters]);
+
+  useEffect(() => {
+    if (activeTab === 'questionBank') {
+      fetchQuestions();
+    }
+  }, [activeTab, fetchQuestions]);
 
   const fetchCandidates = async () => {
     setCandidatesLoading(true);
     try {
       const response = await api.get('/candidates');
-      const candidatePoolStatuses = ['approved', 'shortlisted', 'on_hold'];
+      const candidatePoolStatuses = ['approved', 'shortlisted', 'selected', 'on_hold'];
       const pool = (response.data.candidates || []).filter(candidate => candidatePoolStatuses.includes(candidate.status));
       setCandidates(pool);
     } catch (error) {
@@ -616,6 +616,7 @@ const TestsManagement = () => {
                       <thead>
                         <tr>
                           <th>Name</th>
+                          <th>Candidate ID</th>
                           <th>Position</th>
                           <th>Department</th>
                           <th></th>
@@ -625,6 +626,7 @@ const TestsManagement = () => {
                         {filteredAssessmentCandidates.map(candidate => (
                           <tr key={candidate._id}>
                             <td>{candidate.user?.name}</td>
+                            <td>{candidate.candidateNumber || '—'}</td>
                             <td>{candidate.form?.position}</td>
                             <td>{candidate.form?.department}</td>
                             <td className="text-end">
@@ -955,9 +957,9 @@ const TestsManagement = () => {
                     required
                   >
                     <option value="">Select candidate</option>
-                    {candidates.map(candidate => (
+                        {candidates.map(candidate => (
                       <option key={candidate._id} value={candidate._id}>
-                        {candidate.user?.name} — {candidate.form?.position}
+                        {candidate.user?.name} — {candidate.form?.position}{candidate.candidateNumber ? ` (${candidate.candidateNumber})` : ''}
                       </option>
                     ))}
                   </Form.Select>
