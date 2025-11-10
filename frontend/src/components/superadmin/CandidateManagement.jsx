@@ -35,6 +35,115 @@ const SPECIAL_STAGE_PROGRESS = {
 
 const STATUS_OPTIONS = ['pending', 'approved', 'shortlisted', 'selected', 'rejected', 'on_hold'];
 
+const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignments = []) => {
+  if (!candidate) {
+    return {
+      stage: 'application_review',
+      label: 'Application in Review',
+      nextAction: 'Review application details',
+      tests: {
+        assigned: 0,
+        pending: 0,
+        completed: 0,
+        expired: 0,
+        passed: 0,
+        failed: 0
+      },
+      interviews: {
+        scheduled: 0,
+        completed: 0,
+        cancelled: 0
+      },
+      finalDecision: null
+    };
+  }
+
+  const tests = testAssignments || [];
+  const interviews = interviewAssignments || [];
+  const testResults = candidate.testResults || [];
+  const finalDecision = candidate.finalDecision?.decision || null;
+
+  const testsPending = tests.filter(t => ['invited', 'started'].includes(t.status)).length;
+  const testsCompleted = tests.filter(t => t.status === 'completed').length;
+  const testsExpired = tests.filter(t => t.status === 'expired').length;
+  const testsAssigned = tests.length;
+
+  const passedTests = testResults.filter(tr => tr.status === 'passed').length;
+  const failedTests = testResults.filter(tr => tr.status === 'failed').length;
+
+  const interviewsScheduled = interviews.filter(i => i.status === 'scheduled').length;
+  const interviewsCompleted = interviews.filter(i => i.status === 'completed').length;
+  const interviewsCancelled = interviews.filter(i => ['cancelled', 'no_show'].includes(i.status)).length;
+
+  let stage = 'application_review';
+  let label = 'Application in Review';
+  let nextAction = 'Review application details';
+
+  const candidateStatus = candidate.status;
+
+  if (candidateStatus === 'rejected' || finalDecision === 'rejected') {
+    stage = 'rejected';
+    label = 'Application Rejected';
+    nextAction = 'Notify candidate of decision';
+  } else if (finalDecision === 'selected' || candidateStatus === 'selected') {
+    stage = 'selected';
+    label = 'Candidate Selected';
+    nextAction = 'Proceed with onboarding';
+  } else if (finalDecision === 'on_hold' || candidateStatus === 'on_hold') {
+    stage = 'on_hold';
+    label = 'Candidate On Hold';
+    nextAction = 'Review hold status regularly';
+  } else if (interviewsCompleted > 0 && !finalDecision) {
+    stage = 'awaiting_decision';
+    label = 'Awaiting Final Decision';
+    nextAction = 'Record final decision';
+  } else if (interviewsScheduled > 0) {
+    stage = 'interview_scheduled';
+    label = 'Interview Scheduled';
+    nextAction = 'Conduct interview and capture feedback';
+  } else if (passedTests > 0) {
+    stage = 'awaiting_interview';
+    label = 'Awaiting Interview Scheduling';
+    nextAction = 'Schedule next interview round';
+  } else if (testsPending > 0) {
+    stage = 'test_in_progress';
+    label = 'Test In Progress';
+    nextAction = 'Monitor test completion';
+  } else if (testsAssigned > 0) {
+    stage = 'test_assigned';
+    label = 'Test Assigned';
+    nextAction = 'Ensure candidate starts the test';
+  } else if (['approved', 'shortlisted'].includes(candidateStatus)) {
+    stage = 'awaiting_test_assignment';
+    label = 'Awaiting Test Assignment';
+    nextAction = 'Assign appropriate assessment';
+  } else if (candidateStatus === 'pending') {
+    stage = 'application_review';
+    label = 'Application in Review';
+    nextAction = 'Review application details';
+  }
+
+  return {
+    stage,
+    label,
+    nextAction,
+    tests: {
+      assigned: testsAssigned,
+      pending: testsPending,
+      completed: testsCompleted,
+      expired: testsExpired,
+      passed: passedTests,
+      failed: failedTests
+    },
+    interviews: {
+      scheduled: interviewsScheduled,
+      completed: interviewsCompleted,
+      cancelled: interviewsCancelled
+    },
+    finalDecision: candidate.finalDecision || null
+  };
+};
+
 const CandidateManagement = () => {
   const [candidates, setCandidates] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
@@ -42,23 +151,39 @@ const CandidateManagement = () => {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [stageFilter, setStageFilter] = useState('all');
   const [stageDrawerStage, setStageDrawerStage] = useState(null);
   const [stageDrawerOpen, setStageDrawerOpen] = useState(false);
+  const [decisionModalOpen, setDecisionModalOpen] = useState(false);
+  const [decisionCandidate, setDecisionCandidate] = useState(null);
+  const [decisionType, setDecisionType] = useState('selected');
+  const [decisionNotes, setDecisionNotes] = useState('');
+  const [decisionLoading, setDecisionLoading] = useState(false);
 
   useEffect(() => {
     fetchCandidates();
   }, []);
 
   const fetchCandidates = async () => {
+    setLoading(true);
     try {
       const response = await api.get('/candidates');
       setCandidates(response.data.candidates || []);
+      setError('');
     } catch (error) {
       setError('Failed to fetch candidates');
       console.error('Candidates fetch error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshCandidates = async () => {
+    try {
+      await fetchCandidates();
     } finally {
       setLoading(false);
     }
@@ -186,6 +311,73 @@ const CandidateManagement = () => {
 
   const closeStageDrawer = () => {
     setStageDrawerOpen(false);
+  };
+
+  const openDecisionModal = (candidate, type) => {
+    if (!candidate) return;
+    setDecisionCandidate(candidate);
+    setDecisionType(type);
+    setDecisionNotes(candidate.finalDecision?.notes || '');
+    setDecisionModalOpen(true);
+  };
+
+  const closeDecisionModal = () => {
+    setDecisionModalOpen(false);
+    setDecisionCandidate(null);
+    setDecisionNotes('');
+    setDecisionLoading(false);
+  };
+
+  const handleDecisionSubmit = async () => {
+    if (!decisionCandidate) return;
+    setDecisionLoading(true);
+    try {
+      const response = await api.put(`/candidates/${decisionCandidate._id}/final-decision`, {
+        decision: decisionType,
+        notes: decisionNotes
+      });
+
+      let decisionLabel = 'updated';
+      if (decisionType === 'selected') {
+        decisionLabel = 'finalized';
+      } else if (decisionType === 'rejected') {
+        decisionLabel = 'rejected';
+      } else if (decisionType === 'on_hold') {
+        decisionLabel = 'put on hold';
+      }
+      setSuccessMessage(`Candidate ${decisionCandidate.user?.name || ''} ${decisionLabel} successfully.`);
+      setError('');
+
+      if (response?.data?.candidate) {
+        setCandidates(prevCandidates =>
+          prevCandidates.map(candidate =>
+            candidate._id === response.data.candidate._id
+              ? {
+                  ...candidate,
+                  ...response.data.candidate,
+                  assignments: {
+                    tests: candidate.assignments?.tests || [],
+                    interviews: candidate.assignments?.interviews || []
+                  },
+                  workflow: buildWorkflowSnapshot(
+                    response.data.candidate,
+                    candidate.assignments?.tests || [],
+                    candidate.assignments?.interviews || []
+                  )
+                }
+              : candidate
+          )
+        );
+      } else {
+        await refreshCandidates();
+      }
+    } catch (err) {
+      setError('Failed to update candidate decision');
+      console.error('Decision update error:', err);
+    } finally {
+      setDecisionLoading(false);
+      closeDecisionModal();
+    }
   };
 
   const renderPersonalDetailsTab = (candidate) => {
@@ -600,6 +792,16 @@ const CandidateManagement = () => {
         </Row>
       )}
 
+      {successMessage && (
+        <Row className="mb-3">
+          <Col>
+            <Alert variant="success" dismissible onClose={() => setSuccessMessage('')}>
+              {successMessage}
+            </Alert>
+          </Col>
+        </Row>
+      )}
+
       <Row className="mb-4 g-3">
         {['awaiting_test_assignment', 'test_assigned', 'test_in_progress', 'awaiting_interview', 'interview_scheduled', 'awaiting_decision', 'selected', 'rejected'].map(stage => {
           const meta = WORKFLOW_STAGE_META[stage];
@@ -775,6 +977,32 @@ const CandidateManagement = () => {
                           >
                             {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View Profile'}
                           </Button>
+                          <Button
+                            variant="success"
+                            size="sm"
+                            className="me-2"
+                            disabled={candidate.status === 'selected' || candidate.finalDecision?.decision === 'selected'}
+                            onClick={() => openDecisionModal(candidate, 'selected')}
+                          >
+                            Finalize
+                          </Button>
+                          <Button
+                            variant="outline-warning"
+                            size="sm"
+                            className="me-2"
+                            disabled={candidate.status === 'on_hold' || candidate.finalDecision?.decision === 'on_hold'}
+                            onClick={() => openDecisionModal(candidate, 'on_hold')}
+                          >
+                            Put On Hold
+                          </Button>
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            disabled={candidate.status === 'rejected' || candidate.finalDecision?.decision === 'rejected'}
+                            onClick={() => openDecisionModal(candidate, 'rejected')}
+                          >
+                            Reject
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -828,6 +1056,39 @@ const CandidateManagement = () => {
                           }}
                         >
                           View Profile
+                        </Button>
+                        <Button
+                          variant="success"
+                          size="sm"
+                          disabled={candidate.status === 'selected' || candidate.finalDecision?.decision === 'selected'}
+                          onClick={() => {
+                            openDecisionModal(candidate, 'selected');
+                            closeStageDrawer();
+                          }}
+                        >
+                          Finalize
+                        </Button>
+                        <Button
+                          variant="outline-warning"
+                          size="sm"
+                          disabled={candidate.status === 'on_hold' || candidate.finalDecision?.decision === 'on_hold'}
+                          onClick={() => {
+                            openDecisionModal(candidate, 'on_hold');
+                            closeStageDrawer();
+                          }}
+                        >
+                          Put On Hold
+                        </Button>
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          disabled={candidate.status === 'rejected' || candidate.finalDecision?.decision === 'rejected'}
+                          onClick={() => {
+                            openDecisionModal(candidate, 'rejected');
+                            closeStageDrawer();
+                          }}
+                        >
+                          Reject
                         </Button>
                       </div>
                     </Card.Body>
@@ -894,12 +1155,107 @@ const CandidateManagement = () => {
           )}
         </Modal.Body>
         <Modal.Footer style={{ backgroundColor: '#f8f9fa', borderTop: '2px solid #dee2e6' }}>
+          {selectedCandidate && (
+            <>
+              <Button
+                variant="success"
+                onClick={() => {
+                  openDecisionModal(selectedCandidate, 'selected');
+                  setShowProfileModal(false);
+                }}
+                disabled={
+                  selectedCandidate.status === 'selected' ||
+                  selectedCandidate.finalDecision?.decision === 'selected'
+                }
+              >
+                Finalize
+              </Button>
+              <Button
+                variant="outline-warning"
+                onClick={() => {
+                  openDecisionModal(selectedCandidate, 'on_hold');
+                  setShowProfileModal(false);
+                }}
+                disabled={
+                  selectedCandidate.status === 'on_hold' ||
+                  selectedCandidate.finalDecision?.decision === 'on_hold'
+                }
+              >
+                Put On Hold
+              </Button>
+              <Button
+                variant="outline-danger"
+                onClick={() => {
+                  openDecisionModal(selectedCandidate, 'rejected');
+                  setShowProfileModal(false);
+                }}
+                disabled={
+                  selectedCandidate.status === 'rejected' ||
+                  selectedCandidate.finalDecision?.decision === 'rejected'
+                }
+              >
+                Reject
+              </Button>
+            </>
+          )}
           <Button 
             variant="secondary" 
             onClick={() => setShowProfileModal(false)}
             style={{ borderRadius: '6px', padding: '0.5rem 1.5rem' }}
           >
             Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal show={decisionModalOpen} onHide={closeDecisionModal} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {decisionType === 'selected'
+              ? 'Finalize Candidate'
+              : decisionType === 'rejected'
+              ? 'Reject Candidate'
+              : 'Put Candidate On Hold'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Confirm you want to{' '}
+            {decisionType === 'selected'
+              ? 'finalize'
+              : decisionType === 'rejected'
+              ? 'reject'
+              : 'put on hold'}{' '}
+            <strong>{decisionCandidate?.user?.name}</strong> for the role of{' '}
+            <strong>{decisionCandidate?.form?.position}</strong>.
+          </p>
+          <Form.Group className="mt-3">
+            <Form.Label>Notes (optional)</Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={3}
+              value={decisionNotes}
+              onChange={(e) => setDecisionNotes(e.target.value)}
+              placeholder="Add any notes about this decision..."
+            />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeDecisionModal} disabled={decisionLoading}>
+            Cancel
+          </Button>
+          <Button
+            variant={
+              decisionType === 'selected'
+                ? 'success'
+                : decisionType === 'rejected'
+                ? 'danger'
+                : 'warning'
+            }
+            onClick={handleDecisionSubmit}
+            disabled={decisionLoading}
+          >
+            {decisionLoading ? <Spinner as="span" animation="border" size="sm" /> : 'Confirm'}
           </Button>
         </Modal.Footer>
       </Modal>

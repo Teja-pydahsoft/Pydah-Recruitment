@@ -2,8 +2,10 @@ const express = require('express');
 const Interview = require('../models/Interview');
 const Candidate = require('../models/Candidate');
 const User = require('../models/User');
+const NotificationSettings = require('../models/NotificationSettings');
 const { authenticateToken, requireSuperAdminOrPermission, requirePanelMember, hasPermission } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
+const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -482,7 +484,7 @@ router.put('/:id/candidate/:candidateId/schedule', authenticateToken, requireSup
       .populate({
         path: 'candidates.candidate',
         populate: [
-          { path: 'user', select: 'name email' },
+          { path: 'user', select: 'name email profile' },
           { path: 'form', select: 'title position department' }
         ]
       });
@@ -539,22 +541,47 @@ router.put('/:id/candidate/:candidateId/schedule', authenticateToken, requireSup
       const candidate = candidateEntry.candidate;
       const user = candidate.user;
 
-      if (user && user.email) {
-        const newDate = candidateEntry.scheduledDate 
-          ? new Date(candidateEntry.scheduledDate).toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
+      if (user) {
+        const notificationSettings = await NotificationSettings.getGlobalSettings();
+        const candidateSettings = notificationSettings?.candidate || {};
+        const templatePrefs = candidateSettings.templates || {};
+        const emailTemplates = templatePrefs.email || {};
+        const smsTemplates = templatePrefs.sms || {};
+        const hasEmail = Boolean(user.email);
+        const phone = (user.profile?.phone || '').trim();
+
+        const emailChannelEnabled = candidateSettings.email !== false && hasEmail;
+        const smsChannelEnabled = Boolean(candidateSettings.sms && ensureSMSConfigured() && phone);
+        const allowEmailTemplate = emailTemplates.interviewScheduleUpdate !== false;
+        const allowSmsTemplate = smsTemplates.interviewScheduleUpdate !== false;
+
+        console.log('[NOTIFY] Interview reschedule preferences', {
+          candidateEmail: user.email,
+          candidateName: user.name,
+          emailChannelEnabled,
+          emailTemplateEnabled: allowEmailTemplate,
+          smsChannelEnabled: candidateSettings.sms !== false,
+          smsTemplateEnabled: allowSmsTemplate,
+          phonePresent: Boolean(phone),
+          interviewId: interview._id,
+          candidateId: candidate._id,
+        });
+
+        const newDate = candidateEntry.scheduledDate
+          ? new Date(candidateEntry.scheduledDate).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
             })
           : 'To be determined';
         const newTime = candidateEntry.scheduledTime || 'To be determined';
-        const oldDate = oldSchedule.scheduledDate 
-          ? new Date(oldSchedule.scheduledDate).toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
+        const oldDate = oldSchedule.scheduledDate
+          ? new Date(oldSchedule.scheduledDate).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
             })
           : 'Not scheduled';
         const oldTime = oldSchedule.scheduledTime || 'Not scheduled';
@@ -629,12 +656,43 @@ Please update your calendar accordingly. If you have any concerns or need to res
 This is an automated message from the Staff Recruitment System.
         `;
 
-        try {
-          await sendEmail(user.email, `Interview Schedule Updated: ${interview.title}`, emailHtml, emailText);
-          console.log('✅ [RESCHEDULE NOTIFICATION] Email sent to candidate:', user.email);
-        } catch (emailError) {
-          console.error('❌ [RESCHEDULE NOTIFICATION] Email send error:', emailError);
-          // Don't fail the request if email fails
+        if (emailChannelEnabled && allowEmailTemplate) {
+          try {
+            await sendEmail(user.email, `Interview Schedule Updated: ${interview.title}`, emailHtml, emailText);
+            console.log('✅ [RESCHEDULE NOTIFICATION] Email sent to candidate:', user.email);
+          } catch (emailError) {
+            console.error('❌ [RESCHEDULE NOTIFICATION] Email send error:', emailError);
+            // Don't fail the request if email fails
+          }
+        } else if (!emailChannelEnabled && candidateSettings.email !== false) {
+          console.log('Candidate email channel disabled or address missing; skipping interview reschedule email.');
+        } else if (!allowEmailTemplate) {
+          console.log('Interview schedule update email template disabled; skipping email notification.');
+        }
+
+        if (smsChannelEnabled && allowSmsTemplate) {
+          try {
+            await sendTemplateSMS({
+              templateKey: 'candidateInterviewReschedule',
+              phoneNumber: phone,
+              variables: {
+                name: user.name,
+                position: interview.form?.position || interview.form?.title || interview.title,
+                date: newDate,
+                time: newTime,
+              }
+            });
+          } catch (smsError) {
+            console.error('❌ [RESCHEDULE NOTIFICATION] SMS send error:', smsError);
+          }
+        } else if (candidateSettings.sms) {
+          if (!ensureSMSConfigured()) {
+            console.log('SMS configuration incomplete; skipping interview reschedule SMS.');
+          } else if (!phone) {
+            console.log('Candidate phone number missing; skipping interview reschedule SMS.');
+          } else if (!allowSmsTemplate) {
+            console.log('Interview schedule update SMS template disabled; skipping SMS notification.');
+          }
         }
       }
     }

@@ -12,6 +12,7 @@ import FormsManagement from './superadmin/FormsManagement';
 import TestResults from './superadmin/TestResults';
 import InterviewFeedback from './superadmin/InterviewFeedback';
 import SubAdminManagement from './superadmin/SubAdminManagement';
+import NotificationSettings from './superadmin/NotificationSettings';
 
 const SuperAdminDashboard = () => {
   return (
@@ -26,6 +27,7 @@ const SuperAdminDashboard = () => {
       <Route path="test-results/*" element={<TestResults />} />
       <Route path="interview-feedback/*" element={<InterviewFeedback />} />
       <Route path="candidates/*" element={<CandidateManagement />} />
+      <Route path="settings" element={<NotificationSettings />} />
       <Route path="*" element={<Navigate to="/super-admin" replace />} />
     </Routes>
   );

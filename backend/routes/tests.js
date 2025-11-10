@@ -13,8 +13,10 @@ const QuestionBank = require('../models/QuestionBank');
 const QuestionTopic = require('../models/QuestionTopic');
 const PreviousPaper = require('../models/PreviousPaper');
 const Interview = require('../models/Interview');
+const NotificationSettings = require('../models/NotificationSettings');
 const { authenticateToken, requireSuperAdminOrPermission } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
+const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
 
 const router = express.Router();
 const upload = multer({ dest: path.join(os.tmpdir(), 'uploads') });
@@ -1008,9 +1010,34 @@ router.post('/conduct-from-topics', authenticateToken, requireSuperAdminOrPermis
     const testLink = `${frontendUrl}/test/${test.testLink}`;
 
     const user = candidate.user;
-    const phone = user.profile?.phone || '';
+    const phone = (user.profile?.phone || '').trim();
     const username = phone || user.email;
     const password = phone || user.email;
+
+    const notificationSettings = await NotificationSettings.getGlobalSettings();
+    const candidateSettings = notificationSettings?.candidate || {};
+    const templatePrefs = candidateSettings.templates || {};
+    const emailTemplates = templatePrefs.email || {};
+    const smsTemplatesPref = templatePrefs.sms || {};
+
+    const canSendEmail = candidateSettings.email !== false;
+    const allowEmailTemplate = emailTemplates.testInvitation !== false;
+    const canSendSMS = Boolean(
+      candidateSettings.sms &&
+      ensureSMSConfigured() &&
+      phone &&
+      smsTemplatesPref.testInvitation !== false
+    );
+
+    console.log('[NOTIFY] Candidate test invitation preferences', {
+      candidateEmail: user.email,
+      candidateName: user.name,
+      emailChannelEnabled: canSendEmail,
+      emailTemplateEnabled: allowEmailTemplate,
+      smsChannelEnabled: candidateSettings.sms !== false,
+      smsTemplateEnabled: smsTemplatesPref.testInvitation !== false,
+      phonePresent: Boolean(phone),
+    });
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -1072,11 +1099,44 @@ Test Link: ${testLink}
 This is an automated message from the Staff Recruitment System.
     `;
 
-    try {
-      await sendEmail(user.email, `Test Invitation: ${test.title}`, emailHtml, emailText);
-    } catch (emailError) {
-      console.error('Email send error (topics):', emailError);
-      // Do not fail request if email fails
+    if (canSendEmail && allowEmailTemplate) {
+      try {
+        await sendEmail(user.email, `Test Invitation: ${test.title}`, emailHtml, emailText);
+      } catch (emailError) {
+        console.error('Email send error (topics):', emailError);
+        // Do not fail request if email fails
+      }
+    } else if (!canSendEmail) {
+      console.log('Candidate email channel disabled; skipping email for test invitation.');
+    } else if (!allowEmailTemplate) {
+      console.log('Email test invitation template disabled; skipping email for test invitation.');
+    }
+
+    if (canSendSMS) {
+      try {
+        await sendTemplateSMS({
+          templateKey: 'candidateTestInvitation',
+          phoneNumber: phone,
+          variables: {
+            name: user.name,
+            testTitle: test.title,
+            duration: test.duration,
+            username,
+            password,
+            link: testLink
+          }
+        });
+      } catch (smsError) {
+        console.error('SMS send error (test invitation):', smsError);
+      }
+    } else if (candidateSettings.sms) {
+      if (!ensureSMSConfigured()) {
+        console.log('SMS configuration incomplete; skipping SMS for test invitation.');
+      } else if (!phone) {
+        console.log('Candidate phone number missing; skipping SMS for test invitation.');
+      } else if (smsTemplatesPref.testInvitation === false) {
+        console.log('SMS test invitation template disabled; skipping SMS for test invitation.');
+      }
     }
 
     res.status(201).json({
@@ -1913,7 +1973,32 @@ router.post('/conduct-from-csv', authenticateToken, requireSuperAdminOrPermissio
     }
 
     const user = candidate.user;
-    const phone = user.profile?.phone || '';
+    const phone = (user.profile?.phone || '').trim();
+
+    const notificationSettings = await NotificationSettings.getGlobalSettings();
+    const candidateSettings = notificationSettings?.candidate || {};
+    const templatePrefs = candidateSettings.templates || {};
+    const emailTemplates = templatePrefs.email || {};
+    const smsTemplatesPref = templatePrefs.sms || {};
+
+    const canSendEmail = candidateSettings.email !== false;
+    const allowEmailTemplate = emailTemplates.testInvitation !== false;
+    const canSendSMS = Boolean(
+      candidateSettings.sms &&
+      ensureSMSConfigured() &&
+      phone &&
+      smsTemplatesPref.testInvitation !== false
+    );
+
+    console.log('[NOTIFY] Candidate test invitation preferences (CSV)', {
+      candidateEmail: user.email,
+      candidateName: user.name,
+      emailChannelEnabled: canSendEmail,
+      emailTemplateEnabled: allowEmailTemplate,
+      smsChannelEnabled: candidateSettings.sms !== false,
+      smsTemplateEnabled: smsTemplatesPref.testInvitation !== false,
+      phonePresent: Boolean(phone),
+    });
 
     // Parse CSV file
     const questions = [];
@@ -2110,11 +2195,44 @@ Test Link: ${testLink}
 This is an automated message from the Faculty Recruitment System.
             `;
 
-          try {
-            await sendEmail(user.email, `Test Invitation: ${test.title}`, emailHtml, emailText);
-          } catch (emailError) {
-            console.error('Email send error:', emailError);
-            // Don't fail the request if email fails
+          if (canSendEmail && allowEmailTemplate) {
+            try {
+              await sendEmail(user.email, `Test Invitation: ${test.title}`, emailHtml, emailText);
+            } catch (emailError) {
+              console.error('Email send error:', emailError);
+              // Don't fail the request if email fails
+            }
+          } else if (!canSendEmail) {
+            console.log('Candidate email channel disabled; skipping email for CSV test invitation.');
+          } else if (!allowEmailTemplate) {
+            console.log('Email test invitation template disabled; skipping email for CSV test invitation.');
+          }
+
+          if (canSendSMS) {
+            try {
+              await sendTemplateSMS({
+                templateKey: 'candidateTestInvitation',
+                phoneNumber: phone,
+                variables: {
+                  name: user.name,
+                  testTitle: test.title,
+                  duration: test.duration,
+                  username,
+                  password,
+                  link: testLink
+                }
+              });
+            } catch (smsError) {
+              console.error('SMS send error (CSV test invitation):', smsError);
+            }
+          } else if (candidateSettings.sms) {
+            if (!ensureSMSConfigured()) {
+              console.log('SMS configuration incomplete; skipping SMS for CSV test invitation.');
+            } else if (!phone) {
+              console.log('Candidate phone number missing; skipping SMS for CSV test invitation.');
+            } else if (smsTemplatesPref.testInvitation === false) {
+              console.log('SMS test invitation template disabled; skipping SMS for CSV test invitation.');
+            }
           }
 
           resolve(res.status(201).json({
@@ -2173,7 +2291,40 @@ router.post('/:id/release-results', authenticateToken, requireSuperAdminOrPermis
     }
 
     const user = candidate.user;
-    const phone = user.profile?.phone || '';
+    const phone = (user.profile?.phone || '').trim();
+
+    const notificationSettings = await NotificationSettings.getGlobalSettings();
+    const candidateSettings = notificationSettings?.candidate || {};
+    const templatePrefs = candidateSettings.templates || {};
+    const emailTemplates = templatePrefs.email || {};
+    const smsTemplatesPref = templatePrefs.sms || {};
+
+    const emailChannelEnabled = candidateSettings.email !== false;
+    const smsChannelEnabled = Boolean(candidateSettings.sms && ensureSMSConfigured() && phone);
+
+    const allowEmailPass = emailTemplates.testResultsPassed !== false;
+    const allowEmailFail = emailTemplates.testResultsNotSelected !== false;
+    const allowEmailSchedule = emailTemplates.interviewScheduleUpdate !== false;
+    const allowSmsResult = smsTemplatesPref.testResultStatus !== false;
+    const allowSmsSchedule = smsTemplatesPref.interviewScheduleUpdate !== false;
+
+    console.log('[NOTIFY] Test result announcement preferences', {
+      candidateEmail: user.email,
+      candidateName: user.name,
+      emailChannelEnabled,
+      emailTemplates: {
+        testResultsPassed: allowEmailPass,
+        testResultsNotSelected: allowEmailFail,
+        interviewScheduleUpdate: allowEmailSchedule,
+      },
+      smsChannelEnabled: candidateSettings.sms !== false,
+      smsTemplates: {
+        testResultStatus: allowSmsResult,
+        interviewScheduleUpdate: allowSmsSchedule,
+      },
+      phonePresent: Boolean(phone),
+      promote,
+    });
 
     // Initialize interview variables (used in both promote and reject paths)
     let interview = null;
@@ -2290,10 +2441,57 @@ ${interviewDate ? 'Please keep this date and time available for your interview.'
 This is an automated message from the Faculty Recruitment System.
       `;
 
-      try {
-        await sendEmail(user.email, `Test Results: ${test.title}`, emailHtml, emailText);
-      } catch (emailError) {
-        console.error('Email send error:', emailError);
+      if (emailChannelEnabled && allowEmailPass) {
+        try {
+          await sendEmail(user.email, `Test Results: ${test.title}`, emailHtml, emailText);
+        } catch (emailError) {
+          console.error('Email send error:', emailError);
+        }
+      } else if (!emailChannelEnabled) {
+        console.log('Candidate email channel disabled; skipping email for test promotion.');
+      } else if (!allowEmailPass) {
+        console.log('Email test results (passed) template disabled; skipping email for test promotion.');
+      }
+
+      if (smsChannelEnabled && allowSmsResult) {
+        try {
+          await sendTemplateSMS({
+            templateKey: 'candidateTestResult',
+            phoneNumber: phone,
+            variables: {
+              name: user.name,
+              testTitle: test.title,
+              status: 'Selected',
+              percentage: (candidateTest.percentage?.toFixed(1) || 0),
+            }
+          });
+
+          if (interviewDate && allowSmsSchedule) {
+            await sendTemplateSMS({
+              templateKey: 'candidateInterviewSchedule',
+              phoneNumber: phone,
+              variables: {
+                name: user.name,
+                position: candidate.form?.position || candidate.form?.title || test.title,
+                date: new Date(interviewDate).toLocaleDateString(),
+                time: interviewTime || 'TBD',
+                mode: 'Interview scheduled',
+              }
+            });
+          } else if (interviewDate && !allowSmsSchedule) {
+            console.log('SMS interview schedule template disabled; skipping interview schedule SMS.');
+          }
+        } catch (smsError) {
+          console.error('SMS send error (test promotion):', smsError);
+        }
+      } else if (candidateSettings.sms) {
+        if (!ensureSMSConfigured()) {
+          console.log('SMS configuration incomplete; skipping SMS for test promotion.');
+        } else if (!phone) {
+          console.log('Candidate phone number missing; skipping SMS for test promotion.');
+        } else if (!allowSmsResult) {
+          console.log('SMS test result template disabled; skipping SMS for test promotion.');
+        }
       }
     } else {
       // Reject candidate
@@ -2347,10 +2545,41 @@ We appreciate your interest and wish you the best in your future endeavors.
 This is an automated message from the Faculty Recruitment System.
       `;
 
-      try {
-        await sendEmail(user.email, `Test Results: ${test.title}`, emailHtml, emailText);
-      } catch (emailError) {
-        console.error('Email send error:', emailError);
+      if (emailChannelEnabled && allowEmailFail) {
+        try {
+          await sendEmail(user.email, `Test Results: ${test.title}`, emailHtml, emailText);
+        } catch (emailError) {
+          console.error('Email send error:', emailError);
+        }
+      } else if (!emailChannelEnabled) {
+        console.log('Candidate email channel disabled; skipping email for test rejection.');
+      } else if (!allowEmailFail) {
+        console.log('Email test results (not selected) template disabled; skipping email for test rejection.');
+      }
+
+      if (smsChannelEnabled && allowSmsResult) {
+        try {
+          await sendTemplateSMS({
+            templateKey: 'candidateTestResult',
+            phoneNumber: phone,
+            variables: {
+              name: user.name,
+              testTitle: test.title,
+              status: 'Not Selected',
+              percentage: (candidateTest.percentage?.toFixed(1) || 0),
+            }
+          });
+        } catch (smsError) {
+          console.error('SMS send error (test rejection):', smsError);
+        }
+      } else if (candidateSettings.sms) {
+        if (!ensureSMSConfigured()) {
+          console.log('SMS configuration incomplete; skipping SMS for test rejection.');
+        } else if (!phone) {
+          console.log('Candidate phone number missing; skipping SMS for test rejection.');
+        } else if (!allowSmsResult) {
+          console.log('SMS test result template disabled; skipping SMS for test rejection.');
+        }
       }
     }
 

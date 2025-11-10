@@ -14,6 +14,33 @@ EMAIL_FROM=your-email@gmail.com
 FRONTEND_URL=http://localhost:3000
 ```
 
+## Recommended SMS Configuration
+
+Add the following BulkSMS credentials to enable candidate SMS notifications:
+
+```env
+BULKSMS_API_KEY=your-bulksms-api-key
+BULKSMS_SENDER_ID=PYDAHK
+BULKSMS_ENGLISH_API_URL=https://www.bulksmsapps.com/api/apismsv2.aspx
+BULKSMS_UNICODE_API_URL=https://www.bulksmsapps.com/api/apibulkv2.aspx
+BULKSMS_TEMPLATE_ID_TEST_INVITE=1707XXXXXXXXXXXXX
+BULKSMS_TEMPLATE_ID_TEST_RESULT=1707XXXXXXXXXXXXX
+BULKSMS_TEMPLATE_ID_INTERVIEW_SCHEDULE=1707XXXXXXXXXXXXX
+BULKSMS_TEMPLATE_ID_INTERVIEW_RESCHEDULE=1707XXXXXXXXXXXXX
+SMS_TIMEOUT_MS=30000
+```
+
+> 💡 Make sure the template IDs exactly match the DLT-approved templates in your BulkSMS account.
+
+## Optional WhatsApp Integration
+
+Configure these variables once you connect a WhatsApp Business API provider (Meta Cloud API, Twilio, etc.):
+
+```env
+WHATSAPP_BUSINESS_ACCOUNT_ID=your-whatsapp-business-account-id
+WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
+```
+
 ## How to Verify Your Configuration
 
 ### ✅ Check 1: Format

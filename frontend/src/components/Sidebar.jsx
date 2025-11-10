@@ -14,7 +14,8 @@ import {
   FaUser,
   FaClipboardCheck,
   FaHome,
-  FaUserShield
+  FaUserShield,
+  FaCog
 } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -406,6 +407,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Scheduling' },
       { path: '/super-admin/interview-feedback', icon: FaChartBar, label: 'Interview Feedback' },
       { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
+      { path: '/super-admin/settings', icon: FaCog, label: 'Notifications' },
     ],
     panel_member: [
       { path: '/panel-member', icon: FaHome, label: 'Dashboard' },
