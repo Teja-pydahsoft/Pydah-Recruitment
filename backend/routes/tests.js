@@ -1159,7 +1159,7 @@ router.get('/assigned', authenticateToken, async (req, res) => {
 router.get('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const tests = await Test.find({})
-      .populate('form', 'title position department')
+      .populate('form', 'title position department formCategory formType')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
 
@@ -1793,12 +1793,18 @@ router.get('/:id/results', authenticateToken, requireSuperAdminOrPermission('tes
     const test = await Test.findById(req.params.id)
       .populate({
         path: 'candidates.candidate',
-        populate: {
-          path: 'user',
-          select: 'name email'
-        }
+        populate: [
+          {
+            path: 'user',
+            select: 'name email'
+          },
+          {
+            path: 'form',
+            select: 'title position department formCategory formType'
+          }
+        ]
       })
-      .populate('form', 'title position department');
+      .populate('form', 'title position department formCategory formType');
 
     if (!test) {
       return res.status(404).json({ message: 'Test not found' });
@@ -1806,18 +1812,37 @@ router.get('/:id/results', authenticateToken, requireSuperAdminOrPermission('tes
 
     const results = test.candidates
       .filter(c => c.status === 'completed')
-      .map(c => ({
-        candidate: {
-          _id: c.candidate._id,
-          name: c.candidate.user?.name || 'Unknown',
-          email: c.candidate.user?.email || 'Unknown'
-        },
-        score: c.score,
-        percentage: c.percentage,
-        completedAt: c.completedAt,
-        passed: c.percentage >= test.passingPercentage,
-        suggestNextRound: c.percentage >= (test.cutoffPercentage || test.passingPercentage)
-      }))
+      .map(c => {
+        const candidateForm = c.candidate.form && typeof c.candidate.form === 'object'
+          ? {
+              _id: c.candidate.form._id,
+              title: c.candidate.form.title,
+              position: c.candidate.form.position,
+              department: c.candidate.form.department,
+              formCategory: c.candidate.form.formCategory,
+              formType: c.candidate.form.formType
+            }
+          : null;
+
+        const candidateStatus = c.candidate.status || null;
+        const candidateFinalDecision = c.candidate.finalDecision?.decision || null;
+
+        return {
+          candidate: {
+            _id: c.candidate._id,
+            name: c.candidate.user?.name || 'Unknown',
+            email: c.candidate.user?.email || 'Unknown',
+            form: candidateForm,
+            status: candidateStatus,
+            finalDecision: candidateFinalDecision
+          },
+          score: c.score,
+          percentage: c.percentage,
+          completedAt: c.completedAt,
+          passed: c.percentage >= test.passingPercentage,
+          suggestNextRound: c.percentage >= (test.cutoffPercentage || test.passingPercentage)
+        };
+      })
       .sort((a, b) => b.percentage - a.percentage);
 
     res.json({

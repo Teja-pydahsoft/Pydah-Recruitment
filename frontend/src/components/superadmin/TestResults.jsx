@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner, Image } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner, Image, Tabs, Tab } from 'react-bootstrap';
 import { FaCheckCircle, FaEye, FaCamera } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+
+const CATEGORY_ORDER = ['teaching', 'non_teaching', 'uncategorized'];
 
 // Convert 24-hour time to 12-hour format object
 const convertTo12Hour = (time24) => {
@@ -136,6 +138,7 @@ const TestResults = () => {
   const [detailedResult, setDetailedResult] = useState(null);
   const [showDetailedModal, setShowDetailedModal] = useState(false);
   const [loadingDetailed, setLoadingDetailed] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('teaching');
 
   useEffect(() => {
     fetchTests();
@@ -153,7 +156,8 @@ const TestResults = () => {
         testsWithResults.map(async (test) => {
           try {
             const resultsResponse = await api.get(`/tests/${test._id}/results`);
-            return { ...test, results: resultsResponse.data.results || [] };
+            const { results = [], summary = null } = resultsResponse.data || {};
+            return { ...test, results, summary };
           } catch (err) {
             console.error(`Error fetching results for test ${test._id}:`, err);
             return { ...test, results: [] };
@@ -223,6 +227,279 @@ const TestResults = () => {
     }
   };
 
+  const groupedTests = useMemo(() => {
+    const initial = {
+      teaching: {},
+      non_teaching: {},
+      uncategorized: {}
+    };
+
+    tests.forEach((test) => {
+      const rawCategory = test.form?.formCategory || test.form?.category || test.formCategory;
+      const categoryKey = rawCategory === 'teaching' ? 'teaching' : rawCategory === 'non_teaching' ? 'non_teaching' : 'uncategorized';
+      const jobRole = test.form?.position || test.form?.title || 'General Role';
+
+      if (!initial[categoryKey][jobRole]) {
+        initial[categoryKey][jobRole] = [];
+      }
+
+      initial[categoryKey][jobRole].push(test);
+    });
+
+    Object.keys(initial).forEach((categoryKey) => {
+      const roleMap = initial[categoryKey];
+      Object.keys(roleMap).forEach((role) => {
+        roleMap[role] = roleMap[role]
+          .slice()
+          .sort((a, b) => new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0));
+      });
+    });
+
+    return initial;
+  }, [tests]);
+
+  const categorySummary = useMemo(() => {
+    const summary = {
+      teaching: { tests: 0, candidates: 0 },
+      non_teaching: { tests: 0, candidates: 0 },
+      uncategorized: { tests: 0, candidates: 0 }
+    };
+
+    CATEGORY_ORDER.forEach((categoryKey) => {
+      const roleMap = groupedTests[categoryKey] || {};
+      const testsForCategory = Object.values(roleMap).flat();
+      const candidateCount = testsForCategory.reduce((total, test) => total + (test.results?.length || 0), 0);
+
+      summary[categoryKey] = {
+        tests: testsForCategory.length,
+        candidates: candidateCount
+      };
+    });
+
+    return summary;
+  }, [groupedTests]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (categorySummary[activeCategory]?.tests > 0) {
+      return;
+    }
+
+    const fallbackCategory = CATEGORY_ORDER.find((categoryKey) => categorySummary[categoryKey]?.tests > 0);
+    if (fallbackCategory && fallbackCategory !== activeCategory) {
+      setActiveCategory(fallbackCategory);
+    }
+  }, [loading, categorySummary, activeCategory]);
+
+  const getCategoryLabel = (categoryKey) => {
+    if (categoryKey === 'teaching') {
+      return 'Teaching';
+    }
+    if (categoryKey === 'non_teaching') {
+      return 'Non-Teaching';
+    }
+    return 'Other';
+  };
+
+  const renderTestCard = (test) => {
+    const summary = test.summary || {};
+    const completedCount = summary.completed ?? (test.results?.length || 0);
+    const passedCount = summary.passed ?? (test.results?.filter(r => r.passed).length || 0);
+    const averageScore = summary.averageScore ?? (
+      completedCount > 0
+        ? test.results.reduce((total, r) => total + (r.percentage || 0), 0) / completedCount
+        : 0
+    );
+
+    return (
+      <Card key={test._id} className="mb-4 border-0 shadow-sm">
+        <Card.Header className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
+          <div>
+            <h5 className="mb-1">{test.title}</h5>
+            <small className="text-muted">
+              {test.description || 'No description'} | Duration: {test.duration} minutes | Passing: {test.passingPercentage}% | Cutoff: {test.cutoffPercentage || test.passingPercentage}%
+            </small>
+          </div>
+          <div className="d-flex gap-2 mt-3 mt-lg-0">
+            <Badge bg="primary">{completedCount} Completed</Badge>
+            <Badge bg="success">{passedCount} Passed</Badge>
+            <Badge bg="info">{averageScore.toFixed(1)}% Avg</Badge>
+          </div>
+        </Card.Header>
+        <Card.Body>
+          {test.results.length === 0 ? (
+            <Alert variant="info">No completed submissions yet.</Alert>
+          ) : (
+            <Table striped bordered hover responsive>
+              <thead>
+                <tr>
+                  <th>Candidate Name</th>
+                  <th>Email</th>
+                  <th>Job Role</th>
+                  <th>Department</th>
+                  <th>Score</th>
+                  <th>Percentage</th>
+                  <th>Status</th>
+                  <th>Completed At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {test.results.map((result, index) => {
+                  const candidateForm = result.candidate.form || {};
+                  const jobRole = candidateForm.position || test.form?.position || '—';
+                  const department = candidateForm.department || test.form?.department || '—';
+                  const categoryLabel = candidateForm.formCategory ? getCategoryLabel(candidateForm.formCategory) : null;
+                  const candidateStatus = (result.candidate.status || '').toLowerCase();
+                  const finalDecision = (result.candidate.finalDecision || '').toLowerCase();
+
+                  const stageBadge = (() => {
+                    if (finalDecision === 'selected' || candidateStatus === 'selected') {
+                      return { label: 'Selected', variant: 'success' };
+                    }
+                    if (finalDecision === 'rejected' || candidateStatus === 'rejected') {
+                      return { label: 'Rejected', variant: 'danger' };
+                    }
+                    if (finalDecision === 'on_hold' || candidateStatus === 'on_hold') {
+                      return { label: 'On Hold', variant: 'warning' };
+                    }
+                    if (candidateStatus === 'shortlisted') {
+                      return { label: 'Moved to Interview', variant: 'info' };
+                    }
+                    if (result.completedAt) {
+                      return { label: 'Test Completed', variant: 'secondary' };
+                    }
+                    return null;
+                  })();
+
+                  const actionConfig = (() => {
+                    if (finalDecision === 'selected' || candidateStatus === 'selected') {
+                      return { type: 'status', label: 'Candidate Selected', variant: 'success' };
+                    }
+                    if (finalDecision === 'rejected' || candidateStatus === 'rejected') {
+                      return { type: 'status', label: 'Candidate Rejected', variant: 'danger' };
+                    }
+                    if (finalDecision === 'on_hold' || candidateStatus === 'on_hold') {
+                      return { type: 'status', label: 'Candidate On Hold', variant: 'warning' };
+                    }
+                    if (candidateStatus === 'shortlisted') {
+                      return { type: 'status', label: 'Moved to Interview', variant: 'info' };
+                    }
+                    return { type: 'release', label: 'Release Results', variant: 'primary' };
+                  })();
+
+                  return (
+                    <tr key={index}>
+                      <td>
+                        <div className="fw-semibold">{result.candidate.name}</div>
+                        {categoryLabel && (
+                          <small className="text-muted">{categoryLabel}</small>
+                        )}
+                      </td>
+                      <td>{result.candidate.email}</td>
+                      <td>{jobRole}</td>
+                      <td>{department}</td>
+                      <td>{result.score || 0}/{test.totalMarks || 0}</td>
+                      <td>{result.percentage?.toFixed(1) || 0}%</td>
+                      <td>
+                        <Badge bg={result.passed ? 'success' : 'danger'}>
+                          {result.passed ? 'Passed' : 'Failed'}
+                        </Badge>
+                        {result.suggestNextRound && (
+                          <Badge bg="warning" className="ms-2">Suggested for Interview</Badge>
+                        )}
+                        {stageBadge && (
+                          <Badge bg={stageBadge.variant} className="ms-2">
+                            {stageBadge.label}
+                          </Badge>
+                        )}
+                      </td>
+                      <td>{result.completedAt ? new Date(result.completedAt).toLocaleString() : 'N/A'}</td>
+                      <td>
+                        <div className="d-flex flex-column flex-sm-row gap-2">
+                          <Button
+                            variant="info"
+                            size="sm"
+                            onClick={() => handleViewResults(test._id, result.candidate._id)}
+                          >
+                            <FaEye className="me-1" />
+                            View Results
+                          </Button>
+                          {actionConfig.type === 'release' ? (
+                            <Button
+                              variant={actionConfig.variant}
+                              size="sm"
+                              onClick={() => handleReleaseResults(test, result)}
+                            >
+                              <FaCheckCircle className="me-1" />
+                              {actionConfig.label}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant={actionConfig.variant}
+                              size="sm"
+                              disabled
+                              className="text-nowrap"
+                            >
+                              {actionConfig.label}
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          )}
+        </Card.Body>
+      </Card>
+    );
+  };
+
+  const renderCategoryContent = (categoryKey) => {
+    const roleMap = groupedTests[categoryKey] || {};
+    const jobRoles = Object.keys(roleMap).sort((a, b) => a.localeCompare(b));
+
+    if (jobRoles.length === 0) {
+      return (
+        <Alert variant="light" className="mb-0">
+          No test results available for {getCategoryLabel(categoryKey)} roles yet.
+        </Alert>
+      );
+    }
+
+    return jobRoles.map((role) => {
+      const testsForRole = roleMap[role];
+      const roleDepartment = testsForRole[0]?.form?.department;
+      const totalCandidates = testsForRole.reduce((sum, test) => sum + (test.results?.length || 0), 0);
+
+      return (
+        <Card key={`${categoryKey}-${role}`} className="mb-4 border-0 shadow-sm">
+          <Card.Header className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
+            <div>
+              <h4 className="mb-1">{role}</h4>
+              <small className="text-muted">
+                {roleDepartment ? `${roleDepartment} • ` : ''}
+                {getCategoryLabel(categoryKey)}
+              </small>
+            </div>
+            <div className="d-flex gap-2 mt-3 mt-lg-0">
+              <Badge bg="secondary">{testsForRole.length} {testsForRole.length === 1 ? 'Test' : 'Tests'}</Badge>
+              <Badge bg="info">{totalCandidates} {totalCandidates === 1 ? 'Candidate' : 'Candidates'}</Badge>
+            </div>
+          </Card.Header>
+          <Card.Body>
+            {testsForRole.map(renderTestCard)}
+          </Card.Body>
+        </Card>
+      );
+    });
+  };
+
   if (loading) {
     return <LoadingSpinner message="Loading test results..." />;
   }
@@ -249,80 +526,68 @@ const TestResults = () => {
       {tests.length === 0 ? (
         <Alert variant="info">No test results available yet.</Alert>
       ) : (
-        <Row>
-          {tests.map((test) => (
-            <Col md={12} key={test._id} className="mb-4">
-              <Card>
-                <Card.Header>
-                  <h5>{test.title}</h5>
-                  <small className="text-muted">
-                    {test.description || 'No description'} | Duration: {test.duration} minutes | 
-                    Passing: {test.passingPercentage}% | Cutoff: {test.cutoffPercentage || test.passingPercentage}%
-                  </small>
-                </Card.Header>
-                <Card.Body>
-                  {test.results.length === 0 ? (
-                    <Alert variant="info">No completed submissions yet.</Alert>
-                  ) : (
-                    <>
-                      <Table striped bordered hover responsive>
-                        <thead>
-                          <tr>
-                            <th>Candidate Name</th>
-                            <th>Email</th>
-                            <th>Score</th>
-                            <th>Percentage</th>
-                            <th>Status</th>
-                            <th>Completed At</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {test.results.map((result, index) => (
-                            <tr key={index}>
-                              <td>{result.candidate.name}</td>
-                              <td>{result.candidate.email}</td>
-                              <td>{result.score || 0}/{test.totalMarks || 0}</td>
-                              <td>{result.percentage?.toFixed(1) || 0}%</td>
-                              <td>
-                                <Badge bg={result.passed ? 'success' : 'danger'}>
-                                  {result.passed ? 'Passed' : 'Failed'}
-                                </Badge>
-                                {result.suggestNextRound && (
-                                  <Badge bg="warning" className="ms-2">Suggested for Interview</Badge>
-                                )}
-                              </td>
-                              <td>{result.completedAt ? new Date(result.completedAt).toLocaleString() : 'N/A'}</td>
-                              <td>
-                                <Button
-                                  variant="info"
-                                  size="sm"
-                                  className="me-2"
-                                  onClick={() => handleViewResults(test._id, result.candidate._id)}
-                                >
-                                  <FaEye className="me-1" />
-                                  View Results
-                                </Button>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  onClick={() => handleReleaseResults(test, result)}
-                                >
-                                  <FaCheckCircle className="me-1" />
-                                  Release Results
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </Table>
-                    </>
-                  )}
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+        <>
+          <Row className="mb-4 g-3">
+            {CATEGORY_ORDER.map((categoryKey) => {
+              const summary = categorySummary[categoryKey];
+              if (!summary || (categoryKey === 'uncategorized' && summary.tests === 0)) {
+                return null;
+              }
+
+              return (
+                <Col md={4} key={categoryKey}>
+                  <Card className="h-100 border-0 shadow-sm">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-start">
+                        <div>
+                          <h6 className="text-muted text-uppercase mb-2">{getCategoryLabel(categoryKey)}</h6>
+                          <h3 className="mb-0">{summary.tests}</h3>
+                          <small className="text-muted">Tests with completed submissions</small>
+                        </div>
+                        <Badge bg="primary">
+                          {summary.candidates} {summary.candidates === 1 ? 'Candidate' : 'Candidates'}
+                        </Badge>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+
+          <Tabs
+            activeKey={activeCategory}
+            onSelect={(key) => setActiveCategory(key || 'teaching')}
+            className="mb-4"
+          >
+            <Tab
+              eventKey="teaching"
+              title={`Teaching (${categorySummary.teaching?.tests ?? 0})`}
+            >
+              <div className="pt-3">
+                {renderCategoryContent('teaching')}
+              </div>
+            </Tab>
+            <Tab
+              eventKey="non_teaching"
+              title={`Non-Teaching (${categorySummary.non_teaching?.tests ?? 0})`}
+            >
+              <div className="pt-3">
+                {renderCategoryContent('non_teaching')}
+              </div>
+            </Tab>
+            {categorySummary.uncategorized?.tests > 0 && (
+              <Tab
+                eventKey="uncategorized"
+                title={`Other (${categorySummary.uncategorized.tests})`}
+              >
+                <div className="pt-3">
+                  {renderCategoryContent('uncategorized')}
+                </div>
+              </Tab>
+            )}
+          </Tabs>
+        </>
       )}
 
       {/* Release Results Modal */}

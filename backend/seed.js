@@ -132,6 +132,8 @@ const seedCandidateRegistrationForm = async () => {
       formCategory: 'teaching',
       position: 'Teaching Staff',
       department: 'Various',
+      closingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      vacancies: 10,
       formFields: teachingFormFields,
       createdBy: superAdmin._id
     });
@@ -191,6 +193,8 @@ const seedCandidateRegistrationForm = async () => {
       formCategory: 'non_teaching',
       position: 'Non-Teaching Staff',
       department: 'Various',
+      closingDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000), // 45 days from now
+      vacancies: 8,
       formFields: nonTeachingFormFields,
       createdBy: superAdmin._id
     });

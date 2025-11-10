@@ -619,7 +619,8 @@ const TestsManagement = () => {
                           <th>Candidate ID</th>
                           <th>Position</th>
                           <th>Department</th>
-                          <th></th>
+                          <th>Stage</th>
+                          <th className="text-end">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -629,10 +630,123 @@ const TestsManagement = () => {
                             <td>{candidate.candidateNumber || '—'}</td>
                             <td>{candidate.form?.position}</td>
                             <td>{candidate.form?.department}</td>
+                            <td>
+                              {(() => {
+                                const status = (candidate.status || '').toLowerCase();
+                                const workflowStage = candidate.workflow?.stage;
+                                const finalDecision = candidate.workflow?.finalDecision?.decision || candidate.finalDecision?.decision || null;
+                                const tests = candidate.workflow?.tests || {};
+                                const testsCompleted = Number(tests.completed) || 0;
+                                const testsAssigned = Number(tests.assigned) || 0;
+                                const interviews = candidate.workflow?.interviews || {};
+                                const interviewsScheduled = Number(interviews.scheduled) || 0;
+                                const interviewsCompleted = Number(interviews.completed) || 0;
+
+                                let label = 'Awaiting Action';
+                                let variant = 'secondary';
+
+                                if (finalDecision === 'selected' || status === 'selected') {
+                                  label = 'Selected';
+                                  variant = 'success';
+                                } else if (finalDecision === 'rejected' || status === 'rejected') {
+                                  label = 'Rejected';
+                                  variant = 'danger';
+                                } else if (finalDecision === 'on_hold' || status === 'on_hold') {
+                                  label = 'On Hold';
+                                  variant = 'warning';
+                                } else if (workflowStage === 'awaiting_decision') {
+                                  label = 'Awaiting Decision';
+                                  variant = 'info';
+                                } else if (
+                                  workflowStage === 'interview_scheduled' ||
+                                  workflowStage === 'awaiting_interview' ||
+                                  interviewsScheduled > 0 ||
+                                  interviewsCompleted > 0 ||
+                                  status === 'shortlisted'
+                                ) {
+                                  label = 'Moved to Interview';
+                                  variant = 'info';
+                                } else if (testsCompleted > 0) {
+                                  label = 'Test Completed';
+                                  variant = 'primary';
+                                } else if (testsAssigned > 0) {
+                                  label = 'Test Assigned';
+                                  variant = 'secondary';
+                                } else if (status === 'approved') {
+                                  label = 'Approved';
+                                  variant = 'success';
+                                } else if (status === 'pending') {
+                                  label = 'Pending Review';
+                                  variant = 'light';
+                                }
+
+                                return (
+                                  <Badge bg={variant} className="text-uppercase" style={{ letterSpacing: '0.03em' }}>
+                                    {label}
+                                  </Badge>
+                                );
+                              })()}
+                            </td>
                             <td className="text-end">
-                              <Button size="sm" onClick={() => openBuilderModal(candidate)}>
-                                Build Assessment
-                              </Button>
+                              {(() => {
+                                const status = (candidate.status || '').toLowerCase();
+                                const finalDecision = candidate.workflow?.finalDecision?.decision || candidate.finalDecision?.decision || null;
+                                const workflowStage = candidate.workflow?.stage;
+                                const tests = candidate.workflow?.tests || {};
+                                const testsCompleted = Number(tests.completed) || 0;
+                                const hasCompletedTests = testsCompleted > 0;
+                                const isFinalised = ['selected', 'rejected'].includes(status) || ['selected', 'rejected'].includes((finalDecision || '').toLowerCase());
+                                const movedToInterview =
+                                  workflowStage === 'interview_scheduled' ||
+                                  workflowStage === 'awaiting_interview' ||
+                                  workflowStage === 'awaiting_decision' ||
+                                  status === 'shortlisted';
+
+                                const decisionLabel = () => {
+                                  if (['selected', 'rejected'].includes((finalDecision || '').toLowerCase())) {
+                                    return finalDecision === 'selected' ? 'Candidate Selected' : 'Candidate Rejected';
+                                  }
+                                  if (['selected', 'rejected'].includes(status)) {
+                                    return status === 'selected' ? 'Candidate Selected' : 'Candidate Rejected';
+                                  }
+                                  if (movedToInterview) {
+                                    return 'Moved to Interview';
+                                  }
+                                  if (hasCompletedTests) {
+                                    return 'Test Completed';
+                                  }
+                                  return 'Awaiting Assignment';
+                                };
+
+                                const decisionVariant = () => {
+                                  if ((finalDecision || '').toLowerCase() === 'selected' || status === 'selected') return 'success';
+                                  if ((finalDecision || '').toLowerCase() === 'rejected' || status === 'rejected') return 'danger';
+                                  if (movedToInterview) return 'info';
+                                  if (hasCompletedTests) return 'secondary';
+                                  return 'outline-secondary';
+                                };
+
+                                const primaryLabel = movedToInterview || hasCompletedTests ? 'Conduct Test Again' : 'Build Assessment';
+                                const primaryVariant = movedToInterview || hasCompletedTests ? 'warning' : 'primary';
+
+                                return (
+                                  <div className="d-flex flex-column flex-sm-row gap-2 justify-content-end">
+                                    <Button size="sm" variant={decisionVariant()} disabled className="text-nowrap">
+                                      {decisionLabel()}
+                                    </Button>
+                                    {!isFinalised && (
+                                      <Button
+                                        size="sm"
+                                        variant={primaryVariant}
+                                        onClick={() => openBuilderModal(candidate)}
+                                        className="text-nowrap"
+                                      >
+                                        {primaryLabel}
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
                           </tr>
                         ))}
