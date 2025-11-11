@@ -7,6 +7,14 @@ const normalizeEmail = (value) => {
   return value.toLowerCase().trim();
 };
 
+const logWarning = (message) => {
+  if (process.env.NODE_ENV === 'production') {
+    console.log(message);
+  } else {
+    console.warn(message);
+  }
+};
+
 const ensureSuperAdmin = async () => {
   const defaultEmail = 'careers@pydah.edu.in';
   const defaultPassword = 'Pydah2456@';
@@ -43,7 +51,7 @@ const ensureSuperAdmin = async () => {
     if (configuredEmail && superAdmin.email !== configuredEmail) {
       const conflictingUser = await User.findOne({ email: configuredEmail });
       if (conflictingUser && !conflictingUser._id.equals(superAdmin._id)) {
-        console.warn(`⚠️ [SUPER ADMIN] Configured email ${configuredEmail} is already used by another account (${conflictingUser.role}). Super admin email was not updated.`);
+        logWarning(`⚠️ [SUPER ADMIN] Configured email ${configuredEmail} is already used by another account (${conflictingUser.role}). Super admin email was not updated.`);
       } else {
         superAdmin.email = configuredEmail;
         shouldSave = true;
@@ -59,7 +67,7 @@ const ensureSuperAdmin = async () => {
         console.log('🔐 [SUPER ADMIN] Password updated based on configuration/defaults');
       }
     } catch (passwordCheckError) {
-      console.warn('⚠️ [SUPER ADMIN] Unable to verify current password, forcing update');
+      logWarning('⚠️ [SUPER ADMIN] Unable to verify current password, forcing update');
       superAdmin.password = passwordToEnforce;
       shouldSave = true;
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FaFileAlt,
@@ -136,22 +136,39 @@ const PublicForm = () => {
         );
 
       case 'file':
-      case 'file_multiple':
+      case 'file_multiple': {
+        let selectedLabel = 'No file selected';
+        if (field.fieldType === 'file_multiple') {
+          if (Array.isArray(value) && value.length > 0) {
+            selectedLabel = `${value.length} file${value.length > 1 ? 's' : ''} selected`;
+          }
+        } else if (value instanceof File) {
+          selectedLabel = value.name;
+        }
+
         return (
-          <div className={styles.fileUploadShell}>
+          <label className={styles.fileInputWrapper}>
             <input
-              className={styles.fileInput}
+              className={styles.fileInputHidden}
               type="file"
-              onChange={(e) => handleFormDataChange(
-                field.fieldName,
-                field.fieldType === 'file_multiple' ? Array.from(e.target.files) : e.target.files[0]
-              )}
+              onChange={(e) =>
+                handleFormDataChange(
+                  field.fieldName,
+                  field.fieldType === 'file_multiple' ? Array.from(e.target.files) : e.target.files[0]
+                )
+              }
               required={field.required}
               multiple={field.fieldType === 'file_multiple'}
               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
             />
-          </div>
+            <div className={styles.fileInputVisual}>
+              <FaUpload />
+              <span className={styles.fileInputPrimary}>Choose file{field.fieldType === 'file_multiple' ? 's' : ''}</span>
+              <span className={styles.fileInputMeta}>{selectedLabel}</span>
+            </div>
+          </label>
         );
+      }
 
       case 'radio':
         return (
@@ -370,6 +387,37 @@ const PublicForm = () => {
       setSubmitting(false);
     }
   };
+
+  const prioritizedFieldNames = useMemo(
+    () => ['gender', 'dateofbirth', 'mobile', 'mobilenumber', 'aadhaarnumber'],
+    []
+  );
+
+  const sortedFields = useMemo(() => {
+    if (!form?.formFields) return [];
+
+    const normalize = (name) => name?.toString().toLowerCase() || '';
+
+    return form.formFields
+      .map((field, index) => {
+        const normalized = normalize(field.fieldName);
+        const priorityIndex = prioritizedFieldNames.findIndex((key) =>
+          normalized === key || normalized.startsWith(key)
+        );
+        return {
+          field,
+          priority: priorityIndex > -1 ? priorityIndex : Number.MAX_SAFE_INTEGER,
+          originalIndex: index
+        };
+      })
+      .sort((a, b) => {
+        if (a.priority === b.priority) {
+          return a.originalIndex - b.originalIndex;
+        }
+        return a.priority - b.priority;
+      })
+      .map((item) => item.field);
+  }, [form, prioritizedFieldNames]);
 
   if (loading) {
     return <LoadingSpinner message="Loading form..." />;
@@ -602,8 +650,8 @@ const PublicForm = () => {
                 <p className={styles.sectionSubtitle}>Provide the required information and upload supporting documents.</p>
               </div>
               <div className={cx(styles.fieldsGrid, styles.fieldsGridSpacing)}>
-                {form.formFields.map((field, index) => {
-                  const fullWidthTypes = ['textarea', 'file', 'file_multiple', 'radio', 'checkbox'];
+                {sortedFields.map((field, index) => {
+                  const fullWidthTypes = ['textarea', 'radio', 'checkbox'];
                   const isFullWidth = fullWidthTypes.includes(field.fieldType);
 
                   return (

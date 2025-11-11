@@ -112,6 +112,14 @@
   animation: pf-slide-up 0.7s ease-out both;
 }
 
+@media (min-width: 1081px) {
+  .jobSummaryCard {
+    position: sticky;
+    top: clamp(1rem, 2vw, 1.6rem);
+    align-self: flex-start;
+  }
+}
+
 .jobSummaryHeader {
   display: flex;
   flex-direction: column;
@@ -371,6 +379,53 @@
   padding: clamp(1rem, 2.5vw, 1.5rem);
   background: rgba(255, 247, 237, 0.6);
   transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.fileInputWrapper {
+  display: block;
+  position: relative;
+}
+
+.fileInputHidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fileInputVisual {
+  border: 1.5px dashed rgba(249, 115, 22, 0.35);
+  background: rgba(255, 247, 237, 0.55);
+  border-radius: 12px;
+  padding: clamp(0.85rem, 2.2vw, 1.1rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+  transition: border-color 0.3s ease, background 0.3s ease, transform 0.2s ease;
+  color: #7f1d1d;
+}
+
+.fileInputWrapper:hover .fileInputVisual {
+  border-color: rgba(239, 68, 68, 0.55);
+  background: rgba(255, 247, 237, 0.75);
+  transform: translateY(-1px);
+}
+
+.fileInputVisual svg {
+  font-size: 1.1rem;
+  color: #ef4444;
+}
+
+.fileInputPrimary {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.fileInputMeta {
+  font-size: 0.82rem;
+  color: #9f1239;
+  opacity: 0.8;
 }
 
 .submitButton {
