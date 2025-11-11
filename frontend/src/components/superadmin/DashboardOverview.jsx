@@ -3,7 +3,6 @@ import styled, { keyframes, css } from 'styled-components';
 import {
   FaFileAlt,
   FaCalendarCheck,
-  FaClock,
   FaUserPlus,
   FaBullseye,
   FaChartLine,

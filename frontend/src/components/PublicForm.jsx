@@ -11,7 +11,6 @@ import {
   FaTimes,
   FaCloudUploadAlt,
   FaBriefcase,
-  FaCalendarAlt,
   FaInfoCircle,
   FaClock
 } from 'react-icons/fa';
