@@ -170,19 +170,23 @@ const TimeInput12Hour = ({ value, onChange, style }) => {
 };
 
 const Container = styled.div`
-  padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 2vw, 2.5rem);
 `;
 
 const Header = styled.div`
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+
+  @media (min-width: 768px) {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
 `;
 
 const HeaderActions = styled.div`
@@ -193,6 +197,7 @@ const HeaderActions = styled.div`
 `;
 
 const TabContainer = styled.div`
+  width: 100%;
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
@@ -226,12 +231,17 @@ const TabButton = styled.button`
 `;
 
 const FilterSection = styled.div`
+  width: 100%;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   gap: 1rem;
-  flex-wrap: wrap;
   margin-bottom: 1rem;
+
+  @media (min-width: 768px) {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 `;
 
 const FilterSelect = styled.select`

@@ -2,12 +2,18 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
+const ensureSuperAdmin = require('./utils/ensureSuperAdmin');
 
 // Load environment variables
 dotenv.config();
 
-// Connect to database
-connectDB();
+// Connect to database and ensure default users
+connectDB()
+  .then(() => ensureSuperAdmin())
+  .catch((error) => {
+    console.error('❌ Failed to initialize application:', error);
+    process.exit(1);
+  });
 
 const app = express();
 

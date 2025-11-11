@@ -4,21 +4,40 @@ import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
 const Container = styled.div`
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 2vw, 2.5rem);
 `;
 
 const Header = styled.div`
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+
+  @media (min-width: 768px) {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+`;
+
+const HeaderContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 680px;
 `;
 
 const Title = styled.h2`
   color: #1e293b;
   margin: 0;
+`;
+
+const Subtitle = styled.p`
+  margin: 0;
+  color: #6b7280;
 `;
 
 const AddButton = styled.button`
@@ -30,19 +49,35 @@ const AddButton = styled.button`
   font-weight: 600;
   cursor: pointer;
   transition: background 0.3s ease;
+  align-self: flex-start;
+
+  @media (min-width: 768px) {
+    align-self: auto;
+  }
 
   &:hover {
     background: #2563eb;
   }
 `;
 
+const TableWrapper = styled.div`
+  width: 100%;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+`;
+
+const TableScrollArea = styled.div`
+  width: 100%;
+  overflow-x: auto;
+`;
+
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
+  min-width: 720px;
   background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 `;
 
 const Th = styled.th`
@@ -346,58 +381,66 @@ const UsersManagement = () => {
   return (
     <Container>
       <Header>
-        <Title>Panel Members Database</Title>
-        <p style={{ margin: 0, color: '#6b7280' }}>Step 3: Manage interview panel members for candidate evaluation.</p>
+        <HeaderContent>
+          <Title>Panel Members Database</Title>
+          <Subtitle>Step 3: Manage interview panel members for candidate evaluation.</Subtitle>
+        </HeaderContent>
         <AddButton onClick={openAddModal}>Add Panel Member</AddButton>
       </Header>
 
-      <Table>
-        <thead>
-          <tr>
-            <Th>Name</Th>
-            <Th>Email</Th>
-            <Th>Designation</Th>
-            <Th>Phone</Th>
-            <Th>Status</Th>
-            <Th>Actions</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {panelMembers.map(member => (
-            <tr key={member._id}>
-              <Td>{member.name}</Td>
-              <Td>{member.email}</Td>
-              <Td>{member.profile?.designation || 'N/A'}</Td>
-              <Td>{member.profile?.phone || 'N/A'}</Td>
-              <Td>
-                <span style={{
-                  color: member.isActive ? '#10b981' : '#ef4444',
-                  fontWeight: '600'
-                }}>
-                  {member.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </Td>
-              <Td>
-                <ActionButton onClick={() => handleEdit(member)}>
-                  Edit
-                </ActionButton>
-                <ActionButton
-                  danger={true}
-                  onClick={() => handleStatusToggle(member._id, member.isActive)}
-                >
-                  {member.isActive ? 'Deactivate' : 'Activate'}
-                </ActionButton>
-                <ActionButton
-                  danger={true}
-                  onClick={() => handleDelete(member._id)}
-                >
-                  Delete
-                </ActionButton>
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+      <TableWrapper>
+        <TableScrollArea>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Name</Th>
+                <Th>Email</Th>
+                <Th>Designation</Th>
+                <Th>Phone</Th>
+                <Th>Status</Th>
+                <Th>Actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {panelMembers.map(member => (
+                <tr key={member._id}>
+                  <Td>{member.name}</Td>
+                  <Td>{member.email}</Td>
+                  <Td>{member.profile?.designation || 'N/A'}</Td>
+                  <Td>{member.profile?.phone || 'N/A'}</Td>
+                  <Td>
+                    <span
+                      style={{
+                        color: member.isActive ? '#10b981' : '#ef4444',
+                        fontWeight: '600'
+                      }}
+                    >
+                      {member.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </Td>
+                  <Td>
+                    <ActionButton onClick={() => handleEdit(member)}>
+                      Edit
+                    </ActionButton>
+                    <ActionButton
+                      danger={true}
+                      onClick={() => handleStatusToggle(member._id, member.isActive)}
+                    >
+                      {member.isActive ? 'Deactivate' : 'Activate'}
+                    </ActionButton>
+                    <ActionButton
+                      danger={true}
+                      onClick={() => handleDelete(member._id)}
+                    >
+                      Delete
+                    </ActionButton>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </TableScrollArea>
+      </TableWrapper>
 
       {showModal && (
         <Modal>

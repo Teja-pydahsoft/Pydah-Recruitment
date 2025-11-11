@@ -104,7 +104,17 @@ const recruitmentFormSchema = new mongoose.Schema({
     data: String, // Base64 encoded QR code
     url: String,  // URL to the QR code image
     generatedAt: Date
-  }
+  },
+  driveFolder: {
+    id: String,
+    name: String,
+    createdAt: Date
+  },
+  driveFieldFolders: [{
+    fieldName: String,
+    folderName: String,
+    folderId: String
+  }]
 }, {
   timestamps: true
 });

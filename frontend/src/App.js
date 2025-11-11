@@ -58,12 +58,23 @@ const AppLayout = ({ children, showSidebar = true }) => {
         style={{
           marginLeft: sidebarOpen ? '280px' : '70px',
           transition: 'margin-left 0.3s ease',
-          padding: '2rem',
+          padding: 'clamp(1.25rem, 2.5vw, 3rem)',
           minHeight: '100vh',
-          background: '#f8fafc'
+          background: '#f8fafc',
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
-        {children}
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'clamp(1.5rem, 2.5vw, 2.75rem)'
+          }}
+        >
+          {children}
+        </div>
       </main>
     </div>
   );

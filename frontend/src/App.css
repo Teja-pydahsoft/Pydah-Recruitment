@@ -4,6 +4,13 @@
   background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
 }
 
+.super-admin-fluid {
+  width: 100%;
+  max-width: none;
+  padding-left: clamp(0.75rem, 2vw, 1.75rem);
+  padding-right: clamp(0.75rem, 2vw, 1.75rem);
+}
+
 /* Dashboard Cards */
 .dashboard-card {
   background: var(--bg-primary);

@@ -371,7 +371,7 @@ const FormsManagement = () => {
   }
 
   return (
-    <Container>
+    <Container fluid className="super-admin-fluid">
       <Row className="mb-4">
         <Col>
           <div className="d-flex justify-content-between align-items-center">
@@ -395,7 +395,7 @@ const FormsManagement = () => {
         </Row>
       )}
 
-<Row>
+      <Row>
         <Col>
           <Card>
             <Card.Header>

@@ -506,7 +506,7 @@ const TestsManagement = () => {
   }
 
   return (
-    <Container>
+    <Container fluid className="super-admin-fluid">
       <Row className="mb-4">
         <Col>
           <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">

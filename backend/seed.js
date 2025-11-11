@@ -27,8 +27,8 @@ const seedUsers = async () => {
     const users = [
       {
         name: 'Super Admin',
-        email: 'admin@example.com',
-        password: 'admin123',
+        email: 'careers@pydah.edu.in',
+        password: 'Pydah2456@',
         role: 'super_admin',
         profile: {
           phone: '+1-234-567-8900',

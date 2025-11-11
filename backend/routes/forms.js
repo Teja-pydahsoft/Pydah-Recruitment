@@ -10,6 +10,83 @@ const { authenticateToken, requireSuperAdminOrPermission, hasPermission } = requ
 
 const router = express.Router();
 
+const DRIVE_UNSAFE_CHARS = /[\\/:*?"<>|#%]+/g;
+const sanitizeForDrive = (value, fallback = 'Untitled') => {
+  if (!value || typeof value !== 'string') {
+    return fallback;
+  }
+  const cleaned = value.replace(DRIVE_UNSAFE_CHARS, ' ').trim();
+  return cleaned.length > 0 ? cleaned.substring(0, 120) : fallback;
+};
+
+const buildJobFolderName = (form) => {
+  const parts = [];
+  if (form.position) parts.push(form.position);
+  if (form.department) parts.push(form.department);
+  parts.push(form._id.toString());
+  return sanitizeForDrive(parts.join(' - '), `Form-${form._id.toString()}`);
+};
+
+const buildCandidateFolderName = (userDetails = {}, candidateId) => {
+  const parts = [];
+  if (userDetails.name) parts.push(userDetails.name);
+  if (userDetails.email) parts.push(userDetails.email);
+  if (candidateId) parts.push(candidateId.toString());
+  return sanitizeForDrive(parts.join(' - '), `Candidate-${candidateId || Date.now()}`);
+};
+
+const buildFieldFolderName = (fieldName, index) => {
+  return sanitizeForDrive(fieldName, `Field-${index + 1}`);
+};
+
+async function provisionDriveStructureForForm(form) {
+  if (!form || form.formType !== 'candidate_profile') {
+    return null;
+  }
+
+  const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  if (!rootFolderId) {
+    console.warn('⚠️ [FORM DRIVE] Skipping Drive provisioning: GOOGLE_DRIVE_FOLDER_ID not set');
+    return null;
+  }
+
+  try {
+    await verifyFolderAccess(rootFolderId);
+  } catch (error) {
+    console.error('❌ [FORM DRIVE] Cannot access root folder:', error.message);
+    return null;
+  }
+
+  try {
+    const jobFolderName = buildJobFolderName(form);
+    const jobFolder = await ensureFolder({ name: jobFolderName, parentId: rootFolderId });
+    console.log(`✅ [FORM DRIVE] Job folder ready: ${jobFolderName} (${jobFolder.id})`);
+
+    const fileFields = (form.formFields || []).filter(field =>
+      ['file', 'file_multiple'].includes(field.fieldType)
+    ).map((field, index) => ({
+      fieldName: field.fieldName,
+      folderName: buildFieldFolderName(field.fieldName, index)
+    }));
+
+    form.driveFolder = {
+      id: jobFolder.id,
+      name: jobFolderName,
+      createdAt: new Date()
+    };
+    form.driveFieldFolders = fileFields;
+    await form.save();
+
+    return {
+      jobFolder,
+      fieldFolders: fileFields
+    };
+  } catch (error) {
+    console.error('❌ [FORM DRIVE] Error provisioning Drive structure:', error.message);
+    return null;
+  }
+}
+
 // Create new recruitment form (Super Admin only)
 router.post('/', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
   try {
@@ -55,6 +132,13 @@ router.post('/', authenticateToken, requireSuperAdminOrPermission('forms.manage'
     } catch (qrError) {
       console.error('❌ [FORM CREATION] QR Code generation failed:', qrError);
       // Continue without QR code - don't fail form creation
+    }
+
+    // Provision Google Drive folder structure for this form
+    try {
+      await provisionDriveStructureForForm(form);
+    } catch (driveError) {
+      console.error('❌ [FORM CREATION] Drive provisioning failed:', driveError.message);
     }
 
     console.log('✅ [FORM CREATION] Form creation completed successfully\n');
@@ -538,33 +622,51 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
           throw new Error('GOOGLE_DRIVE_FOLDER_ID is not set in environment variables');
         }
 
-        console.log(`\n🔍 Verifying access to root folder: ${rootFolderId}`);
-        await verifyFolderAccess(rootFolderId);
+        let jobFolderId = form.driveFolder?.id || null;
+        let driveFieldFolders = form.driveFieldFolders || [];
+
+        if (!jobFolderId) {
+          const provisioned = await provisionDriveStructureForForm(form);
+          if (provisioned?.jobFolder?.id) {
+            jobFolderId = provisioned.jobFolder.id;
+            driveFieldFolders = provisioned.fieldFolders || [];
+          }
+        }
+
+        jobFolderId = jobFolderId || rootFolderId;
+        console.log(`\n🔍 Verifying access to job folder: ${jobFolderId}`);
+        await verifyFolderAccess(jobFolderId);
 
         console.log(`\n📂 Creating folder structure...`);
-        const candidateFolderName = `${userDetails.name || 'Candidate'} - ${userDetails.email} - ${candidate._id}`;
-        const candidateFolder = await ensureFolder({ name: candidateFolderName, parentId: rootFolderId });
+        const candidateFolderName = buildCandidateFolderName(userDetails, candidate._id);
+        const candidateFolder = await ensureFolder({ name: candidateFolderName, parentId: jobFolderId });
         console.log(`✓ Candidate folder: ${candidateFolder.id}`);
-        
-        const resumeFolder = await ensureFolder({ name: 'Resume', parentId: candidateFolder.id });
-        console.log(`✓ Resume folder: ${resumeFolder.id}`);
-        
-        const photoFolder = await ensureFolder({ name: 'Photo', parentId: candidateFolder.id });
-        console.log(`✓ Photo folder: ${photoFolder.id}`);
-        
-        const certificatesFolder = await ensureFolder({ name: 'Certificates', parentId: candidateFolder.id });
-        console.log(`✓ Certificates folder: ${certificatesFolder.id}`);
+
+        const fileFields = (form.formFields || []).filter(field =>
+          ['file', 'file_multiple'].includes(field.fieldType)
+        );
+
+        const candidateFieldFolders = new Map();
+
+        for (let i = 0; i < fileFields.length; i += 1) {
+          const field = fileFields[i];
+          const stored = driveFieldFolders.find(ff => ff.fieldName === field.fieldName);
+          const fieldFolderName = stored?.folderName || buildFieldFolderName(field.fieldName, i);
+          const fieldFolder = await ensureFolder({ name: fieldFolderName, parentId: candidateFolder.id });
+          candidateFieldFolders.set(field.fieldName, {
+            id: fieldFolder.id,
+            name: fieldFolderName
+          });
+          console.log(`✓ Candidate field folder ready: ${fieldFolderName} (${fieldFolder.id})`);
+        }
 
         const uploadWarnings = [];
         const uploadResults = [];
         console.log(`\n📤 Uploading files...`);
         
         for (const f of req.files) {
-          let parentFolderId = candidateFolder.id;
-          const lower = (f.fieldname || '').toLowerCase();
-          if (lower.includes('resume')) parentFolderId = resumeFolder.id;
-          else if (lower.includes('photo') || lower.includes('passport')) parentFolderId = photoFolder.id;
-          else if (lower.includes('certificate')) parentFolderId = certificatesFolder.id;
+          const fieldFolder = candidateFieldFolders.get(f.fieldname);
+          const parentFolderId = fieldFolder?.id || candidateFolder.id;
 
           try {
             const uploaded = await uploadToDrive({
@@ -577,7 +679,8 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
             documents.push({
               name: uploaded.name || f.originalname,
               url: uploaded.webViewLink || uploaded.webContentLink || '',
-              uploadedAt: new Date()
+              uploadedAt: new Date(),
+              field: f.fieldname || null
             });
 
             uploadResults.push({

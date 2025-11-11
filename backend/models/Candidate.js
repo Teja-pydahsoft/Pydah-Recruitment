@@ -127,6 +127,7 @@ const candidateSchema = new mongoose.Schema({
   documents: [{
     name: String,
     url: String,
+    field: String,
     uploadedAt: {
       type: Date,
       default: Date.now

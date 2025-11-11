@@ -4,9 +4,10 @@ import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
 const Container = styled.div`
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 2vw, 2.5rem);
 `;
 
 const Header = styled.div`
@@ -29,9 +30,15 @@ const Subtitle = styled.p`
 
 const Toolbar = styled.div`
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+
+  @media (min-width: 768px) {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 `;
 
 const AddButton = styled.button`

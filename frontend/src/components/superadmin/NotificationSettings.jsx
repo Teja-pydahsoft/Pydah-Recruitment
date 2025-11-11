@@ -288,7 +288,7 @@ const NotificationSettings = () => {
   }
 
   return (
-    <Container fluid className="py-4">
+    <Container fluid className="py-4 super-admin-fluid">
       <Row className="mb-4">
         <Col>
           <h2 className="fw-bold">Candidate Notification Settings</h2>

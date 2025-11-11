@@ -774,7 +774,7 @@ const CandidateManagement = () => {
   }
 
   return (
-    <Container>
+    <Container fluid className="super-admin-fluid">
       <Row className="mb-4">
         <Col>
           <h2>Candidate Management</h2>

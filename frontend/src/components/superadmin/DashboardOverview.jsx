@@ -77,24 +77,34 @@ const CHIP_VARIANTS = {
 };
 
 const OverviewContainer = styled.div`
-  padding: 2rem 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 2.5vw, 2.5rem);
   animation: ${fadeInUp} 0.6s ease-out;
   background: #f8fafc;
 `;
 
 const OverviewWrapper = styled.div`
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem 3rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 2.5vw, 2.5rem);
 `;
 
 const HeaderRow = styled.div`
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-bottom: 2rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+
+  @media (min-width: 768px) {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
 `;
 
 const Title = styled.h1`
@@ -113,8 +123,9 @@ const Subtitle = styled.p`
 const HeaderActions = styled.div`
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
+  justify-content: flex-start;
 `;
 
 const Timestamp = styled.span`
@@ -168,10 +179,10 @@ const RefreshIcon = styled.span`
 `;
 
 const StatsGrid = styled.div`
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: clamp(1rem, 2vw, 1.5rem);
 `;
 
 const StatsCard = styled.div`
@@ -183,6 +194,9 @@ const StatsCard = styled.div`
   position: relative;
   overflow: hidden;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 
   &::before {
     content: '';
@@ -273,9 +287,17 @@ const ErrorBanner = styled.div`
 
 const InsightGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2.5rem;
+  width: 100%;
+  gap: clamp(1rem, 2vw, 1.75rem);
+  grid-template-columns: 1fr;
+
+  @media (min-width: 1024px) {
+    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.2fr);
+  }
+
+  @media (min-width: 1360px) {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr);
+  }
 `;
 
 const SectionCard = styled.div`
@@ -287,6 +309,7 @@ const SectionCard = styled.div`
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-height: 0;
 `;
 
 const SectionTitle = styled.h2`
@@ -469,8 +492,13 @@ const Chip = styled.span`
 
 const ActivityGrid = styled.div`
   display: grid;
+  width: 100%;
+  gap: clamp(1rem, 2vw, 1.75rem);
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1.5rem;
+
+  @media (min-width: 1360px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 `;
 
 const toNumber = (value) => {

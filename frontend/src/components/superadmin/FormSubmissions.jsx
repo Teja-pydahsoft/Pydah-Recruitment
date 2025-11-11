@@ -345,7 +345,7 @@ const FormSubmissions = () => {
   }
 
   return (
-    <Container fluid style={{ maxWidth: '1200px' }}>
+    <Container fluid className="super-admin-fluid">
       <Row className="mb-3 align-items-center">
         <Col xs={12} md={8}>
           <h2 className="mb-1" style={{ fontSize: '1.8rem', fontWeight: 600 }}>Form Submissions</h2>
