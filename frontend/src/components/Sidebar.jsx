@@ -12,7 +12,6 @@ import {
   FaBars,
   FaTimes,
   FaUser,
-  FaClipboardCheck,
   FaHome,
   FaUserShield,
   FaCog
@@ -401,18 +400,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/super-admin/creation', icon: FaFileAlt, label: 'Form Creation' },
       { path: '/super-admin/submissions', icon: FaFileAlt, label: 'Form Submissions' },
       { path: '/super-admin/tests', icon: FaClipboardList, label: 'Test Management' },
-      { path: '/super-admin/test-results', icon: FaClipboardCheck, label: 'Test Results' },
       { path: '/super-admin/users', icon: FaUserTie, label: 'Panel Members' },
       { path: '/super-admin/sub-admins', icon: FaUserShield, label: 'Sub Admins' },
-      { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Scheduling' },
-      { path: '/super-admin/interview-feedback', icon: FaChartBar, label: 'Interview Feedback' },
+      { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management' },
       { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
       { path: '/super-admin/settings', icon: FaCog, label: 'Notifications' },
     ],
     panel_member: [
       { path: '/panel-member', icon: FaHome, label: 'Dashboard' },
       { path: '/panel-member/interviews', icon: FaCalendarAlt, label: 'My Interviews', badge: notifications.interviews },
-      { path: '/panel-member/feedback', icon: FaClipboardCheck, label: 'Feedback & Evaluations', badge: notifications.feedback },
       { path: '/panel-member/reports', icon: FaChartBar, label: 'Reports & Analytics' },
       { path: '/panel-member/profile', icon: FaUser, label: 'Profile Settings' },
     ],
@@ -429,9 +425,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { path: '/sub-admin/submissions', icon: FaFileAlt, label: 'Submissions', permission: 'forms.manage' },
     { path: '/sub-admin/candidates', icon: FaUsers, label: 'Candidates', permission: 'candidates.manage' },
     { path: '/sub-admin/tests', icon: FaClipboardList, label: 'Tests', permission: 'tests.manage' },
-    { path: '/sub-admin/test-results', icon: FaClipboardCheck, label: 'Test Results', permission: 'tests.manage' },
-    { path: '/sub-admin/interviews', icon: FaCalendarAlt, label: 'Interviews', permission: 'interviews.manage' },
-    { path: '/sub-admin/interview-feedback', icon: FaChartBar, label: 'Interview Feedback', permission: 'interviews.manage' },
+    { path: '/sub-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management', permission: 'interviews.manage' },
     { path: '/sub-admin/users', icon: FaUserTie, label: 'Panel Members', permission: 'users.manage' },
   ];
 

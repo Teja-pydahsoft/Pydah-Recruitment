@@ -68,7 +68,7 @@ const NavigationBar = () => {
                 </Nav.Link>
                 <Nav.Link href="/super-admin/interviews" className="d-flex align-items-center">
                   <FaCalendarAlt className="me-2" size={16} />
-                  Interview Scheduling
+                  Interview Management
                 </Nav.Link>
               </>
             )}
@@ -78,10 +78,6 @@ const NavigationBar = () => {
                 <Nav.Link href="/panel-member/interviews" className="d-flex align-items-center">
                   <FaCalendarAlt className="me-2" size={16} />
                   My Interviews
-                </Nav.Link>
-                <Nav.Link href="/panel-member/feedback" className="d-flex align-items-center">
-                  <FaClipboardList className="me-2" size={16} />
-                  Feedback
                 </Nav.Link>
               </>
             )}

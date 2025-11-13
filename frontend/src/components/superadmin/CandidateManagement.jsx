@@ -162,10 +162,44 @@ const CandidateManagement = () => {
   const [decisionType, setDecisionType] = useState('selected');
   const [decisionNotes, setDecisionNotes] = useState('');
   const [decisionLoading, setDecisionLoading] = useState(false);
+  const [expandedTestResults, setExpandedTestResults] = useState({});
 
   useEffect(() => {
     fetchCandidates();
   }, []);
+
+  const toggleTestResultDetails = (testId) => {
+    setExpandedTestResults(prev => ({
+      ...prev,
+      [testId]: !prev[testId]
+    }));
+  };
+
+  const formatDurationSeconds = (value) => {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return '--';
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
+  };
+
+  const formatOptionList = (options, emptyLabel = 'Not answered') => {
+    if (!options || options.length === 0) {
+      return emptyLabel;
+    }
+    return options
+      .map(option => {
+        if (!option) {
+          return '—';
+        }
+        const label = option.label || (typeof option.index === 'number' ? String.fromCharCode(65 + option.index) : '');
+        const text = option.text || '—';
+        return `${label}${label ? '. ' : ''}${text}`;
+      })
+      .join(', ');
+  };
 
   const fetchCandidates = async () => {
     setLoading(true);
@@ -195,12 +229,19 @@ const CandidateManagement = () => {
       const response = await api.get(`/candidates/${candidateId}`);
       setSelectedCandidate(response.data.candidate);
       setShowProfileModal(true);
+      setExpandedTestResults({});
     } catch (error) {
       setError('Failed to fetch candidate profile');
       console.error('Profile fetch error:', error);
     } finally {
       setProfileLoading(false);
     }
+  };
+
+  const closeProfileModal = () => {
+    setShowProfileModal(false);
+    setSelectedCandidate(null);
+    setExpandedTestResults({});
   };
 
   const getStatusBadge = (status) => {
@@ -610,7 +651,7 @@ const CandidateManagement = () => {
       </Row>
 
       {candidate.testResults.tests.length > 0 ? (
-        <Table striped bordered hover>
+        <Table striped bordered hover responsive>
           <thead>
             <tr>
               <th>Test Title</th>
@@ -618,18 +659,87 @@ const CandidateManagement = () => {
               <th>Percentage</th>
               <th>Status</th>
               <th>Submitted At</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
-            {candidate.testResults.tests.map((test, index) => (
-              <tr key={index}>
-                <td>{test.testTitle}</td>
-                <td>{test.score}/{test.totalScore}</td>
-                <td>{test.percentage.toFixed(1)}%</td>
-                <td>{getStatusBadge(test.status)}</td>
-                <td>{new Date(test.submittedAt).toLocaleDateString()}</td>
-              </tr>
-            ))}
+            {candidate.testResults.tests.map((test, index) => {
+              const testKey = test.testId || index;
+              return (
+              <React.Fragment key={testKey}>
+                <tr>
+                  <td>{test.testTitle}</td>
+                  <td>{test.score}/{test.totalScore}</td>
+                  <td>{test.percentage.toFixed(1)}%</td>
+                  <td>{getStatusBadge(test.status)}</td>
+                  <td>{test.submittedAt ? new Date(test.submittedAt).toLocaleString() : '--'}</td>
+                  <td>
+                    <Button
+                      variant={expandedTestResults[testKey] ? 'primary' : 'outline-primary'}
+                      size="sm"
+                      onClick={() => toggleTestResultDetails(testKey)}
+                    >
+                      {expandedTestResults[testKey] ? 'Hide Answers' : 'View Answers'}
+                    </Button>
+                  </td>
+                </tr>
+                {expandedTestResults[testKey] && (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="p-3 bg-light rounded">
+                        <div className="d-flex flex-wrap gap-3 mb-3">
+                          <div><strong>Score:</strong> {test.score}/{test.totalScore}</div>
+                          <div><strong>Percentage:</strong> {test.percentage.toFixed(1)}%</div>
+                          {test.duration && <div><strong>Duration:</strong> {test.duration} minutes</div>}
+                          {test.startedAt && <div><strong>Started:</strong> {new Date(test.startedAt).toLocaleString()}</div>}
+                          {test.submittedAt && <div><strong>Submitted:</strong> {new Date(test.submittedAt).toLocaleString()}</div>}
+                        </div>
+                        {test.answers && test.answers.length > 0 ? (
+                          <Table size="sm" bordered hover responsive>
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>Question</th>
+                                <th>Your Answer</th>
+                                <th>Correct Answer</th>
+                                <th>Result</th>
+                                <th>Marks</th>
+                                <th>Time Taken</th>
+                                <th>Answered At</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {test.answers.map((answer, answerIndex) => (
+                                <tr key={`${testKey}-${answer.questionId || answerIndex}`}>
+                                  <td>{answerIndex + 1}</td>
+                                  <td>{answer.questionText}</td>
+                                  <td>{formatOptionList(answer.selectedOptions)}</td>
+                                  <td>{formatOptionList(answer.correctOptions, 'Not available')}</td>
+                                  <td>
+                                    {answer.isCorrect === true ? (
+                                      <Badge bg="success">Correct</Badge>
+                                    ) : answer.isCorrect === false ? (
+                                      <Badge bg="danger">Incorrect</Badge>
+                                    ) : (
+                                      <Badge bg="secondary">Pending</Badge>
+                                    )}
+                                  </td>
+                                  <td>{typeof answer.marksAwarded === 'number' ? answer.marksAwarded : '--'}</td>
+                                  <td>{formatDurationSeconds(answer.timeTaken)}</td>
+                                  <td>{answer.answeredAt ? new Date(answer.answeredAt).toLocaleString() : '--'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </Table>
+                        ) : (
+                          <Alert variant="info" className="mb-0">No answer details available for this test.</Alert>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );})}
           </tbody>
         </Table>
       ) : (
@@ -668,106 +778,180 @@ const CandidateManagement = () => {
     </div>
   );
 
-  const renderInterviewFeedbackTab = (candidate) => (
-    <div>
-      <Row className="mb-4">
-        <Col md={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-primary">{candidate.interviewFeedback.summary.totalInterviews}</h3>
-              <p className="text-muted mb-0">Total Interviews</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-success">{candidate.interviewFeedback.summary.averageRating.toFixed(1)}</h3>
-              <p className="text-muted mb-0">Average Rating</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-info">{candidate.interviewFeedback.summary.feedbackCount}</h3>
-              <p className="text-muted mb-0">Feedback Count</p>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+  const renderInterviewFeedbackTab = (candidate) => {
+    const { summary, feedback } = candidate.interviewFeedback || { summary: {}, feedback: [] };
+    const totalInterviews = summary?.totalInterviews || 0;
+    const averageRating = typeof summary?.averageRating === 'number' && !Number.isNaN(summary.averageRating)
+      ? summary.averageRating
+      : 0;
+    const feedbackCount = summary?.feedbackCount || 0;
 
-      {candidate.interviewFeedback.feedback.length > 0 ? (
-        <div>
-          {candidate.interviewFeedback.feedback.map((feedback, index) => (
-            <Card key={index} className="mb-3">
-              <Card.Header>
-                <h6>{feedback.interviewTitle} - Round {feedback.round}</h6>
-                <small className="text-muted">Panel Member: {feedback.panelMember.name}</small>
-              </Card.Header>
+    const formatRating = (value) => {
+      if (typeof value === 'number' && !Number.isNaN(value)) {
+        return `${value.toFixed(1)}/5`;
+      }
+      return '—';
+    };
+
+    return (
+      <div>
+        <Row className="mb-4">
+          <Col md={4}>
+            <Card className="text-center">
               <Card.Body>
-                <Row>
-                  <Col md={6}>
-                    <h6>Ratings:</h6>
-                    <p>Technical Skills: {feedback.ratings.technicalSkills}/5</p>
-                    <p>Communication: {feedback.ratings.communication}/5</p>
-                    <p>Problem Solving: {feedback.ratings.problemSolving}/5</p>
-                    <p><strong>Overall: {feedback.ratings.overallRating}/5</strong></p>
-                  </Col>
-                  <Col md={6}>
-                    <h6>Recommendation:</h6>
-                    <p>{getStatusBadge(feedback.recommendation)}</p>
-                    {feedback.comments && (
-                      <>
-                        <h6>Comments:</h6>
-                        <p>{feedback.comments}</p>
-                      </>
-                    )}
-                  </Col>
-                </Row>
+                <h3 className="text-primary">{totalInterviews}</h3>
+                <p className="text-muted mb-0">Total Interviews</p>
               </Card.Body>
             </Card>
-          ))}
-        </div>
-      ) : (
-        <Alert variant="info">No interview feedback available yet.</Alert>
-      )}
+          </Col>
+          <Col md={4}>
+            <Card className="text-center">
+              <Card.Body>
+                <h3 className="text-success">{averageRating.toFixed(1)}</h3>
+                <p className="text-muted mb-0">Average Rating</p>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={4}>
+            <Card className="text-center">
+              <Card.Body>
+                <h3 className="text-info">{feedbackCount}</h3>
+                <p className="text-muted mb-0">Feedback Count</p>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
 
-      {candidate.assignments?.interviews?.length > 0 && (
-        <Card className="mt-3">
-          <Card.Header>Interview Assignments</Card.Header>
-          <Card.Body style={{ padding: 0 }}>
-            <Table striped bordered hover responsive className="mb-0">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Round</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Scheduled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidate.assignments.interviews.map(assignment => (
-                  <tr key={assignment.interviewId}>
-                    <td>{assignment.title}</td>
-                    <td>{assignment.round}</td>
-                    <td>{assignment.type}</td>
-                    <td><Badge bg="secondary">{assignment.status}</Badge></td>
-                    <td>
-                      {assignment.scheduledDate
-                        ? `${new Date(assignment.scheduledDate).toLocaleDateString()} ${assignment.scheduledTime || ''}`.trim()
-                        : '--'}
-                    </td>
+        {feedback && feedback.length > 0 ? (
+          <div>
+            {feedback.map((entry, index) => {
+              const ratings = entry.ratings || {};
+              const hasRatings = Object.values(ratings).some(value => typeof value === 'number' && !Number.isNaN(value));
+              const recommendation = entry.recommendation || 'Not provided';
+
+              return (
+                <Card key={index} className="mb-3 shadow-sm">
+                  <Card.Header>
+                    <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center">
+                      <div>
+                        <h6 className="mb-1">{entry.interviewTitle} - Round {entry.round}</h6>
+                        <small className="text-muted">Panel Member: {entry.panelMember?.name || 'Unknown'}</small>
+                      </div>
+                      <div className="mt-2 mt-sm-0 text-sm-end">
+                        <Badge bg="secondary">{entry.type || 'Interview'}</Badge>
+                        {entry.submittedAt && (
+                          <div className="text-muted small mt-1">
+                            Submitted: {new Date(entry.submittedAt).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Card.Header>
+                  <Card.Body>
+                    <Row className="gy-3">
+                      {hasRatings && (
+                        <Col md={6}>
+                          <h6 className="fw-semibold">Ratings</h6>
+                          <div className="d-flex flex-column gap-1">
+                            <span>Technical Skills: {formatRating(ratings.technicalSkills)}</span>
+                            <span>Communication: {formatRating(ratings.communication)}</span>
+                            <span>Problem Solving: {formatRating(ratings.problemSolving)}</span>
+                            <span className="fw-semibold">Overall: {formatRating(ratings.overallRating)}</span>
+                            {typeof entry.ratingAverage === 'number' && !Number.isNaN(entry.ratingAverage) && (
+                              <span className="text-muted small">
+                                Average of submitted ratings: {entry.ratingAverage.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        </Col>
+                      )}
+                      <Col md={hasRatings ? 6 : 12}>
+                        <h6 className="fw-semibold">Recommendation</h6>
+                        <div className="mb-2">
+                          {typeof recommendation === 'string'
+                            ? <Badge bg="info" className="text-uppercase">{recommendation}</Badge>
+                            : getStatusBadge(recommendation)}
+                        </div>
+                        {entry.comments && (
+                          <>
+                            <h6 className="fw-semibold mt-3">Comments</h6>
+                            <p className="mb-0">{entry.comments}</p>
+                          </>
+                        )}
+                      </Col>
+                    </Row>
+
+                    {entry.questionAnswers && entry.questionAnswers.length > 0 && (
+                      <div className="mt-4">
+                        <h6 className="fw-semibold mb-3">Feedback Form Responses</h6>
+                        <Table striped bordered hover responsive size="sm">
+                          <thead>
+                            <tr>
+                              <th>Question</th>
+                              <th>Response</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {entry.questionAnswers.map((answer, answerIdx) => (
+                              <tr key={answerIdx}>
+                                <td>{answer.question || 'Question'}</td>
+                                <td>
+                                  {answer.type === 'rating' && typeof answer.displayAnswer === 'number'
+                                    ? `${answer.displayAnswer}/5`
+                                    : (answer.displayAnswer ?? answer.answer ?? '—')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </Table>
+                      </div>
+                    )}
+                  </Card.Body>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Alert variant="info">No interview feedback available yet.</Alert>
+        )}
+
+        {candidate.assignments?.interviews?.length > 0 && (
+          <Card className="mt-3">
+            <Card.Header>Interview Assignments</Card.Header>
+            <Card.Body style={{ padding: 0 }}>
+              <Table striped bordered hover responsive className="mb-0">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Round</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Scheduled</th>
                   </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Card.Body>
-        </Card>
-      )}
-    </div>
-  );
+                </thead>
+                <tbody>
+                  {candidate.assignments.interviews.map(assignment => (
+                    <tr key={assignment.interviewId}>
+                      <td>{assignment.title}</td>
+                      <td>{assignment.round}</td>
+                      <td>{assignment.type}</td>
+                      <td><Badge bg="secondary">{assignment.status}</Badge></td>
+                      <td>
+                        {assignment.scheduledDate
+                          ? `${new Date(assignment.scheduledDate).toLocaleDateString()} ${assignment.scheduledTime || ''}`.trim()
+                          : '--'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card.Body>
+          </Card>
+        )}
+      </div>
+    );
+  };
+
 
   if (loading) {
     return <LoadingSpinner message="Loading candidates..." />;
@@ -1107,7 +1291,7 @@ const CandidateManagement = () => {
       {/* Candidate Profile Modal */}
       <Modal
         show={showProfileModal}
-        onHide={() => setShowProfileModal(false)}
+        onHide={closeProfileModal}
         size="xl"
         centered
         style={{ zIndex: 1050 }}
@@ -1161,7 +1345,7 @@ const CandidateManagement = () => {
                 variant="success"
                 onClick={() => {
                   openDecisionModal(selectedCandidate, 'selected');
-                  setShowProfileModal(false);
+                  closeProfileModal();
                 }}
                 disabled={
                   selectedCandidate.status === 'selected' ||
@@ -1174,7 +1358,7 @@ const CandidateManagement = () => {
                 variant="outline-warning"
                 onClick={() => {
                   openDecisionModal(selectedCandidate, 'on_hold');
-                  setShowProfileModal(false);
+                  closeProfileModal();
                 }}
                 disabled={
                   selectedCandidate.status === 'on_hold' ||
@@ -1187,7 +1371,7 @@ const CandidateManagement = () => {
                 variant="outline-danger"
                 onClick={() => {
                   openDecisionModal(selectedCandidate, 'rejected');
-                  setShowProfileModal(false);
+                  closeProfileModal();
                 }}
                 disabled={
                   selectedCandidate.status === 'rejected' ||
@@ -1200,7 +1384,7 @@ const CandidateManagement = () => {
           )}
           <Button 
             variant="secondary" 
-            onClick={() => setShowProfileModal(false)}
+            onClick={closeProfileModal}
             style={{ borderRadius: '6px', padding: '0.5rem 1.5rem' }}
           >
             Close

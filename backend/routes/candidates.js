@@ -3,6 +3,9 @@ const Candidate = require('../models/Candidate');
 const User = require('../models/User');
 const Test = require('../models/Test');
 const Interview = require('../models/Interview');
+const NotificationSettings = require('../models/NotificationSettings');
+const { sendEmail } = require('../config/email');
+const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
 const { authenticateToken, requireSuperAdminOrPermission, hasPermission } = require('../middleware/auth');
 
 const router = express.Router();
@@ -222,15 +225,27 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     const tests = await Test.find({ 'candidates.candidate': candidate._id })
-      .select('title candidates scheduledDate scheduledTime createdAt')
+      .select('title duration totalMarks candidates scheduledDate scheduledTime createdAt questions')
       .lean();
 
     const interviews = await Interview.find({ 'candidates.candidate': candidate._id })
       .select('title type round candidates createdAt')
       .lean();
 
+    const testDetailsMap = new Map();
     const testAssignments = [];
     tests.forEach(test => {
+      const questionMap = {};
+      (test.questions || []).forEach(question => {
+        questionMap[question._id.toString()] = question;
+      });
+      testDetailsMap.set(test._id.toString(), {
+        title: test.title,
+        duration: test.duration,
+        totalMarks: test.totalMarks,
+        questionMap
+      });
+
       test.candidates.forEach(entry => {
         if (entry.candidate.toString() === candidate._id.toString()) {
           testAssignments.push({
@@ -304,39 +319,172 @@ router.get('/:id', authenticateToken, async (req, res) => {
             ? candidate.testResults.reduce((sum, t) => sum + t.percentage, 0) / candidate.testResults.length
             : 0
         },
-        tests: candidate.testResults.map(test => ({
-          testId: test.test._id,
-          testTitle: test.test.title,
-          score: test.score,
-          totalScore: test.totalScore,
-          percentage: test.percentage,
-          status: test.status,
-          submittedAt: test.submittedAt
-        }))
+        tests: candidate.testResults.map(testResult => {
+          const testId = testResult.test?._id?.toString() || testResult.test?.toString();
+          const detail = testDetailsMap.get(testId) || {};
+          const questionMap = detail.questionMap || {};
+          const answers = (testResult.answers || []).map((answer, index) => {
+            const questionInfo = questionMap[answer.questionId?.toString()] || {};
+            const options = Array.isArray(questionInfo.options) ? questionInfo.options : [];
+
+            const normalizeToIndexArray = (value) => {
+              if (Array.isArray(value)) {
+                return value
+                  .map(v => {
+                    if (typeof v === 'number') return v;
+                    if (typeof v === 'string') {
+                      const idx = options.findIndex(opt => typeof opt === 'string' && opt.trim().toLowerCase() === v.trim().toLowerCase());
+                      return idx;
+                    }
+                    return null;
+                  })
+                  .filter(idx => typeof idx === 'number' && idx >= 0);
+              }
+
+              if (typeof value === 'number' && value >= 0) {
+                return [value];
+              }
+
+              if (typeof value === 'string') {
+                const idx = options.findIndex(opt => typeof opt === 'string' && opt.trim().toLowerCase() === value.trim().toLowerCase());
+                return idx >= 0 ? [idx] : [];
+              }
+
+              return [];
+            };
+
+            const selectedIndexes = normalizeToIndexArray(answer.answer);
+            const correctIndexes = normalizeToIndexArray(questionInfo.correctAnswer);
+
+            const formatOptionList = (indexes) => {
+              if (!indexes.length) {
+                return [];
+              }
+              return indexes.map((idx) => ({
+                index: idx,
+                label: String.fromCharCode(65 + idx),
+                text: options[idx] || null
+              }));
+            };
+
+            return {
+              questionId: answer.questionId,
+              questionText: questionInfo.questionText || '—',
+              options,
+              selectedOptions: formatOptionList(selectedIndexes),
+              correctOptions: formatOptionList(Array.from(new Set(correctIndexes))),
+              isCorrect: answer.isCorrect,
+              marksAwarded: answer.marks,
+              timeTaken: answer.timeTaken || 0,
+              answeredAt: answer.answeredAt || null
+            };
+          });
+
+          return {
+            testId,
+            testTitle: testResult.test?.title || 'Assessment',
+            duration: detail.duration || null,
+            totalScore: testResult.totalScore,
+            score: testResult.score,
+            percentage: testResult.percentage,
+            status: testResult.status,
+            submittedAt: testResult.submittedAt,
+            startedAt: testResult.startedAt || null,
+            answers
+          };
+        })
       },
 
       // Tab 3: Interview Feedback Summary
-      interviewFeedback: {
-        summary: {
-          totalInterviews: candidate.interviewFeedback.length,
-          averageRating: candidate.consolidatedInterviewRating,
-          feedbackCount: candidate.interviewFeedback.length
-        },
-        feedback: candidate.interviewFeedback.map(feedback => ({
-          interviewId: feedback.interview._id,
-          interviewTitle: feedback.interview.title,
-          round: feedback.interview.round,
-          type: feedback.interview.type,
-          panelMember: {
-            name: feedback.panelMember.name,
-            email: feedback.panelMember.email
+      interviewFeedback: (() => {
+        const feedbackEntries = candidate.interviewFeedback.map(feedback => {
+          const questionAnswers = Array.isArray(feedback.questionAnswers)
+            ? feedback.questionAnswers.map(answer => ({
+                question: answer.question || '',
+                type: answer.type || 'text',
+                answer: answer.answer,
+                displayAnswer: answer.type === 'rating' && answer.answer !== undefined && answer.answer !== null
+                  ? Number(answer.answer)
+                  : answer.answer
+              }))
+            : [];
+
+          const initialRatings = {
+            technicalSkills: feedback.ratings?.technicalSkills ?? feedback.ratings?.technical ?? null,
+            communication: feedback.ratings?.communication ?? feedback.ratings?.communicationSkills ?? null,
+            problemSolving: feedback.ratings?.problemSolving ?? feedback.ratings?.problemSolvingSkills ?? null,
+            overallRating: feedback.ratings?.overallRating ?? feedback.ratings?.overall ?? null
+          };
+
+          const ratingValues = [];
+          const pushRating = (value) => {
+            const numeric = Number(value);
+            if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
+              ratingValues.push(numeric);
+              return numeric;
+            }
+            return null;
+          };
+
+          Object.values(initialRatings).forEach(pushRating);
+
+          questionAnswers.forEach(answer => {
+            if (answer.type === 'rating') {
+              const numericValue = pushRating(answer.answer);
+              if (numericValue !== null) {
+                const questionText = (answer.question || '').toLowerCase();
+                if (questionText.includes('technical') && initialRatings.technicalSkills === null) {
+                  initialRatings.technicalSkills = numericValue;
+                } else if (questionText.includes('communication') && initialRatings.communication === null) {
+                  initialRatings.communication = numericValue;
+                } else if ((questionText.includes('problem') || questionText.includes('solve')) && initialRatings.problemSolving === null) {
+                  initialRatings.problemSolving = numericValue;
+                } else if (questionText.includes('overall') && initialRatings.overallRating === null) {
+                  initialRatings.overallRating = numericValue;
+                }
+              }
+            }
+          });
+
+          const ratingAverage = ratingValues.length > 0
+            ? ratingValues.reduce((sum, value) => sum + value, 0) / ratingValues.length
+            : null;
+
+          return {
+            interviewId: feedback.interview._id,
+            interviewTitle: feedback.interview.title,
+            round: feedback.interview.round,
+            type: feedback.interview.type,
+            panelMember: {
+              name: feedback.panelMember.name,
+              email: feedback.panelMember.email
+            },
+            ratings: initialRatings,
+            ratingAverage,
+            questionAnswers,
+            comments: feedback.comments,
+            recommendation: feedback.recommendation,
+            submittedAt: feedback.submittedAt
+          };
+        });
+
+        const ratingAverages = feedbackEntries
+          .map(entry => entry.ratingAverage)
+          .filter(value => typeof value === 'number' && !Number.isNaN(value));
+
+        const summaryAverage = ratingAverages.length > 0
+          ? ratingAverages.reduce((sum, value) => sum + value, 0) / ratingAverages.length
+          : 0;
+
+        return {
+          summary: {
+            totalInterviews: candidate.interviewFeedback.length,
+            averageRating: summaryAverage,
+            feedbackCount: candidate.interviewFeedback.length
           },
-          ratings: feedback.ratings,
-          comments: feedback.comments,
-          recommendation: feedback.recommendation,
-          submittedAt: feedback.submittedAt
-        }))
-      },
+          feedback: feedbackEntries
+        };
+      })(),
 
       // Final decision (if any)
       finalDecision: candidate.finalDecision,
@@ -351,6 +499,206 @@ router.get('/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Candidate fetch error:', error);
     res.status(500).json({ message: 'Server error fetching candidate' });
+  }
+});
+
+// Promote candidate directly to interview (without test results)
+router.post('/:id/promote-to-interview', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const { interviewDate, interviewTime, notes } = req.body;
+
+    const candidate = await Candidate.findById(req.params.id)
+      .populate('user', 'name email profile')
+      .populate('form', 'title position department formCategory');
+
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    const user = candidate.user;
+    const form = candidate.form;
+    const phone = (user.profile?.phone || '').trim();
+
+    candidate.status = 'shortlisted';
+    await candidate.save();
+
+    let interview = null;
+    let interviewCreated = false;
+
+    if (interviewDate) {
+      interview = await Interview.findOne({
+        form: form?._id,
+        round: 1,
+        type: 'technical'
+      });
+
+      if (!interview) {
+        interview = new Interview({
+          title: `Interview - ${form?.title || form?.position || 'Recruitment Interview'}`,
+          description: `Interview for shortlisted candidates of ${form?.title || form?.position || 'the recruitment process'}.`,
+          form: form?._id,
+          round: 1,
+          type: 'technical',
+          createdBy: req.user._id
+        });
+        await interview.save();
+        interviewCreated = true;
+        console.log('✅ [INTERVIEW AUTO-CREATE] Created new interview for direct promotion:', interview._id);
+      }
+
+      const candidateIndex = interview.candidates.findIndex(entry => entry.candidate.toString() === candidate._id.toString());
+
+      if (candidateIndex >= 0) {
+        interview.candidates[candidateIndex].scheduledDate = new Date(interviewDate);
+        interview.candidates[candidateIndex].scheduledTime = interviewTime || '';
+        interview.candidates[candidateIndex].status = 'scheduled';
+      } else {
+        interview.candidates.push({
+          candidate: candidate._id,
+          scheduledDate: new Date(interviewDate),
+          scheduledTime: interviewTime || '',
+          status: 'scheduled'
+        });
+      }
+
+      await interview.save();
+      console.log('✅ [INTERVIEW AUTO-ASSIGN] Candidate promoted to interview:', interview._id);
+    }
+
+    const notificationSettings = await NotificationSettings.getGlobalSettings();
+    const candidateSettings = notificationSettings?.candidate || {};
+    const templatePrefs = candidateSettings.templates || {};
+    const emailTemplates = templatePrefs.email || {};
+    const smsTemplatesPref = templatePrefs.sms || {};
+
+    const emailChannelEnabled = candidateSettings.email !== false;
+    const allowScheduleEmail = emailTemplates.interviewScheduleUpdate !== false;
+    const smsChannelEnabled = Boolean(candidateSettings.sms && ensureSMSConfigured() && phone);
+    const allowSmsSchedule = smsTemplatesPref.interviewScheduleUpdate !== false;
+
+    const formattedDate = interviewDate ? new Date(interviewDate).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }) : null;
+
+    console.log('[NOTIFY] Candidate direct promotion notification preferences', {
+      candidateEmail: user.email,
+      candidateName: user.name,
+      emailChannelEnabled,
+      allowScheduleEmail,
+      smsChannelEnabled: candidateSettings.sms !== false,
+      allowSmsSchedule,
+      interviewDateProvided: Boolean(interviewDate)
+    });
+
+    const interviewSummary = [];
+    if (formattedDate) {
+      interviewSummary.push(`<p style="margin: 5px 0;"><strong>Date:</strong> ${formattedDate}</p>`);
+    }
+    if (interviewTime) {
+      interviewSummary.push(`<p style="margin: 5px 0;"><strong>Time:</strong> ${interviewTime}</p>`);
+    }
+    if (notes) {
+      interviewSummary.push(`<p style="margin: 5px 0;"><strong>Notes:</strong> ${notes}</p>`);
+    }
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #059669; border-bottom: 2px solid #10b981; padding-bottom: 10px;">
+          Interview Invitation
+        </h2>
+        <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+          Dear ${user.name},
+        </p>
+        <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+          Congratulations! You have been shortlisted for the interview phase for the role of <strong>${form?.position || form?.title || 'the advertised position'}</strong>.
+        </p>
+        ${interviewSummary.length > 0 ? `
+        <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+          <h3 style="color: #1e40af; margin-top: 0;">Interview Details</h3>
+          ${interviewSummary.join('\n')}
+        </div>` : ''}
+        <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+          ${notes ? 'Please review the above notes carefully before attending the interview.' : 'You will receive further details from our recruitment team shortly.'}
+        </p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #6b7280; font-size: 12px;">
+          This is an automated message from the Staff Recruitment System. Please do not reply to this email.
+        </p>
+      </div>
+    `;
+
+    const emailText = `
+Interview Invitation
+
+Dear ${user.name},
+
+Congratulations! You have been shortlisted for the interview phase for the role of ${form?.position || form?.title || 'the advertised position'}.
+${formattedDate ? `
+Interview Details:
+- Date: ${formattedDate}` : ''}${interviewTime ? `
+- Time: ${interviewTime}` : ''}${notes ? `
+- Notes: ${notes}` : ''}
+
+${notes ? 'Please review the above notes carefully before attending the interview.' : 'You will receive further details from our recruitment team shortly.'}
+
+This is an automated message from the Staff Recruitment System.
+    `;
+
+    if (emailChannelEnabled && allowScheduleEmail) {
+      try {
+        await sendEmail(
+          user.email,
+          `Interview Invitation - ${form?.position || form?.title || 'Recruitment'}`,
+          emailHtml,
+          emailText
+        );
+        console.log('✅ [CANDIDATE PROMOTION] Email notification sent to:', user.email);
+      } catch (emailError) {
+        console.error('❌ [CANDIDATE PROMOTION] Failed to send interview email:', emailError);
+      }
+    } else if (!emailChannelEnabled) {
+      console.log('Candidate email channel disabled; skipping interview promotion email.');
+    } else if (!allowScheduleEmail) {
+      console.log('Interview schedule email template disabled; skipping interview promotion email.');
+    }
+
+    if (smsChannelEnabled && allowSmsSchedule && interviewDate) {
+      try {
+        await sendTemplateSMS({
+          templateKey: 'candidateInterviewSchedule',
+          phoneNumber: phone,
+          variables: {
+            name: user.name,
+            position: form?.position || form?.title || 'Interview',
+            date: formattedDate || '',
+            time: interviewTime || 'TBD',
+            mode: 'Interview scheduled'
+          }
+        });
+      } catch (smsError) {
+        console.error('❌ [CANDIDATE PROMOTION] Failed to send interview SMS:', smsError);
+      }
+    } else if (candidateSettings.sms && interviewDate) {
+      if (!ensureSMSConfigured()) {
+        console.log('SMS configuration incomplete; skipping interview promotion SMS.');
+      } else if (!phone) {
+        console.log('Candidate phone number missing; skipping interview promotion SMS.'); 
+      } else if (!allowSmsSchedule) {
+        console.log('Interview schedule SMS template disabled; skipping interview promotion SMS.');
+      }
+    }
+
+    res.json({
+      message: 'Candidate promoted to interview successfully',
+      interviewId: interview?._id || null,
+      interviewCreated
+    });
+  } catch (error) {
+    console.error('Candidate promotion error:', error);
+    res.status(500).json({ message: 'Server error promoting candidate to interview' });
   }
 });
 

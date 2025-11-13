@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { Badge } from 'react-bootstrap';
+import { Badge, Table } from 'react-bootstrap';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -47,7 +47,6 @@ const formatISTDateTime = (dateString, timeString = '') => {
     
     return formattedDateStr;
   } catch (error) {
-    console.error('Error formatting date:', error);
     return dateString;
   }
 };
@@ -189,13 +188,6 @@ const Header = styled.div`
   }
 `;
 
-const HeaderActions = styled.div`
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  align-items: center;
-`;
-
 const TabContainer = styled.div`
   width: 100%;
   background: white;
@@ -230,20 +222,6 @@ const TabButton = styled.button`
   }
 `;
 
-const FilterSection = styled.div`
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1rem;
-
-  @media (min-width: 768px) {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-`;
-
 const FilterSelect = styled.select`
   padding: 0.5rem 1rem;
   border: 1px solid #d1d5db;
@@ -257,21 +235,6 @@ const FilterSelect = styled.select`
 const Title = styled.h2`
   color: #1e293b;
   margin: 0;
-`;
-
-const AddButton = styled.button`
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.3s ease;
-
-  &:hover {
-    background: #2563eb;
-  }
 `;
 
 const InterviewCard = styled.div`
@@ -344,118 +307,6 @@ const AssignButton = styled.button`
   &:hover {
     background: #059669;
   }
-`;
-
-const CandidatesList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
-`;
-
-const CandidateBar = styled.div`
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
-  background: #ffffff;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  gap: 1rem;
-
-  &:hover {
-    border-color: #3b82f6;
-    background: #f8fafc;
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
-  }
-
-  ${props => props.expanded && `
-    border-color: #3b82f6;
-    background: #f8fafc;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-  `}
-`;
-
-const CandidateBarLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex: 1;
-  min-width: 0;
-`;
-
-const CandidateBarRight = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-shrink: 0;
-`;
-
-const CandidateBarInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-  flex: 1;
-`;
-
-const CandidateBarName = styled.div`
-  font-weight: 600;
-  color: #1e293b;
-  font-size: 0.95rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-`;
-
-const CandidateBarMeta = styled.div`
-  font-size: 0.8rem;
-  color: #6b7280;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-`;
-
-const CandidateExpandedDetails = styled.div`
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-`;
-
-const CandidateDetailItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  
-  strong {
-    color: #374151;
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  span {
-    color: #1e293b;
-    font-size: 0.9rem;
-  }
-`;
-
-const ExpandIcon = styled.span`
-  color: #6b7280;
-  font-size: 1.2rem;
-  transition: transform 0.2s ease;
-  
-  ${props => props.expanded && `
-    transform: rotate(180deg);
-  `}
 `;
 
 const StyledButton = styled.button`
@@ -592,20 +443,17 @@ const SubmitButton = styled.button`
 const InterviewsManagement = () => {
   const [interviews, setInterviews] = useState([]);
   const [panelMembers, setPanelMembers] = useState([]);
-  const [recruitmentForms, setRecruitmentForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showCandidatesModal, setShowCandidatesModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFeedbackFormModal, setShowFeedbackFormModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [selectedPanelMembers, setSelectedPanelMembers] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [scheduleFormData, setScheduleFormData] = useState({});
   const [feedbackSummary, setFeedbackSummary] = useState(null);
-  const [expandedCandidates, setExpandedCandidates] = useState({});
   const [activeTab, setActiveTab] = useState('teaching');
   const [selectedJobRole, setSelectedJobRole] = useState('all');
   const [interviewFormData, setInterviewFormData] = useState({
@@ -620,52 +468,97 @@ const InterviewsManagement = () => {
     evaluationCriteria: []
   });
 
-  useEffect(() => {
-    fetchInterviews();
-    fetchPanelMembers();
-    fetchRecruitmentForms();
-  }, []);
+  const getDefaultFeedbackForm = useCallback(() => ({
+    questions: [
+      {
+        question: 'How would you rate the candidate\'s communication skills?',
+        type: 'rating',
+        required: true
+      },
+      {
+        question: 'How would you rate the candidate\'s technical knowledge?',
+        type: 'rating',
+        required: true
+      },
+      {
+        question: 'How would you rate the candidate\'s problem-solving abilities?',
+        type: 'rating',
+        required: true
+      },
+      {
+        question: 'Overall rating for this candidate?',
+        type: 'rating',
+        required: true
+      },
+      {
+        question: 'Additional comments or observations?',
+        type: 'text',
+        required: false
+      },
+      {
+        question: 'Would you recommend this candidate?',
+        type: 'yes_no',
+        required: true,
+        options: ['Yes', 'No']
+      }
+    ]
+  }), []);
 
-  const fetchInterviews = async () => {
+  const fetchInterviews = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get('/interviews');
-      console.log('Interviews response:', response.data);
       if (response.data && response.data.interviews) {
-        setInterviews(response.data.interviews);
+        const interviewsWithFeedback = await Promise.all(
+          response.data.interviews.map(async (interview) => {
+            const hasFeedback =
+              interview.feedbackForm &&
+              Array.isArray(interview.feedbackForm.questions) &&
+              interview.feedbackForm.questions.length > 0;
+
+            if (hasFeedback) {
+              return interview;
+            }
+
+            try {
+              const defaultFeedback = getDefaultFeedbackForm();
+              await api.put(`/interviews/${interview._id}`, {
+                feedbackForm: defaultFeedback
+              });
+              return {
+                ...interview,
+                feedbackForm: defaultFeedback
+              };
+            } catch (error) {
+              return interview;
+            }
+          })
+        );
+        setInterviews(interviewsWithFeedback);
       } else {
-        console.warn('Unexpected response format:', response.data);
         setInterviews([]);
       }
     } catch (error) {
-      console.error('Error fetching interviews:', error);
-      console.error('Error details:', error.response?.data || error.message);
       setInterviews([]);
-      alert('Failed to load interviews. Please check the console for details.');
+      alert('Failed to load interviews. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [getDefaultFeedbackForm]);
 
-  const fetchPanelMembers = async () => {
+  const fetchPanelMembers = useCallback(async () => {
     try {
       const response = await api.get('/auth/panel-members');
       setPanelMembers(response.data.panelMembers);
     } catch (error) {
-      console.error('Error fetching panel members:', error);
+      setPanelMembers([]);
     }
-  };
+  }, []);
 
-  const fetchRecruitmentForms = async () => {
-    try {
-      const response = await api.get('/forms');
-      // Filter only candidate profile forms
-      const candidateForms = response.data.forms.filter(f => f.formType === 'candidate_profile');
-      setRecruitmentForms(candidateForms);
-    } catch (error) {
-      console.error('Error fetching recruitment forms:', error);
-    }
-  };
+  useEffect(() => {
+    fetchInterviews();
+    fetchPanelMembers();
+  }, [fetchInterviews, fetchPanelMembers]);
 
   const handleAssignPanelMembers = (interview, candidateEntry) => {
     setSelectedInterview(interview);
@@ -715,7 +608,6 @@ const InterviewsManagement = () => {
           alert('Panel members assigned successfully!');
         }
       } catch (error) {
-        console.error('Error assigning panel members:', error);
         const errorMessage = error.response?.data?.message || error.message || 'Error assigning panel members. Please try again.';
         alert(errorMessage);
       }
@@ -728,7 +620,6 @@ const InterviewsManagement = () => {
           // Refresh interviews list
           await fetchInterviews();
         } catch (error) {
-          console.error('Error deleting interview:', error);
           alert('Error deleting interview. Please try again.');
         }
       }
@@ -772,76 +663,8 @@ const InterviewsManagement = () => {
           alert('Schedule updated successfully!');
         }
       } catch (error) {
-        console.error('Error updating schedule:', error);
         alert('Error updating schedule. Please try again.');
       }
-    };
-
-    const handleCreateInterview = async () => {
-      try {
-        if (!interviewFormData.title || !interviewFormData.form) {
-          alert('Please fill in all required fields (Title and Recruitment Form)');
-          return;
-        }
-        const response = await api.post('/interviews', interviewFormData);
-        console.log('Interview created:', response.data);
-        setShowCreateModal(false);
-        setInterviewFormData({
-          title: '',
-          description: '',
-          form: '',
-          round: 1,
-          type: 'technical',
-          feedbackForm: getDefaultFeedbackForm(),
-          evaluationCriteria: []
-        });
-        // Refresh interviews list
-        await fetchInterviews();
-        alert('Interview created successfully! You can now assign candidates and panel members.');
-      } catch (error) {
-        console.error('Error creating interview:', error);
-        const errorMsg = error.response?.data?.message || 'Error creating interview. Please try again.';
-        alert(errorMsg);
-      }
-    };
-
-    const getDefaultFeedbackForm = () => {
-      // Default feedback form structure matching backend
-      return {
-        questions: [
-          {
-            question: 'How would you rate the candidate\'s technical skills?',
-            type: 'rating',
-            required: true
-          },
-          {
-            question: 'How would you rate the candidate\'s communication skills?',
-            type: 'rating',
-            required: true
-          },
-          {
-            question: 'How would you rate the candidate\'s problem-solving abilities?',
-            type: 'rating',
-            required: true
-          },
-          {
-            question: 'Overall rating for this candidate?',
-            type: 'rating',
-            required: true
-          },
-          {
-            question: 'Additional comments or observations?',
-            type: 'text',
-            required: false
-          },
-          {
-            question: 'Would you recommend this candidate?',
-            type: 'yes_no',
-            required: true,
-            options: ['Yes', 'No']
-          }
-        ]
-      };
     };
 
     const handleConfigureFeedbackForm = async (interview) => {
@@ -856,7 +679,6 @@ const InterviewsManagement = () => {
       } else {
         // Use default feedback form
         feedbackFormData = getDefaultFeedbackForm();
-        console.log('📋 [FEEDBACK FORM] No custom form found, using default feedback form');
       }
       
       setInterviewFormData(prev => ({
@@ -904,7 +726,6 @@ const InterviewsManagement = () => {
         await fetchInterviews();
         alert('Feedback form updated successfully!');
       } catch (error) {
-        console.error('Error updating feedback form:', error);
         alert('Error updating feedback form. Please try again.');
       }
     };
@@ -979,62 +800,47 @@ const InterviewsManagement = () => {
     <Container>
       <Header>
         <div>
-          <Title>Interview Scheduling</Title>
-          <p style={{ margin: '0.5rem 0 0 0', color: '#6b7280' }}>Step 4: Schedule interviews and assign panel members for candidate evaluation.</p>
+          <Title>Interview Management</Title>
+          <p style={{ margin: '0.5rem 0 0 0', color: '#6b7280' }}>
+            Coordinate interview schedules, assign panel members, and review candidate progress in one place.
+          </p>
         </div>
-        <HeaderActions>
-          <AddButton onClick={() => {
-            setInterviewFormData({
-              title: '',
-              description: '',
-              form: '',
-              round: 1,
-              type: 'technical',
-              feedbackForm: getDefaultFeedbackForm(),
-              evaluationCriteria: []
-            });
-            setShowCreateModal(true);
-          }}>
-            Create Interview
-          </AddButton>
-        </HeaderActions>
       </Header>
 
       {/* Category Tabs */}
       <TabContainer>
-        <TabButtons>
-          <TabButton
-            active={activeTab === 'teaching'}
-            onClick={() => {
-              setActiveTab('teaching');
-              setSelectedJobRole('all');
-            }}
-          >
-            Teaching Positions
-          </TabButton>
-          <TabButton
-            active={activeTab === 'non_teaching'}
-            onClick={() => {
-              setActiveTab('non_teaching');
-              setSelectedJobRole('all');
-            }}
-          >
-            Non-Teaching Positions
-          </TabButton>
-          <TabButton
-            active={activeTab === 'all'}
-            onClick={() => {
-              setActiveTab('all');
-              setSelectedJobRole('all');
-            }}
-          >
-            All Interviews
-          </TabButton>
-        </TabButtons>
-
-        <FilterSection>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <label style={{ fontWeight: '600', color: '#374151' }}>Filter by Job Role:</label>
+        <TabButtons style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <TabButton
+              active={activeTab === 'teaching'}
+              onClick={() => {
+                setActiveTab('teaching');
+                setSelectedJobRole('all');
+              }}
+            >
+              Teaching Positions
+            </TabButton>
+            <TabButton
+              active={activeTab === 'non_teaching'}
+              onClick={() => {
+                setActiveTab('non_teaching');
+                setSelectedJobRole('all');
+              }}
+            >
+              Non-Teaching Positions
+            </TabButton>
+            <TabButton
+              active={activeTab === 'all'}
+              onClick={() => {
+                setActiveTab('all');
+                setSelectedJobRole('all');
+              }}
+            >
+              All Interviews
+            </TabButton>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <label style={{ fontWeight: '600', color: '#374151', margin: 0 }}>Job Role:</label>
             <FilterSelect
               value={selectedJobRole}
               onChange={(e) => setSelectedJobRole(e.target.value)}
@@ -1045,18 +851,21 @@ const InterviewsManagement = () => {
               ))}
             </FilterSelect>
           </div>
-          <div style={{ 
-            padding: '0.75rem 1rem', 
-            background: '#eff6ff', 
-            borderRadius: '6px',
-            color: '#1e40af',
-            fontWeight: '500',
-            fontSize: '0.875rem'
-          }}>
-            Showing <strong>{filteredInterviews.length}</strong> interview(s) for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'All'} positions
-            {selectedJobRole !== 'all' && ` - ${selectedJobRole}`}
-          </div>
-        </FilterSection>
+        </TabButtons>
+        <div style={{
+          padding: '0.75rem 1rem',
+          background: '#eff6ff',
+          borderRadius: '6px',
+          color: '#1e40af',
+          fontWeight: '500',
+          fontSize: '0.875rem',
+          display: 'inline-flex',
+          flexWrap: 'wrap',
+          gap: '0.35rem'
+        }}>
+          Showing <strong>{filteredInterviews.length}</strong> interview(s) for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'All'} positions
+          {selectedJobRole !== 'all' && <> - <span>{selectedJobRole}</span></>}
+        </div>
       </TabContainer>
 
       {filteredInterviews.length === 0 && !loading && (
@@ -1075,7 +884,7 @@ const InterviewsManagement = () => {
              'There are no interviews scheduled yet.'} 
             {selectedJobRole !== 'all' && ` for ${selectedJobRole}`}
             <br />
-            Click "Create Interview" above to create a new interview.
+            Adjust the filters or assign shortlisted candidates to interviews from the candidate management workspace.
           </p>
         </div>
       )}
@@ -1110,229 +919,140 @@ const InterviewsManagement = () => {
                             {interview.candidates.length}
                           </Badge>
                         </SectionTitle>
-                        <CandidatesList>
-                          {interview.candidates.map((candidateEntry, idx) => {
-                            const candidate = candidateEntry.candidate;
-                            const candidateForm = candidate?.form || interview.form;
-                            const candidateKey = `${interview._id}_${idx}`;
-                            const isExpanded = expandedCandidates[candidateKey];
-                            
-                            return (
-                              <div key={idx}>
-                                <CandidateBar
-                                  expanded={isExpanded}
-                                  onClick={() => {
-                                    setExpandedCandidates(prev => ({
-                                      ...prev,
-                                      [candidateKey]: !prev[candidateKey]
-                                    }));
-                                  }}
-                                >
-                                  <CandidateBarLeft>
-                                    <ExpandIcon expanded={isExpanded}>▼</ExpandIcon>
-                                    <CandidateBarInfo>
-                                      <CandidateBarName>
-                                        {candidate?.user?.name || 'Unknown Candidate'}
-                                        {candidate?.candidateNumber && (
-                                          <Badge bg="secondary" style={{ fontSize: '0.7rem' }}>
-                                            {candidate.candidateNumber}
-                                          </Badge>
-                                        )}
-                                      </CandidateBarName>
-                                      <CandidateBarMeta>
-                                        <span>{candidateForm?.position || 'N/A'}</span>
-                                        <span>•</span>
-                                        <span>{candidateForm?.department || 'N/A'}</span>
-                                        {candidateEntry.scheduledDate && (
-                                          <>
-                                            <span>•</span>
-                                            <span style={{ color: '#3b82f6', fontWeight: '500' }}>
-                                              {formatISTDateTime(candidateEntry.scheduledDate, candidateEntry.scheduledTime)}
-                                            </span>
-                                          </>
-                                        )}
-                                      </CandidateBarMeta>
-                                    </CandidateBarInfo>
-                                  </CandidateBarLeft>
-                                  <CandidateBarRight>
-                                    <Badge bg={
-                                      candidateEntry.status === 'completed' ? 'success' :
-                                      candidateEntry.status === 'scheduled' ? 'warning' :
-                                      candidateEntry.status === 'cancelled' ? 'danger' : 'secondary'
-                                    }>
-                                      {candidateEntry.status || 'pending'}
-                                    </Badge>
-                                  </CandidateBarRight>
-                                </CandidateBar>
-                                
-                                {isExpanded && (
-                                  <div style={{ 
-                                    border: '1px solid #e5e7eb',
-                                    borderTop: 'none',
-                                    borderRadius: '0 0 8px 8px',
-                                    padding: '1.25rem',
-                                    background: '#ffffff'
-                                  }}>
-                                    <CandidateExpandedDetails>
-                                      <CandidateDetailItem>
-                                        <strong>Full Name</strong>
-                                        <span>{candidate?.user?.name || 'Unknown Candidate'}</span>
-                                      </CandidateDetailItem>
-                                      
-                                      {candidate?.user?.email && (
-                                        <CandidateDetailItem>
-                                          <strong>Email</strong>
-                                          <span>{candidate.user.email}</span>
-                                        </CandidateDetailItem>
+                        <div className="mt-3">
+                          <Table responsive bordered hover size="sm" className="align-middle">
+                            <thead>
+                              <tr>
+                                <th>Candidate</th>
+                                <th>Email</th>
+                                <th>Job Role</th>
+                                <th>Department</th>
+                                <th>Scheduled</th>
+                                <th>Status</th>
+                                <th className="text-end">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {interview.candidates.map((candidateEntry, idx) => {
+                                const candidate = candidateEntry.candidate || {};
+                                const candidateForm = candidate.form || interview.form || {};
+                                const scheduledDisplay = candidateEntry.scheduledDate
+                                  ? formatISTDateTime(candidateEntry.scheduledDate, candidateEntry.scheduledTime)
+                                  : 'Not scheduled';
+
+                                return (
+                                  <tr key={candidateEntry._id || candidate?._id || `${interview._id}_${idx}`}>
+                                    <td>
+                                      <div className="fw-semibold">{candidate.user?.name || 'Unknown Candidate'}</div>
+                                      {candidate.candidateNumber && (
+                                        <div className="text-muted small">{candidate.candidateNumber}</div>
                                       )}
-                                      
-                                      {candidate?.candidateNumber && (
-                                        <CandidateDetailItem>
-                                          <strong>Candidate Number</strong>
-                                          <span>{candidate.candidateNumber}</span>
-                                        </CandidateDetailItem>
-                                      )}
-                                      
-                                      <CandidateDetailItem>
-                                        <strong>Job Role</strong>
-                                        <span>{candidateForm?.position || 'N/A'}</span>
-                                      </CandidateDetailItem>
-                                      
-                                      <CandidateDetailItem>
-                                        <strong>Department</strong>
-                                        <span>{candidateForm?.department || 'N/A'}</span>
-                                      </CandidateDetailItem>
-                                      
-                                      {candidateEntry.scheduledDate && (
-                                        <CandidateDetailItem>
-                                          <strong>Scheduled Date & Time</strong>
-                                          <span style={{ color: '#3b82f6', fontWeight: '500' }}>
-                                            {formatISTDateTime(candidateEntry.scheduledDate, candidateEntry.scheduledTime)}
-                                          </span>
-                                        </CandidateDetailItem>
-                                      )}
-                                      
+                                    </td>
+                                    <td>{candidate.user?.email || '—'}</td>
+                                    <td>{candidateForm.position || '—'}</td>
+                                    <td>{candidateForm.department || '—'}</td>
+                                    <td>
+                                      <div>{scheduledDisplay}</div>
                                       {candidateEntry.duration && (
-                                        <CandidateDetailItem>
-                                          <strong>Duration</strong>
-                                          <span>{candidateEntry.duration} minutes</span>
-                                        </CandidateDetailItem>
+                                        <div className="text-muted small">Duration: {candidateEntry.duration} min</div>
                                       )}
-                                      
-                                      <CandidateDetailItem>
-                                        <strong>Status</strong>
-                                        <span>
-                                          <Badge bg={
-                                            candidateEntry.status === 'completed' ? 'success' :
-                                            candidateEntry.status === 'scheduled' ? 'warning' :
-                                            candidateEntry.status === 'cancelled' ? 'danger' : 'secondary'
-                                          }>
-                                            {candidateEntry.status || 'pending'}
-                                          </Badge>
-                                        </span>
-                                      </CandidateDetailItem>
-                                      
                                       {candidateEntry.notes && (
-                                        <CandidateDetailItem style={{ gridColumn: '1 / -1' }}>
-                                          <strong>Notes</strong>
-                                          <span style={{ whiteSpace: 'pre-wrap' }}>{candidateEntry.notes}</span>
-                                        </CandidateDetailItem>
+                                        <div className="text-muted small">Notes: {candidateEntry.notes}</div>
                                       )}
-                                    </CandidateExpandedDetails>
-                                    
-                                    <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb', display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                      <AssignButton
-                                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleAssignPanelMembers(interview, candidateEntry);
-                                        }}
+                                    </td>
+                                    <td>
+                                      <Badge
+                                        bg={
+                                          candidateEntry.status === 'completed'
+                                            ? 'success'
+                                            : candidateEntry.status === 'scheduled'
+                                              ? 'warning'
+                                              : candidateEntry.status === 'cancelled'
+                                                ? 'danger'
+                                                : 'secondary'
+                                        }
                                       >
-                                        Assign Panel Members
-                                      </AssignButton>
-                                      <StyledButton
-                                        variant="info"
-                                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedInterview(interview);
-                                          setSelectedCandidate(candidateEntry);
-                                          setScheduleFormData({
-                                            scheduledDate: candidateEntry.scheduledDate ? new Date(candidateEntry.scheduledDate).toISOString().split('T')[0] : '',
-                                            scheduledTime: candidateEntry.scheduledTime || '',
-                                            duration: candidateEntry.duration || 30,
-                                            notes: candidateEntry.notes || '',
-                                            status: candidateEntry.status || 'scheduled'
-                                          });
-                                          setShowScheduleModal(true);
-                                        }}
-                                      >
-                                        Edit Schedule
-                                      </StyledButton>
-                                      <StyledButton
-                                        variant="info"
-                                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          try {
+                                        {candidateEntry.status || 'pending'}
+                                      </Badge>
+                                    </td>
+                                    <td>
+                                      <div className="d-flex flex-wrap gap-2 justify-content-end">
+                                        <AssignButton
+                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
+                                          onClick={() => handleAssignPanelMembers(interview, candidateEntry)}
+                                        >
+                                          Assign Panel Members
+                                        </AssignButton>
+                                        <StyledButton
+                                          variant="info"
+                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
+                                          onClick={() => {
                                             setSelectedInterview(interview);
                                             setSelectedCandidate(candidateEntry);
-                                            const response = await api.get(`/interviews/${interview._id}/feedback-summary`);
-                                            setFeedbackSummary(response.data);
-                                            setShowFeedbackModal(true);
-                                          } catch (error) {
-                                            console.error('Error fetching feedback:', error);
-                                            alert('Error fetching feedback data.');
-                                          }
-                                        }}
-                                      >
-                                        View Feedback
-                                      </StyledButton>
-                                      <StyledButton
-                                        variant="info"
-                                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedInterview(interview);
-                                          handleConfigureFeedbackForm(interview);
-                                        }}
-                                      >
-                                        Configure Feedback Form
-                                      </StyledButton>
-                                      <StyledButton
-                                        danger
-                                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          if (window.confirm(`Are you sure you want to remove ${candidate?.user?.name || 'this candidate'} from this interview?`)) {
+                                            setScheduleFormData({
+                                              scheduledDate: candidateEntry.scheduledDate ? new Date(candidateEntry.scheduledDate).toISOString().split('T')[0] : '',
+                                              scheduledTime: candidateEntry.scheduledTime || '',
+                                              duration: candidateEntry.duration || 30,
+                                              notes: candidateEntry.notes || '',
+                                              status: candidateEntry.status || 'scheduled'
+                                            });
+                                            setShowScheduleModal(true);
+                                          }}
+                                        >
+                                          Edit Schedule
+                                        </StyledButton>
+                                        <StyledButton
+                                          variant="info"
+                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
+                                          onClick={async () => {
                                             try {
-                                              await api.delete(`/interviews/${interview._id}/candidate/${candidate._id}`);
-                                              
-                                              // Refresh interviews list
-                                              await fetchInterviews();
-                                              // Close expanded view
-                                              setExpandedCandidates(prev => {
-                                                const newState = { ...prev };
-                                                delete newState[`${interview._id}_${idx}`];
-                                                return newState;
-                                              });
-                                              alert('Candidate removed from interview successfully!');
-                                            } catch (error) {
-                                              console.error('Error removing candidate:', error);
-                                              alert('Error removing candidate from interview. Please try again.');
+                                              setSelectedInterview(interview);
+                                              setSelectedCandidate(candidateEntry);
+                                              const response = await api.get(`/interviews/${interview._id}/feedback-summary`);
+                                              setFeedbackSummary(response.data);
+                                              setShowFeedbackModal(true);
+                                            } catch {
+                                              alert('Error fetching feedback data.');
                                             }
-                                          }
-                                        }}
-                                      >
-                                        Remove from Interview
-                                      </StyledButton>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </CandidatesList>
+                                          }}
+                                        >
+                                          View Feedback
+                                        </StyledButton>
+                                        <StyledButton
+                                          variant="info"
+                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
+                                          onClick={() => {
+                                            setSelectedInterview(interview);
+                                            handleConfigureFeedbackForm(interview);
+                                          }}
+                                        >
+                                          Configure Feedback Form
+                                        </StyledButton>
+                                        <StyledButton
+                                          danger
+                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
+                                          onClick={async () => {
+                                            if (window.confirm(`Are you sure you want to remove ${candidate.user?.name || 'this candidate'} from this interview?`)) {
+                                              try {
+                                                await api.delete(`/interviews/${interview._id}/candidate/${candidate._id}`);
+                                                await fetchInterviews();
+                                                alert('Candidate removed from interview successfully!');
+                                              } catch {
+                                                alert('Error removing candidate from interview. Please try again.');
+                                              }
+                                            }
+                                          }}
+                                        >
+                                          Remove
+                                        </StyledButton>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </Table>
+                        </div>
                       </div>
                     )}
 
@@ -1735,130 +1455,6 @@ const InterviewsManagement = () => {
                         <CancelButton onClick={() => setShowFeedbackModal(false)}>
                           Close
                         </CancelButton>
-                      </ModalActions>
-                    </ModalContent>
-                  </ModalOverlay>
-                )}
-
-                {/* Create Interview Modal */}
-                {showCreateModal && (
-                  <ModalOverlay>
-                    <ModalContent style={{ maxWidth: '700px' }}>
-                      <ModalHeader>
-                        <ModalTitle>Create New Interview</ModalTitle>
-                        <CloseButton onClick={() => setShowCreateModal(false)}>×</CloseButton>
-                      </ModalHeader>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div>
-                          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-                            Interview Title *
-                          </label>
-                          <input
-                            type="text"
-                            value={interviewFormData.title}
-                            onChange={(e) => setInterviewFormData({ ...interviewFormData, title: e.target.value })}
-                            placeholder="e.g., Technical Interview Round 1"
-                            style={{
-                              width: '100%',
-                              padding: '0.75rem',
-                              border: '1px solid #d1d5db',
-                              borderRadius: '4px'
-                            }}
-                            required
-                          />
-                        </div>
-
-                        <div>
-                          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-                            Description
-                          </label>
-                          <textarea
-                            value={interviewFormData.description || ''}
-                            onChange={(e) => setInterviewFormData({ ...interviewFormData, description: e.target.value })}
-                            rows={3}
-                            style={{
-                              width: '100%',
-                              padding: '0.75rem',
-                              border: '1px solid #d1d5db',
-                              borderRadius: '4px',
-                              resize: 'vertical'
-                            }}
-                          />
-                        </div>
-
-                        <div>
-                          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-                            Recruitment Form (Job Position) *
-                          </label>
-                          <select
-                            value={interviewFormData.form}
-                            onChange={(e) => setInterviewFormData({ ...interviewFormData, form: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '0.75rem',
-                              border: '1px solid #d1d5db',
-                              borderRadius: '4px'
-                            }}
-                            required
-                          >
-                            <option value="">Select a recruitment form</option>
-                            {recruitmentForms.map(form => (
-                              <option key={form._id} value={form._id}>
-                                {form.title} - {form.position} ({form.department})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                          <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-                              Round
-                            </label>
-                            <input
-                              type="number"
-                              value={interviewFormData.round}
-                              onChange={(e) => setInterviewFormData({ ...interviewFormData, round: parseInt(e.target.value) || 1 })}
-                              min="1"
-                              style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px'
-                              }}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-                              Interview Type
-                            </label>
-                            <select
-                              value={interviewFormData.type}
-                              onChange={(e) => setInterviewFormData({ ...interviewFormData, type: e.target.value })}
-                              style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px'
-                              }}
-                            >
-                              <option value="technical">Technical</option>
-                              <option value="hr">HR</option>
-                              <option value="final">Final</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      <ModalActions style={{ marginTop: '1.5rem' }}>
-                        <CancelButton onClick={() => setShowCreateModal(false)}>
-                          Cancel
-                        </CancelButton>
-                        <SubmitButton onClick={handleCreateInterview} disabled={!interviewFormData.title || !interviewFormData.form}>
-                          Create Interview
-                        </SubmitButton>
                       </ModalActions>
                     </ModalContent>
                   </ModalOverlay>

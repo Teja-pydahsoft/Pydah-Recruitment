@@ -13,20 +13,22 @@ import {
   Form,
   Modal,
   Spinner,
-  InputGroup
+  InputGroup,
+  Pagination
 } from 'react-bootstrap';
 import {
   FaPlus,
   FaLayerGroup,
   FaListUl,
-  FaFilter,
   FaEdit,
   FaTrash,
   FaSync,
   FaSearch,
   FaClipboardCheck,
   FaCheckCircle,
-  FaUpload
+  FaUpload,
+  FaEye,
+  FaDownload
 } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
@@ -38,15 +40,15 @@ const CATEGORY_OPTIONS = [
 
 const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard'];
 
+const PAGE_SIZE = 10;
+
 const defaultQuestionForm = {
   topicId: '',
   subTopic: '',
   questionText: '',
   options: ['', ''],
   correctAnswer: 0,
-  difficulty: 'medium',
-  tags: '',
-  explanation: ''
+  difficulty: 'medium'
 };
 
 const defaultBuilderState = {
@@ -64,23 +66,22 @@ const TestsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('assessments');
 
-  const [tests, setTests] = useState([]);
-
   const [topics, setTopics] = useState([]);
   const [topicsLoading, setTopicsLoading] = useState(false);
   const [topicModalVisible, setTopicModalVisible] = useState(false);
   const [topicSaving, setTopicSaving] = useState(false);
   const [topicForm, setTopicForm] = useState({ id: null, name: '', category: 'teaching', description: '', isActive: true });
 
-  const [questionFilters, setQuestionFilters] = useState({ category: 'all', topicId: 'all', search: '', includeInactive: false });
+  const [questionFilters, setQuestionFilters] = useState({ topicId: 'all', search: '' });
   const [questionLoading, setQuestionLoading] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [questionForm, setQuestionForm] = useState(defaultQuestionForm);
   const [questionSaving, setQuestionSaving] = useState(false);
   const [questionModalVisible, setQuestionModalVisible] = useState(false);
   const [bulkModalVisible, setBulkModalVisible] = useState(false);
-  const [bulkUploadState, setBulkUploadState] = useState({ topicId: '', file: null });
+  const [bulkUploadState, setBulkUploadState] = useState({ file: null });
   const [bulkUploading, setBulkUploading] = useState(false);
+  const [templateDownloading, setTemplateDownloading] = useState(false);
 
   const [candidates, setCandidates] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
@@ -88,14 +89,335 @@ const TestsManagement = () => {
   const [builderModalVisible, setBuilderModalVisible] = useState(false);
   const [builderSaving, setBuilderSaving] = useState(false);
   const [builderState, setBuilderState] = useState(defaultBuilderState);
+  const [promoteModalVisible, setPromoteModalVisible] = useState(false);
+  const [promoteSubmitting, setPromoteSubmitting] = useState(false);
+  const [promotionForm, setPromotionForm] = useState({
+    candidate: null,
+    interviewDate: '',
+    interviewTime: '',
+    notes: ''
+  });
+  const [testStatusFilter, setTestStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileData, setProfileData] = useState(null);
+  const [expandedTestResults, setExpandedTestResults] = useState({});
 
   const [toast, setToast] = useState({ type: '', message: '' });
   const [candidateFilters, setCandidateFilters] = useState({ category: 'all', position: 'all', search: '' });
 
+  const formatDateTime = (value) => {
+    if (!value) {
+      return '--';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '--';
+    }
+    return date.toLocaleString();
+  };
+
+  const formatTo12Hour = useCallback((time24) => {
+    if (!time24) {
+      return '';
+    }
+    const [hoursPart, minutesPart] = time24.split(':');
+    if (hoursPart === undefined || minutesPart === undefined) {
+      return time24;
+    }
+    let hours = Number(hoursPart);
+    const suffix = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutesPart} ${suffix}`;
+  }, []);
+
+  const istTimeOptions = useMemo(() => {
+    const options = [{ value: '', label: 'Select time (IST)' }];
+    for (let hour = 0; hour < 24; hour += 1) {
+      for (const minute of [0, 30]) {
+        const value = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        options.push({ value, label: formatTo12Hour(value) });
+      }
+    }
+    return options;
+  }, [formatTo12Hour]);
+
+  const interviewTimeOptions = useMemo(() => {
+    if (!promotionForm.interviewTime) {
+      return istTimeOptions;
+    }
+    if (istTimeOptions.some(option => option.value === promotionForm.interviewTime)) {
+      return istTimeOptions;
+    }
+    return [
+      ...istTimeOptions,
+      {
+        value: promotionForm.interviewTime,
+        label: formatTo12Hour(promotionForm.interviewTime)
+      }
+    ];
+  }, [istTimeOptions, promotionForm.interviewTime, formatTo12Hour]);
+
+  const renderResultBadge = (status) => {
+    const normalized = (status || '').toLowerCase();
+
+    switch (normalized) {
+      case 'passed':
+        return <Badge bg="success">Passed</Badge>;
+      case 'failed':
+        return <Badge bg="danger">Failed</Badge>;
+      case 'completed':
+        return <Badge bg="primary">Completed</Badge>;
+      case 'started':
+        return <Badge bg="info">In Progress</Badge>;
+      case 'invited':
+      case 'assigned':
+        return <Badge bg="secondary">{status}</Badge>;
+      default:
+        return <Badge bg="secondary">{status || '—'}</Badge>;
+    }
+  };
+
+  const renderCandidateProfileContent = () => {
+    if (!profileData) {
+      return <Alert variant="light">Select a candidate to view test insights.</Alert>;
+    }
+
+    const summary = profileData.testResults?.summary || {};
+    const totalTests = Number(summary.totalTests || 0);
+    const passedTests = Number(summary.passedTests || 0);
+    const averageScoreValue =
+      typeof summary.averageScore === 'number' ? summary.averageScore : Number(summary.averageScore || 0);
+
+    const completedTests = Array.isArray(profileData.testResults?.tests)
+      ? profileData.testResults.tests
+      : [];
+
+    const sortedSubmissions = [...completedTests].sort((a, b) => {
+      const aTime = a?.submittedAt ? new Date(a.submittedAt).getTime() : Number.POSITIVE_INFINITY;
+      const bTime = b?.submittedAt ? new Date(b.submittedAt).getTime() : Number.POSITIVE_INFINITY;
+      return aTime - bTime;
+    });
+    const firstSubmission = sortedSubmissions.find(test => test?.submittedAt);
+
+    const assignments = Array.isArray(profileData.assignments?.tests)
+      ? profileData.assignments.tests
+      : [];
+
+    const scoreFormatter = (score, total) => {
+      if (typeof score === 'number' && typeof total === 'number') {
+        return `${score}/${total}`;
+      }
+      return '—';
+    };
+
+    const percentageFormatter = (value) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return `${value.toFixed(1)}%`;
+      }
+      return '—';
+    };
+
+    return (
+      <div>
+        <div className="mb-4">
+          <h5 className="mb-1">{profileData.personalDetails?.name || profileData.user?.name}</h5>
+          {profileData.personalDetails?.email && (
+            <div className="text-muted">{profileData.personalDetails.email}</div>
+          )}
+          {profileData.personalDetails?.phone && (
+            <div className="text-muted">Phone: {profileData.personalDetails.phone}</div>
+          )}
+          <div className="text-muted">
+            {profileData.form?.position || '—'}
+            {profileData.form?.department ? ` • ${profileData.form.department}` : ''}
+          </div>
+          {profileData.workflow?.label && (
+            <Badge bg="info" className="mt-2 text-uppercase">
+              {profileData.workflow.label}
+            </Badge>
+          )}
+        </div>
+
+        <Row className="g-3 mb-4">
+          <Col md={3}>
+            <Card className="text-center h-100">
+              <Card.Body>
+                <h6 className="text-muted text-uppercase mb-2">Total Tests</h6>
+                <h3 className="mb-0 text-primary">{totalTests}</h3>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={3}>
+            <Card className="text-center h-100">
+              <Card.Body>
+                <h6 className="text-muted text-uppercase mb-2">Tests Passed</h6>
+                <h3 className="mb-0 text-success">{passedTests}</h3>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={3}>
+            <Card className="text-center h-100">
+              <Card.Body>
+                <h6 className="text-muted text-uppercase mb-2">Average Score</h6>
+                <h3 className="mb-0 text-info">{averageScoreValue.toFixed(1)}%</h3>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={3}>
+            <Card className="text-center h-100">
+              <Card.Body>
+                <h6 className="text-muted text-uppercase mb-2">First Submission</h6>
+                {firstSubmission ? (
+                  <>
+                    <div className="fw-semibold">{firstSubmission.testTitle || 'Assessment'}</div>
+                    <small className="text-muted">{formatDateTime(firstSubmission.submittedAt)}</small>
+                  </>
+                ) : (
+                  <p className="text-muted mb-0">Not submitted yet</p>
+                )}
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+
+        <h6 className="mb-2">Completed Tests</h6>
+        {completedTests.length > 0 ? (
+          <Table striped bordered hover responsive>
+            <thead>
+              <tr>
+                <th>Test Title</th>
+                <th>Score</th>
+                <th>Percentage</th>
+                <th>Status</th>
+                <th>Submitted At</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {completedTests.map((test, index) => {
+                const testKey = test.testId || index;
+                return (
+                <React.Fragment key={testKey}>
+                  <tr>
+                    <td>{test.testTitle}</td>
+                    <td>{scoreFormatter(test.score, test.totalScore)}</td>
+                    <td>{percentageFormatter(test.percentage)}</td>
+                    <td>{renderResultBadge(test.status)}</td>
+                    <td>{formatDateTime(test.submittedAt)}</td>
+                    <td>
+                      <Button
+                        variant={expandedTestResults[testKey] ? 'primary' : 'outline-primary'}
+                        size="sm"
+                        onClick={() => toggleTestResultDetails(testKey)}
+                      >
+                        {expandedTestResults[testKey] ? 'Hide Answers' : 'View Answers'}
+                      </Button>
+                    </td>
+                  </tr>
+                  {expandedTestResults[testKey] && (
+                    <tr>
+                      <td colSpan={6}>
+                        <div className="p-3 bg-light rounded">
+                          <div className="d-flex flex-wrap gap-3 mb-3">
+                            <div><strong>Score:</strong> {scoreFormatter(test.score, test.totalScore)}</div>
+                            <div><strong>Percentage:</strong> {percentageFormatter(test.percentage)}</div>
+                            <div><strong>Started:</strong> {formatDateTime(test.startedAt)}</div>
+                            <div><strong>Submitted:</strong> {formatDateTime(test.submittedAt)}</div>
+                            {test.duration && (
+                              <div><strong>Test Duration:</strong> {test.duration} minutes</div>
+                            )}
+                          </div>
+                          {test.answers && test.answers.length > 0 ? (
+                            <Table size="sm" bordered hover responsive>
+                              <thead>
+                                <tr>
+                                  <th>#</th>
+                                  <th>Question</th>
+                                  <th>Your Answer</th>
+                                  <th>Correct Answer</th>
+                                  <th>Result</th>
+                                  <th>Marks</th>
+                                  <th>Time Taken</th>
+                                  <th>Answered At</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {test.answers.map((answer, answerIndex) => (
+                                  <tr key={`${testKey}-${answer.questionId || answerIndex}`}>
+                                    <td>{answerIndex + 1}</td>
+                                    <td>{answer.questionText}</td>
+                                    <td>{formatOptionList(answer.selectedOptions)}</td>
+                                    <td>{formatOptionList(answer.correctOptions, 'Not available')}</td>
+                                    <td>
+                                      {answer.isCorrect === true ? (
+                                        <Badge bg="success">Correct</Badge>
+                                      ) : answer.isCorrect === false ? (
+                                        <Badge bg="danger">Incorrect</Badge>
+                                      ) : (
+                                        <Badge bg="secondary">Pending</Badge>
+                                      )}
+                                    </td>
+                                    <td>{typeof answer.marksAwarded === 'number' ? answer.marksAwarded : '--'}</td>
+                                    <td>{formatDurationSeconds(answer.timeTaken)}</td>
+                                    <td>{formatDateTime(answer.answeredAt)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </Table>
+                          ) : (
+                            <Alert variant="info" className="mb-0">
+                              No answer details available for this test.
+                            </Alert>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );})}
+            </tbody>
+          </Table>
+        ) : (
+          <Alert variant="info">No completed tests yet.</Alert>
+        )}
+
+        {assignments.length > 0 && (
+          <div className="mt-4">
+            <h6 className="mb-2">Assigned Tests</h6>
+            <Table striped bordered hover responsive>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Invited</th>
+                  <th>Completed</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignments.map(assignment => (
+                  <tr key={assignment.testId}>
+                    <td>{assignment.title}</td>
+                    <td>{renderResultBadge(assignment.status)}</td>
+                    <td>{formatDateTime(assignment.invitedAt)}</td>
+                    <td>{formatDateTime(assignment.completedAt)}</td>
+                    <td>{percentageFormatter(assignment.percentage)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        await Promise.all([fetchTests(), fetchTopics(), fetchCandidates()]);
+        await Promise.all([fetchTopics(), fetchCandidates()]);
       } catch (error) {
         console.error('Initial load error', error);
       } finally {
@@ -105,16 +427,6 @@ const TestsManagement = () => {
 
     bootstrap();
   }, []);
-
-  const fetchTests = async () => {
-    try {
-      const response = await api.get('/tests');
-      setTests(response.data.tests || []);
-    } catch (error) {
-      console.error('Tests fetch error:', error);
-      setToast({ type: 'danger', message: 'Unable to load assessments. Please try again later.' });
-    }
-  };
 
   const fetchTopics = async () => {
     setTopicsLoading(true);
@@ -141,14 +453,8 @@ const TestsManagement = () => {
         limit: 200
       };
 
-      if (questionFilters.category !== 'all') {
-        params.category = questionFilters.category;
-      }
       if (questionFilters.topicId !== 'all') {
         params.topicId = questionFilters.topicId;
-      }
-      if (questionFilters.includeInactive) {
-        params.includeInactive = 'true';
       }
       if (questionFilters.search.trim()) {
         params.search = questionFilters.search.trim();
@@ -182,6 +488,34 @@ const TestsManagement = () => {
       setToast({ type: 'danger', message: 'Unable to load candidate pool.' });
     } finally {
       setCandidatesLoading(false);
+    }
+  };
+
+  const handleRefreshData = async () => {
+    try {
+      await Promise.all([fetchTopics(), fetchCandidates()]);
+    } catch (error) {
+      console.error('Refresh data error:', error);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    setTemplateDownloading(true);
+    try {
+      const response = await api.get('/tests/questions/bulk-template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'mcq-bulk-template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Template download error:', error);
+      setToast({ type: 'danger', message: 'Unable to download the template. Please try again.' });
+    } finally {
+      setTemplateDownloading(false);
     }
   };
 
@@ -312,9 +646,7 @@ const TestsManagement = () => {
         questionText: questionForm.questionText?.trim(),
         options: cleanedOptions,
         correctAnswer: questionForm.correctAnswer,
-        difficulty: questionForm.difficulty,
-        tags: questionForm.tags ? questionForm.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
-        explanation: questionForm.explanation?.trim() || undefined
+        difficulty: questionForm.difficulty
       };
 
       if (!payload.questionText) {
@@ -434,7 +766,6 @@ const TestsManagement = () => {
       await api.post('/tests/auto-generate', payload);
       setToast({ type: 'success', message: 'Assessment generated and assigned successfully.' });
       closeBuilderModal();
-      fetchTests();
       fetchCandidates();
     } catch (error) {
       console.error('Auto-generate assessment error:', error);
@@ -486,6 +817,8 @@ const TestsManagement = () => {
       const position = candidate.form?.position || '';
       const department = candidate.form?.department || '';
       const name = candidate.user?.name || '';
+      const testsMeta = candidate.workflow?.tests || {};
+      const testsCompletedCount = Number(testsMeta.completed) || 0;
 
       const matchesCategory = candidateFilters.category === 'all' || category === candidateFilters.category;
       const matchesPosition = candidateFilters.position === 'all' || position === candidateFilters.position;
@@ -495,11 +828,144 @@ const TestsManagement = () => {
         position.toLowerCase().includes(search) ||
         department.toLowerCase().includes(search);
 
-      return matchesCategory && matchesPosition && matchesSearch;
+      const matchesTestStatus =
+        testStatusFilter === 'all' ||
+        (testStatusFilter === 'pending' && testsCompletedCount === 0) ||
+        (testStatusFilter === 'conducted' && testsCompletedCount > 0);
+
+      return matchesCategory && matchesPosition && matchesSearch && matchesTestStatus;
     });
-  }, [candidates, candidateFilters]);
+  }, [candidates, candidateFilters, testStatusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAssessmentCandidates.length / PAGE_SIZE));
+
+  const paginatedAssessmentCandidates = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    return filteredAssessmentCandidates.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [filteredAssessmentCandidates, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [candidateFilters, testStatusFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
 
   const getTopicById = (topicId) => topics.find(topic => topic._id === topicId);
+
+  const openPromoteModal = (candidate) => {
+    setPromotionForm({
+      candidate,
+      interviewDate: '',
+      interviewTime: '',
+      notes: ''
+    });
+    setPromoteModalVisible(true);
+  };
+
+  const closePromoteModal = () => {
+    if (!promoteSubmitting) {
+      setPromoteModalVisible(false);
+      setPromotionForm({
+        candidate: null,
+        interviewDate: '',
+        interviewTime: '',
+        notes: ''
+      });
+    }
+  };
+
+  const handlePromoteCandidate = async (event) => {
+    event.preventDefault();
+    if (!promotionForm.candidate?._id) {
+      setToast({ type: 'danger', message: 'Candidate information is missing.' });
+      return;
+    }
+
+    if (!promotionForm.interviewDate) {
+      setToast({ type: 'danger', message: 'Select an interview date to continue.' });
+      return;
+    }
+
+    setPromoteSubmitting(true);
+    try {
+      await api.post(`/candidates/${promotionForm.candidate._id}/promote-to-interview`, {
+        interviewDate: promotionForm.interviewDate,
+        interviewTime: promotionForm.interviewTime || null,
+        notes: promotionForm.notes || null
+      });
+
+      setToast({ type: 'success', message: 'Candidate promoted to interview successfully.' });
+      closePromoteModal();
+      fetchCandidates();
+    } catch (error) {
+      console.error('Candidate promotion error:', error);
+      const message = error.response?.data?.message || 'Unable to promote candidate. Please try again.';
+      setToast({ type: 'danger', message });
+    } finally {
+      setPromoteSubmitting(false);
+    }
+  };
+
+  const openProfileModal = async (candidateId) => {
+    setProfileModalVisible(true);
+    setProfileLoading(true);
+    setExpandedTestResults({});
+    try {
+      const response = await api.get(`/candidates/${candidateId}`);
+      setProfileData(response.data.candidate || null);
+    } catch (error) {
+      console.error('Candidate profile fetch error:', error);
+      setToast({ type: 'danger', message: 'Unable to load candidate profile.' });
+      setProfileData(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const closeProfileModal = () => {
+    if (!profileLoading) {
+      setProfileModalVisible(false);
+      setProfileData(null);
+      setExpandedTestResults({});
+    }
+  };
+
+  const toggleTestResultDetails = (testId) => {
+    setExpandedTestResults(prev => ({
+      ...prev,
+      [testId]: !prev[testId]
+    }));
+  };
+
+  const formatDurationSeconds = (value) => {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return '--';
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
+  };
+
+  const formatOptionList = (options, emptyLabel = 'Not answered') => {
+    if (!options || options.length === 0) {
+      return emptyLabel;
+    }
+    return options
+      .map(option => {
+        if (!option) {
+          return '—';
+        }
+        const label = option.label || (typeof option.index === 'number' ? String.fromCharCode(65 + option.index) : '');
+        const text = option.text || '—';
+        return `${label}${label ? '. ' : ''}${text}`;
+      })
+      .join(', ');
+  };
 
   if (loading) {
     return <LoadingSpinner message="Loading assessment workspace..." />;
@@ -517,7 +983,7 @@ const TestsManagement = () => {
               </p>
             </div>
             <div className="d-flex gap-2">
-              <Button variant="outline-secondary" onClick={() => fetchTests()}>
+              <Button variant="outline-secondary" onClick={handleRefreshData}>
                 <FaSync className="me-2" />Refresh Data
               </Button>
               <Button variant="primary" onClick={() => openBuilderModal()}>
@@ -541,7 +1007,7 @@ const TestsManagement = () => {
       <Tabs activeKey={activeTab} onSelect={(key) => setActiveTab(key || 'assessments')} className="mb-4">
         <Tab eventKey="assessments" title="Candidate Assessments">
           <Row className="g-3 align-items-end mb-3">
-            <Col lg={5}>
+            <Col lg={4}>
               <div className="d-flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -566,6 +1032,17 @@ const TestsManagement = () => {
                 </Button>
               </div>
             </Col>
+            <Col lg={2}>
+              <Form.Select
+                size="sm"
+                value={testStatusFilter}
+                onChange={(event) => setTestStatusFilter(event.target.value)}
+              >
+                <option value="all">All Test States</option>
+                <option value="pending">Pending Tests</option>
+                <option value="conducted">Test Conducted</option>
+              </Form.Select>
+            </Col>
             <Col lg={3}>
               <Form.Select
                 size="sm"
@@ -587,7 +1064,10 @@ const TestsManagement = () => {
                 />
                 <Button
                   variant="outline-secondary"
-                  onClick={() => setCandidateFilters({ category: 'all', position: 'all', search: '' })}
+                  onClick={() => {
+                    setCandidateFilters({ category: 'all', position: 'all', search: '' });
+                    setTestStatusFilter('all');
+                  }}
                 >
                   Reset
                 </Button>
@@ -595,7 +1075,7 @@ const TestsManagement = () => {
             </Col>
           </Row>
           <Row className="g-4">
-            <Col lg={6}>
+            <Col lg={12}>
               <Card className="h-100">
                 <Card.Header className="d-flex justify-content-between align-items-center">
                   <div>
@@ -624,7 +1104,7 @@ const TestsManagement = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredAssessmentCandidates.map(candidate => (
+                        {paginatedAssessmentCandidates.map(candidate => (
                           <tr key={candidate._id}>
                             <td>{candidate.user?.name}</td>
                             <td>{candidate.candidateNumber || '—'}</td>
@@ -694,6 +1174,7 @@ const TestsManagement = () => {
                                 const workflowStage = candidate.workflow?.stage;
                                 const tests = candidate.workflow?.tests || {};
                                 const testsCompleted = Number(tests.completed) || 0;
+                                const testsAssigned = Number(tests.assigned) || 0;
                                 const hasCompletedTests = testsCompleted > 0;
                                 const isFinalised = ['selected', 'rejected'].includes(status) || ['selected', 'rejected'].includes((finalDecision || '').toLowerCase());
                                 const movedToInterview =
@@ -715,6 +1196,9 @@ const TestsManagement = () => {
                                   if (hasCompletedTests) {
                                     return 'Test Completed';
                                   }
+                                  if (testsAssigned > 0) {
+                                    return 'Test Assigned';
+                                  }
                                   return 'Awaiting Assignment';
                                 };
 
@@ -722,12 +1206,14 @@ const TestsManagement = () => {
                                   if ((finalDecision || '').toLowerCase() === 'selected' || status === 'selected') return 'success';
                                   if ((finalDecision || '').toLowerCase() === 'rejected' || status === 'rejected') return 'danger';
                                   if (movedToInterview) return 'info';
-                                  if (hasCompletedTests) return 'secondary';
+                                  if (hasCompletedTests || testsAssigned > 0) return 'secondary';
                                   return 'outline-secondary';
                                 };
 
-                                const primaryLabel = movedToInterview || hasCompletedTests ? 'Conduct Test Again' : 'Build Assessment';
-                                const primaryVariant = movedToInterview || hasCompletedTests ? 'warning' : 'primary';
+                                const primaryLabel = hasCompletedTests ? 'Conduct Test Again' : (testsAssigned > 0 ? 'Conduct Test Again' : 'Build Assessment');
+                                const primaryVariant = hasCompletedTests || testsAssigned > 0 ? 'warning' : 'primary';
+                                const showPrimaryAction = !movedToInterview;
+                                const canPromoteDirectly = !isFinalised && !movedToInterview;
 
                                 return (
                                   <div className="d-flex flex-column flex-sm-row gap-2 justify-content-end">
@@ -735,15 +1221,38 @@ const TestsManagement = () => {
                                       {decisionLabel()}
                                     </Button>
                                     {!isFinalised && (
-                                      <Button
-                                        size="sm"
-                                        variant={primaryVariant}
-                                        onClick={() => openBuilderModal(candidate)}
-                                        className="text-nowrap"
-                                      >
-                                        {primaryLabel}
-                                      </Button>
+                                      <>
+                                        {showPrimaryAction && (
+                                          <Button
+                                            size="sm"
+                                            variant={primaryVariant}
+                                            onClick={() => openBuilderModal(candidate)}
+                                            className="text-nowrap"
+                                          >
+                                            {primaryLabel}
+                                          </Button>
+                                        )}
+                                        {canPromoteDirectly && (
+                                          <Button
+                                            size="sm"
+                                            variant="success"
+                                            onClick={() => openPromoteModal(candidate)}
+                                            className="text-nowrap"
+                                          >
+                                            Promote to Interview
+                                          </Button>
+                                        )}
+                                      </>
                                     )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline-primary"
+                                      onClick={() => openProfileModal(candidate._id)}
+                                      className="text-nowrap"
+                                    >
+                                      <FaEye className="me-1" />
+                                      View Test Results
+                                    </Button>
                                   </div>
                                 );
                               })()}
@@ -754,47 +1263,29 @@ const TestsManagement = () => {
                     </Table>
                   )}
                 </Card.Body>
-              </Card>
-            </Col>
-            <Col lg={6}>
-              <Card className="h-100">
-                <Card.Header className="d-flex justify-content-between align-items-center">
-                  <div>
-                    <h5 className="mb-0">Recent Assessments</h5>
-                    <small className="text-muted">Generated tests and their origin</small>
+                {totalPages > 1 && (
+                  <div className="d-flex justify-content-end align-items-center px-3 pb-3">
+                    <Pagination size="sm" className="mb-0">
+                      <Pagination.Prev
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      />
+                      {Array.from({ length: totalPages }).map((_, index) => (
+                        <Pagination.Item
+                          key={index + 1}
+                          active={currentPage === index + 1}
+                          onClick={() => setCurrentPage(index + 1)}
+                        >
+                          {index + 1}
+                        </Pagination.Item>
+                      ))}
+                      <Pagination.Next
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      />
+                    </Pagination>
                   </div>
-                  <Badge bg="info">{tests.length}</Badge>
-                </Card.Header>
-                <Card.Body style={{ maxHeight: '420px', overflowY: 'auto' }}>
-                  {tests.length === 0 ? (
-                    <Alert variant="light">No assessments created yet.</Alert>
-                  ) : (
-                    <Table responsive striped hover size="sm">
-                      <thead>
-                        <tr>
-                          <th>Title</th>
-                          <th>Duration</th>
-                          <th>Source</th>
-                          <th>Created</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tests.map(test => (
-                          <tr key={test._id}>
-                            <td>{test.title}</td>
-                            <td>{test.duration} min</td>
-                            <td>
-                              <Badge bg={test.questionSource === 'bank' ? 'success' : test.questionSource === 'uploaded' ? 'warning' : 'secondary'}>
-                                {test.questionSource === 'bank' ? 'Question Bank' : test.questionSource === 'uploaded' ? 'CSV Upload' : 'Manual'}
-                              </Badge>
-                            </td>
-                            <td>{new Date(test.createdAt).toLocaleDateString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </Table>
-                  )}
-                </Card.Body>
+                )}
               </Card>
             </Col>
           </Row>
@@ -875,34 +1366,21 @@ const TestsManagement = () => {
         </Tab>
 
         <Tab eventKey="questionBank" title="Question Bank">
-          <Row className="mb-3 g-3">
-            <Col md={4}>
-              <Form.Select
-                value={questionFilters.category}
-                onChange={(event) => setQuestionFilters(prev => ({ ...prev, category: event.target.value, topicId: 'all' }))}
-              >
-                <option value="all">All Categories</option>
-                {CATEGORY_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </Form.Select>
-            </Col>
-            <Col md={4}>
+          <Row className="mb-3 g-3 align-items-center">
+            <Col md={4} sm={6}>
               <Form.Select
                 value={questionFilters.topicId}
                 onChange={(event) => setQuestionFilters(prev => ({ ...prev, topicId: event.target.value }))}
               >
                 <option value="all">All Topics</option>
-                {topics
-                  .filter(topic => questionFilters.category === 'all' || topic.category === questionFilters.category)
-                  .map(topic => (
-                    <option key={topic._id} value={topic._id}>
-                      {topic.name} {topic.questionCount ? `(${topic.questionCount})` : ''}
-                    </option>
-                  ))}
+                {topics.map(topic => (
+                  <option key={topic._id} value={topic._id}>
+                    {topic.name} {topic.questionCount ? `(${topic.questionCount})` : ''}
+                  </option>
+                ))}
               </Form.Select>
             </Col>
-            <Col md={4}>
+            <Col md={4} sm={6}>
               <InputGroup>
                 <Form.Control
                   placeholder="Search question text..."
@@ -914,23 +1392,25 @@ const TestsManagement = () => {
                 </Button>
               </InputGroup>
             </Col>
-            <Col md={4} className="d-flex align-items-center gap-2">
-              <Form.Check
-                type="switch"
-                id="include-inactive"
-                label="Include inactive"
-                checked={questionFilters.includeInactive}
-                onChange={(event) => setQuestionFilters(prev => ({ ...prev, includeInactive: event.target.checked }))}
-              />
-              <Button variant="outline-secondary" size="sm" onClick={fetchQuestions}>
-                <FaFilter className="me-2" />Apply Filters
-              </Button>
-            </Col>
-            <Col md={4} className="d-flex justify-content-md-end align-items-center gap-2">
-              <Button variant="outline-primary" size="sm" onClick={() => { setBulkUploadState({ topicId: '', file: null }); setBulkModalVisible(true); }}>
+            <Col md={4} sm={12} className="d-flex justify-content-md-end align-items-center gap-2">
+              <Button
+                variant="outline-primary"
+                size="sm"
+                onClick={() => {
+                  setBulkUploadState({ file: null });
+                  setBulkModalVisible(true);
+                }}
+              >
                 <FaUpload className="me-2" />Bulk Upload (Excel)
               </Button>
-              <Button variant="primary" size="sm" onClick={() => { setQuestionForm(defaultQuestionForm); setQuestionModalVisible(true); }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setQuestionForm(defaultQuestionForm);
+                  setQuestionModalVisible(true);
+                }}
+              >
                 <FaPlus className="me-2" />Add MCQ
               </Button>
             </Col>
@@ -956,13 +1436,12 @@ const TestsManagement = () => {
                   ) : questions.length === 0 ? (
                     <Alert variant="light">No questions match the selected filters.</Alert>
                   ) : (
-                    <Table responsive hover>
+                    <Table responsive bordered hover size="sm" className="align-middle">
                       <thead>
                         <tr>
                           <th>Question</th>
                           <th>Topic</th>
-                          <th>Difficulty</th>
-                          <th>Actions</th>
+                          <th className="text-end">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -979,7 +1458,6 @@ const TestsManagement = () => {
                               </small>
                             </td>
                             <td>{question.topicName || getTopicById(question.topic)?.name || '—'}</td>
-                            <td><Badge bg="secondary">{question.difficulty || 'medium'}</Badge></td>
                             <td className="text-end">
                               <Button variant="outline-danger" size="sm" onClick={() => handleDeleteQuestion(question._id)}>
                                 <FaTrash />
@@ -1054,6 +1532,107 @@ const TestsManagement = () => {
         </Form>
       </Modal>
 
+      {/* Promote Candidate Modal */}
+      <Modal show={promoteModalVisible} onHide={closePromoteModal} centered>
+        <Form onSubmit={handlePromoteCandidate}>
+          <Modal.Header closeButton>
+            <Modal.Title>Promote Candidate to Interview</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {promotionForm.candidate && (
+              <div className="mb-3">
+                <h5 className="mb-1">{promotionForm.candidate.user?.name}</h5>
+                <div className="text-muted">
+                  {promotionForm.candidate.user?.email || 'No email available'}
+                </div>
+                {promotionForm.candidate.form?.position && (
+                  <div className="text-muted">
+                    {promotionForm.candidate.form.position}
+                    {promotionForm.candidate.form.department ? ` • ${promotionForm.candidate.form.department}` : ''}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Form.Group className="mb-3">
+              <Form.Label>Interview Date<span className="text-danger">*</span></Form.Label>
+              <Form.Control
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                value={promotionForm.interviewDate}
+                onChange={(event) => setPromotionForm(prev => ({ ...prev, interviewDate: event.target.value }))}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Interview Time (IST)</Form.Label>
+              <Form.Select
+                value={promotionForm.interviewTime}
+                onChange={(event) => setPromotionForm(prev => ({ ...prev, interviewTime: event.target.value }))}
+              >
+                {interviewTimeOptions.map(option => (
+                  <option key={option.value || 'blank'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Form.Select>
+              <Form.Text className="text-muted">Optional. Times are shown in IST (UTC+5:30) with 12-hour format.</Form.Text>
+            </Form.Group>
+
+            <Form.Group>
+              <Form.Label>Notes to Candidate</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                placeholder="Optional message that will be included in the email..."
+                value={promotionForm.notes}
+                onChange={(event) => setPromotionForm(prev => ({ ...prev, notes: event.target.value }))}
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closePromoteModal} disabled={promoteSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={promoteSubmitting}>
+              {promoteSubmitting ? (
+                <>
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  Promoting...
+                </>
+              ) : (
+                <>
+                  <FaCheckCircle className="me-2" />
+                  Promote Candidate
+                </>
+              )}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Candidate Profile Modal */}
+      <Modal show={profileModalVisible} onHide={closeProfileModal} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Candidate Test Overview</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {profileLoading ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" />
+            </div>
+          ) : (
+            renderCandidateProfileContent()
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeProfileModal} disabled={profileLoading}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       {/* Assessment Builder Modal */}
       <Modal show={builderModalVisible} onHide={closeBuilderModal} size="lg" centered>
         <Modal.Header closeButton>
@@ -1071,7 +1650,7 @@ const TestsManagement = () => {
                     required
                   >
                     <option value="">Select candidate</option>
-                        {candidates.map(candidate => (
+                    {candidates.map(candidate => (
                       <option key={candidate._id} value={candidate._id}>
                         {candidate.user?.name} — {candidate.form?.position}{candidate.candidateNumber ? ` (${candidate.candidateNumber})` : ''}
                       </option>
@@ -1322,40 +1901,16 @@ const TestsManagement = () => {
               </Form.Select>
             </Form.Group>
 
-            <Row className="mb-3">
-              <Col md={6}>
-                <Form.Group>
-                  <Form.Label>Difficulty</Form.Label>
-                  <Form.Select
-                    value={questionForm.difficulty}
-                    onChange={(event) => setQuestionForm(prev => ({ ...prev, difficulty: event.target.value }))}
-                  >
-                    {DIFFICULTY_OPTIONS.map(option => (
-                      <option key={option} value={option}>{option.replace('_', ' ')}</option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group>
-                  <Form.Label>Tags</Form.Label>
-                  <Form.Control
-                    placeholder="Comma separated"
-                    value={questionForm.tags}
-                    onChange={(event) => setQuestionForm(prev => ({ ...prev, tags: event.target.value }))}
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-
             <Form.Group className="mb-3">
-              <Form.Label>Explanation (optional)</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={2}
-                value={questionForm.explanation}
-                onChange={(event) => setQuestionForm(prev => ({ ...prev, explanation: event.target.value }))}
-              />
+              <Form.Label>Difficulty</Form.Label>
+              <Form.Select
+                value={questionForm.difficulty}
+                onChange={(event) => setQuestionForm(prev => ({ ...prev, difficulty: event.target.value }))}
+              >
+                {DIFFICULTY_OPTIONS.map(option => (
+                  <option key={option} value={option}>{option.replace('_', ' ')}</option>
+                ))}
+              </Form.Select>
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>
@@ -1383,7 +1938,7 @@ const TestsManagement = () => {
         onHide={() => {
           if (!bulkUploading) {
             setBulkModalVisible(false);
-            setBulkUploadState({ topicId: '', file: null });
+            setBulkUploadState({ file: null });
           }
         }}
         centered
@@ -1402,15 +1957,12 @@ const TestsManagement = () => {
             try {
               const formData = new FormData();
               formData.append('file', bulkUploadState.file);
-              if (bulkUploadState.topicId) {
-                formData.append('topicId', bulkUploadState.topicId);
-              }
               const response = await api.post('/tests/questions/bulk-upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
               });
               const { message } = response.data || {};
               setToast({ type: 'success', message: message || 'Questions uploaded successfully.' });
-              setBulkUploadState({ topicId: '', file: null });
+              setBulkUploadState({ file: null });
               setBulkModalVisible(false);
               fetchQuestions();
               fetchTopics();
@@ -1425,26 +1977,30 @@ const TestsManagement = () => {
         >
           <Modal.Body>
             <Alert variant="light">
-              Upload an Excel sheet with columns like <strong>Question, OptionA, OptionB, OptionC, OptionD, CorrectAnswer</strong>.
-              Optionally include <strong>Difficulty</strong>, <strong>Explanation</strong>, and <strong>Tags</strong>.
+              Upload an Excel sheet with columns like <strong>Question</strong>, <strong>OptionA</strong>, <strong>OptionB</strong>,
+              <strong>OptionC</strong>, <strong>OptionD</strong>, and <strong>CorrectAnswer</strong>.
             </Alert>
-            <Form.Group className="mb-3">
-              <Form.Label>Topic</Form.Label>
-              <Form.Select
-                value={bulkUploadState.topicId}
-                onChange={(event) => setBulkUploadState(prev => ({ ...prev, topicId: event.target.value }))}
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <span className="text-muted small">Need a sample file? Download the latest template.</span>
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={handleDownloadTemplate}
+                disabled={templateDownloading}
               >
-                <option value="">Use topic from spreadsheet</option>
-                {activeTopicOptions.map(topic => (
-                  <option key={topic._id} value={topic._id}>
-                    {topic.name} ({topic.category === 'teaching' ? 'Teaching' : 'Non-Teaching'})
-                  </option>
-                ))}
-              </Form.Select>
-              <Form.Text className="text-muted">
-                Leave blank if the spreadsheet includes a <em>Topic</em> column for each row.
-              </Form.Text>
-            </Form.Group>
+                {templateDownloading ? (
+                  <>
+                    <Spinner animation="border" size="sm" className="me-2" />
+                    Preparing...
+                  </>
+                ) : (
+                  <>
+                    <FaDownload className="me-2" />
+                    Download Template
+                  </>
+                )}
+              </Button>
+            </div>
             <Form.Group>
               <Form.Label>Excel File<span className="text-danger">*</span></Form.Label>
               <Form.Control
@@ -1460,7 +2016,7 @@ const TestsManagement = () => {
               variant="secondary"
               onClick={() => {
                 setBulkModalVisible(false);
-                setBulkUploadState({ topicId: '', file: null });
+                setBulkUploadState({ file: null });
               }}
               disabled={bulkUploading}
             >

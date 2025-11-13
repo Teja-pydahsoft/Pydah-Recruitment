@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { Container, Card, Button, Alert, Modal, ProgressBar } from 'react-bootstrap';
-import { FaCheckCircle, FaClock, FaExclamationTriangle, FaCheck, FaSignInAlt, FaCamera } from 'react-icons/fa';
+import { FaCheckCircle, FaClock, FaExclamationTriangle, FaCheck } from 'react-icons/fa';
 import api from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
-import { useAuth } from '../contexts/AuthContext';
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -79,7 +78,9 @@ const QuestionText = styled.div`
   color: #1e293b;
 `;
 
-const OptionButton = styled.button`
+const OptionButton = styled.button.attrs(() => ({
+  type: 'button'
+}))`
   width: 100%;
   padding: 1rem;
   margin-bottom: 0.75rem;
@@ -105,14 +106,12 @@ const OptionButton = styled.button`
 `;
 
 const SubmitButton = styled(Button)`
-  width: 100%;
-  padding: 1rem;
-  font-size: 1.2rem;
+  padding: 0.85rem 1.5rem;
+  font-size: 1.05rem;
   font-weight: 700;
   background: linear-gradient(135deg, #10b981, #059669);
   border: none;
   border-radius: 12px;
-  margin-top: 2rem;
 
   &:hover {
     background: linear-gradient(135deg, #059669, #047857);
@@ -128,8 +127,8 @@ const SubmitButton = styled(Button)`
 
 const TakeTest = () => {
   const { testLink } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
   const [test, setTest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -138,131 +137,64 @@ const TakeTest = () => {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [needsLogin, setNeedsLogin] = useState(false);
   const [questionStartTimes, setQuestionStartTimes] = useState({});
   const [testStartTime, setTestStartTime] = useState(null);
-  const [candidatePhotos, setCandidatePhotos] = useState([]);
-  const [webcamStream, setWebcamStream] = useState(null);
-  const [webcamPermissionGranted, setWebcamPermissionGranted] = useState(false);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [candidateDetails, setCandidateDetails] = useState(null);
+  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
 
-  // Request webcam access
-  const requestWebcamAccess = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'user',
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        } 
-      });
-      setWebcamStream(stream);
-      setWebcamPermissionGranted(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      return true;
-    } catch (error) {
-      console.error('Error accessing webcam:', error);
-      setError('Camera access is required to take the test. Please allow camera access and refresh the page.');
-      setWebcamPermissionGranted(false);
-      return false;
-    }
-  }, []);
-
-  // Capture candidate photo from webcam
-  const captureCandidatePhoto = useCallback(async (description) => {
-    try {
-      if (!videoRef.current || !canvasRef.current || !webcamStream) {
-        console.error('Webcam not available');
-        return null;
-      }
-
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      // Set canvas dimensions to match video
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-
-      // Draw video frame to canvas
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Convert canvas to data URL
-      const photoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-
-      // Store photo
-      const photoData = {
-        timestamp: new Date(),
-        dataUrl: photoDataUrl,
-        description: description
-      };
-
-      setCandidatePhotos(prev => [...prev, photoData]);
-      return photoDataUrl;
-    } catch (error) {
-      console.error('Error capturing photo:', error);
-      return null;
-    }
-  }, [webcamStream]);
+  const candidateId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('candidate') || params.get('candidateId') || '';
+  }, [location.search]);
 
   const fetchTest = useCallback(async () => {
     try {
-      const response = await api.get(`/tests/take/${testLink}`);
-      setTest(response.data.test);
+      if (!candidateId) {
+        setError('This test link is invalid. Please use the personalised link sent to you or contact the recruitment team.');
+        setLoading(false);
+        return;
+      }
+
+      const response = await api.get(`/tests/take/${testLink}`, {
+        params: { candidateId }
+      });
+
+      const fetchedTest = response.data.test;
+      setTest(fetchedTest);
+      setCandidateDetails(fetchedTest.candidate || null);
+
+      if (fetchedTest.assignmentStatus === 'completed') {
+        setAlreadyCompleted(true);
+        return;
+      }
+
       // Initialize answers object and question start times
       const initialAnswers = {};
       const initialStartTimes = {};
-      response.data.test.questions.forEach((q) => {
+      fetchedTest.questions.forEach((q) => {
         initialAnswers[q._id] = null;
         initialStartTimes[q._id] = Date.now();
       });
       setAnswers(initialAnswers);
       setQuestionStartTimes(initialStartTimes);
       setTestStartTime(Date.now());
-      
-      // Request webcam access and capture initial photo
-      const hasAccess = await requestWebcamAccess();
-      if (hasAccess) {
-        // Wait a bit for video to be ready
-        setTimeout(async () => {
-          await captureCandidatePhoto('Test started - Before test');
-        }, 500);
-      }
+      setCurrentQuestionIndex(0);
     } catch (error) {
-      setError(error.response?.data?.message || 'Test not found or you are not authorized to take this test.');
+      const message = error.response?.data?.message;
+      setError(message || 'Test not found or you are not authorized to take this test.');
     } finally {
       setLoading(false);
     }
-  }, [testLink, captureCandidatePhoto, requestWebcamAccess]);
+  }, [candidateId, testLink]);
 
   useEffect(() => {
-    // Check if user is authenticated
-    const token = localStorage.getItem('token');
-    if (!token || !isAuthenticated) {
-      setNeedsLogin(true);
-      setLoading(false);
-      setError('Please login first to access the test. Use the credentials provided in your email.');
-      return;
-    }
-
     if (testLink) {
       fetchTest();
     }
-  }, [testLink, isAuthenticated, fetchTest]);
+  }, [testLink, fetchTest]);
 
-  // Cleanup webcam stream on unmount
-  useEffect(() => {
-    return () => {
-      if (webcamStream) {
-        webcamStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [webcamStream]);
-
-  const handleAnswerSelect = async (questionId, answer) => {
+  const handleAnswerSelect = (questionId, answer) => {
     // Calculate time taken for previous answer if exists
     // Update answers first
     const updatedAnswers = {
@@ -270,28 +202,46 @@ const TakeTest = () => {
       [questionId]: answer
     };
     setAnswers(updatedAnswers);
-    
-    // Capture photo at middle of test (when half questions are answered)
-    const answeredCount = Object.values(updatedAnswers).filter(a => a !== null).length;
-    const totalQuestions = test.questions.length;
-    const halfQuestions = Math.ceil(totalQuestions / 2);
-    
-    // Check if we should capture middle photo (after first photo is captured)
-    if (answeredCount === halfQuestions && candidatePhotos.length === 1 && webcamPermissionGranted) {
-      // Only capture middle photo once
-      await captureCandidatePhoto('Middle of test');
-    }
-    
-    // Update start time for next question (if any)
-    const currentQuestionIndex = test.questions.findIndex(q => q._id === questionId);
-    if (currentQuestionIndex < test.questions.length - 1) {
-      const nextQuestionId = test.questions[currentQuestionIndex + 1]._id;
-      setQuestionStartTimes(prev => ({
-        ...prev,
-        [nextQuestionId]: Date.now()
-      }));
+    if (test) {
+      const nextIndex = currentQuestionIndex + 1;
+      if (nextIndex < test.questions.length) {
+        const nextQuestionId = test.questions[nextIndex]._id;
+        setQuestionStartTimes(prev => ({
+          ...prev,
+          [nextQuestionId]: prev[nextQuestionId] || Date.now()
+        }));
+      }
     }
   };
+
+  const goToQuestion = useCallback((index) => {
+    if (!test || index < 0 || index >= test.questions.length) return;
+    setCurrentQuestionIndex(index);
+    const questionId = test.questions[index]._id;
+    setQuestionStartTimes(prev => ({
+      ...prev,
+      [questionId]: prev[questionId] || Date.now()
+    }));
+  }, [test]);
+
+  const goToNextQuestion = useCallback(() => {
+    if (!test) return;
+    setCurrentQuestionIndex(prev => {
+      const nextIndex = Math.min(prev + 1, test.questions.length - 1);
+      if (nextIndex !== prev) {
+        const questionId = test.questions[nextIndex]._id;
+        setQuestionStartTimes(prevTimes => ({
+          ...prevTimes,
+          [questionId]: prevTimes[questionId] || Date.now()
+        }));
+      }
+      return nextIndex;
+    });
+  }, [test]);
+
+  const goToPreviousQuestion = useCallback(() => {
+    setCurrentQuestionIndex(prev => Math.max(prev - 1, 0));
+  }, []);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -300,13 +250,22 @@ const TakeTest = () => {
   };
 
   const handleSubmit = useCallback(async () => {
+    if (!test) {
+      return;
+    }
+
+    if (!candidateId) {
+      setError('Missing candidate identifier. Please reopen the test from your invitation email.');
+      return;
+    }
+
+    if (alreadyCompleted) {
+      setError('Our records indicate that you have already submitted this assessment.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      // Capture final photo before submission (end of test)
-      if (webcamPermissionGranted) {
-        await captureCandidatePhoto('Test ended - After test');
-      }
-      
       // Prepare answers with timestamps
       const answersArray = Object.entries(answers).map(([questionId, answer]) => {
         const startTime = questionStartTimes[questionId] || testStartTime;
@@ -314,29 +273,16 @@ const TakeTest = () => {
         
         return {
           questionId,
-          answer: answer !== null ? answer : -1,
+          answer: answer !== null ? answer : null,
           timeTaken: timeTaken,
           answeredAt: new Date().toISOString()
         };
       });
 
-      // Prepare candidate photos array
-      const candidatePhotosArray = candidatePhotos.map(photo => ({
-        timestamp: photo.timestamp.toISOString(),
-        url: photo.dataUrl, // In production, upload to server and get URL
-        description: photo.description
-      }));
-
-      // Stop webcam stream
-      if (webcamStream) {
-        webcamStream.getTracks().forEach(track => track.stop());
-        setWebcamStream(null);
-      }
-
       await api.post(`/tests/${test._id}/submit`, {
         answers: answersArray,
-        candidatePhotos: candidatePhotosArray,
-        startedAt: testStartTime ? new Date(testStartTime).toISOString() : new Date().toISOString()
+        startedAt: testStartTime ? new Date(testStartTime).toISOString() : new Date().toISOString(),
+        candidateId
       });
       setSubmitted(true);
       setShowSubmitModal(false);
@@ -345,7 +291,7 @@ const TakeTest = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [answers, candidatePhotos, captureCandidatePhoto, questionStartTimes, test, testStartTime, webcamPermissionGranted, webcamStream]);
+  }, [answers, questionStartTimes, test, testStartTime, candidateId, alreadyCompleted]);
 
   const handleAutoSubmit = useCallback(() => {
     setShowSubmitModal(true);
@@ -355,8 +301,9 @@ const TakeTest = () => {
   }, [handleSubmit]);
 
   useEffect(() => {
-    if (test && test.duration && !submitted) {
-      setTimeRemaining(test.duration * 60); // Convert minutes to seconds
+    if (test && test.duration && !submitted && !alreadyCompleted) {
+      const durationInSeconds = Math.max(Number(test.duration) * 60, 0);
+      setTimeRemaining(durationInSeconds);
       const timer = setInterval(() => {
         setTimeRemaining((prev) => {
           if (prev <= 1) {
@@ -370,43 +317,52 @@ const TakeTest = () => {
 
       return () => clearInterval(timer);
     }
-  }, [test, submitted, handleAutoSubmit]);
+  }, [test, submitted, handleAutoSubmit, alreadyCompleted]);
 
   if (loading) {
     return <LoadingSpinner message="Loading test..." />;
   }
 
-  if (needsLogin || (error && !test)) {
+  if (error && !test) {
     return (
       <TestContainer>
         <Container>
           <TestCard>
             <div style={{ padding: '3rem', textAlign: 'center' }}>
               <FaExclamationTriangle style={{ fontSize: '4rem', color: '#ef4444', marginBottom: '1.5rem' }} />
-              <h2 style={{ color: '#1e293b', marginBottom: '1rem' }}>Authentication Required</h2>
+              <h2 style={{ color: '#1e293b', marginBottom: '1rem' }}>Unable to load test</h2>
               <p style={{ color: '#64748b', marginBottom: '2rem', fontSize: '1.1rem' }}>
-                {error || 'Please login first to access the test. Use the credentials provided in your email notification.'}
+                {error || 'We could not load this assessment right now. Please try again shortly.'}
               </p>
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Button 
                   variant="primary" 
                   size="lg"
-                  onClick={() => navigate('/login')}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                onClick={() => window.location.reload()}
+                style={{ minWidth: '200px', fontWeight: '600' }}
                 >
-                  <FaSignInAlt />
-                  Go to Login Page
+                Retry
                 </Button>
-              </div>
-              <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f0f9ff', borderRadius: '12px', textAlign: 'left' }}>
-                <h5 style={{ color: '#1e40af', marginBottom: '1rem' }}>Login Credentials:</h5>
-                <p style={{ color: '#64748b', marginBottom: '0.5rem' }}>
-                  <strong>Username:</strong> Your email or phone number (as provided in the email)
-                </p>
-                <p style={{ color: '#64748b' }}>
-                  <strong>Password:</strong> Your email or phone number (as provided in the email)
-                </p>
-              </div>
+            </div>
+          </TestCard>
+        </Container>
+      </TestContainer>
+    );
+  }
+
+  if (alreadyCompleted) {
+    return (
+      <TestContainer>
+        <Container>
+          <TestCard>
+            <div style={{ padding: '3rem', textAlign: 'center' }}>
+              <FaCheckCircle style={{ fontSize: '4rem', color: '#0ea5e9', marginBottom: '1.5rem' }} />
+              <h2 style={{ color: '#1e293b', marginBottom: '1rem' }}>Assessment Already Submitted</h2>
+              <p style={{ color: '#64748b', marginBottom: '2rem', fontSize: '1.05rem' }}>
+                Our records show that you have already submitted this assessment. If you believe this is an error, please contact the recruitment team.
+              </p>
+              <Button variant="primary" onClick={() => window.close()}>
+                Close Window
+              </Button>
             </div>
           </TestCard>
         </Container>
@@ -435,9 +391,30 @@ const TakeTest = () => {
     );
   }
 
+  const hasQuestions = Array.isArray(test.questions) && test.questions.length > 0;
+
+  if (test && !hasQuestions) {
+    return (
+      <TestContainer>
+        <Container>
+          <TestCard>
+            <div style={{ padding: '3rem', textAlign: 'center' }}>
+              <FaExclamationTriangle style={{ fontSize: '4rem', color: '#ef4444', marginBottom: '1.5rem' }} />
+              <h2 style={{ color: '#1e293b', marginBottom: '1rem' }}>No Questions Available</h2>
+              <p style={{ color: '#64748b', fontSize: '1.1rem' }}>
+                This assessment does not contain any questions yet. Please contact the administrator.
+              </p>
+            </div>
+          </TestCard>
+        </Container>
+      </TestContainer>
+    );
+  }
+
   const answeredCount = Object.values(answers).filter(a => a !== null).length;
   const totalQuestions = test.questions.length;
   const progress = (answeredCount / totalQuestions) * 100;
+  const currentQuestion = test.questions[currentQuestionIndex] || test.questions[0];
 
   return (
     <TestContainer>
@@ -446,6 +423,11 @@ const TakeTest = () => {
           <TestHeader>
             <TestTitle>{test.title}</TestTitle>
             {test.description && <p style={{ opacity: 0.9 }}>{test.description}</p>}
+            {candidateDetails && (
+              <p style={{ opacity: 0.85, marginTop: '0.75rem', fontWeight: 600 }}>
+                Candidate: {candidateDetails.name || candidateDetails.email || '—'}
+              </p>
+            )}
             <TimerBadge>
               <FaClock />
               Time Remaining: {formatTime(timeRemaining)}
@@ -473,53 +455,66 @@ const TakeTest = () => {
               </Alert>
             )}
 
-            {/* Hidden video and canvas for webcam capture */}
-            <div style={{ display: 'none' }}>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{ width: '100%', maxWidth: '640px' }}
-              />
-              <canvas ref={canvasRef} />
-            </div>
-
-            {!webcamPermissionGranted && (
-              <Alert variant="warning" style={{ marginBottom: '2rem' }}>
-                <FaCamera className="me-2" />
-                <strong>Camera Access Required:</strong> Please allow camera access to continue with the test. 
-                Your photo will be captured at the start, middle, and end of the test for security purposes.
-              </Alert>
-            )}
-
-            {test.questions.map((question, index) => (
-              <QuestionCard key={question._id}>
-                <QuestionNumber>
-                  Question {index + 1} of {totalQuestions} ({question.marks} mark{question.marks !== 1 ? 's' : ''})
-                </QuestionNumber>
-                <QuestionText>{question.questionText}</QuestionText>
-                <div style={{ padding: '0 1.5rem 1.5rem' }}>
-                  {question.options.map((option, optIndex) => (
-                    <OptionButton
-                      key={optIndex}
-                      className={answers[question._id] === optIndex ? 'selected' : ''}
-                      onClick={() => handleAnswerSelect(question._id, optIndex)}
-                    >
-                      {answers[question._id] === optIndex && <FaCheck className="me-2" />}
-                      {option}
-                    </OptionButton>
-                  ))}
+            <div className="d-flex flex-column flex-lg-row gap-4">
+              <div style={{ minWidth: '220px' }}>
+                <h6 style={{ color: '#1e293b', marginBottom: '1rem', fontWeight: 700 }}>Questions</h6>
+                <div className="d-flex flex-wrap gap-2">
+                  {test.questions.map((question, index) => {
+                    const isCurrent = index === currentQuestionIndex;
+                    const isAnswered = answers[question._id] !== null;
+                    return (
+                      <Button
+                        key={question._id}
+                        variant={isCurrent ? 'primary' : isAnswered ? 'success' : 'outline-secondary'}
+                        size="sm"
+                        style={{ width: '48px', height: '42px', fontWeight: 600 }}
+                        onClick={() => goToQuestion(index)}
+                      >
+                        {index + 1}
+                      </Button>
+                    );
+                  })}
                 </div>
-              </QuestionCard>
-            ))}
+              </div>
 
-            <SubmitButton
-              onClick={() => setShowSubmitModal(true)}
-              disabled={submitting || answeredCount === 0}
-            >
-              {submitting ? 'Submitting...' : 'Submit Test'}
-            </SubmitButton>
+              <div style={{ flex: 1 }}>
+                <QuestionCard key={currentQuestion._id}>
+                  <QuestionNumber>
+                    Question {currentQuestionIndex + 1} of {totalQuestions} ({currentQuestion.marks} mark{currentQuestion.marks !== 1 ? 's' : ''})
+                  </QuestionNumber>
+                  <QuestionText>{currentQuestion.questionText}</QuestionText>
+                  <div style={{ padding: '0 1.5rem 1.5rem' }}>
+                    {currentQuestion.options.map((option, optIndex) => (
+                      <OptionButton
+                        key={optIndex}
+                        className={answers[currentQuestion._id] === optIndex ? 'selected' : ''}
+                        onClick={() => handleAnswerSelect(currentQuestion._id, optIndex)}
+                      >
+                        {answers[currentQuestion._id] === optIndex && <FaCheck className="me-2" />}
+                        {option}
+                      </OptionButton>
+                    ))}
+                  </div>
+                </QuestionCard>
+
+                <div className="d-flex justify-content-between align-items-center gap-2 mt-3">
+                  <Button variant="outline-primary" onClick={goToPreviousQuestion} disabled={currentQuestionIndex === 0}>
+                    Previous
+                  </Button>
+                  <div className="d-flex gap-2">
+                    <Button variant="primary" onClick={goToNextQuestion} disabled={currentQuestionIndex === totalQuestions - 1}>
+                      Next
+                    </Button>
+                    <SubmitButton
+                      onClick={() => setShowSubmitModal(true)}
+                      disabled={submitting || answeredCount === 0}
+                    >
+                      {submitting ? 'Submitting...' : 'Submit Test'}
+                    </SubmitButton>
+                  </div>
+                </div>
+              </div>
+            </div>
           </Card.Body>
         </TestCard>
 

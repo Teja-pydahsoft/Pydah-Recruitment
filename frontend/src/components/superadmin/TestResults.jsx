@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner, Image, Tabs, Tab } from 'react-bootstrap';
 import { FaCheckCircle, FaEye, FaCamera } from 'react-icons/fa';
 import api from '../../services/api';
@@ -123,7 +123,7 @@ const TimeInput12Hour = ({ value, onChange, style }) => {
   );
 };
 
-const TestResults = () => {
+const TestResults = ({ embedded = false, refreshToken = 0 }) => {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -140,11 +140,8 @@ const TestResults = () => {
   const [loadingDetailed, setLoadingDetailed] = useState(false);
   const [activeCategory, setActiveCategory] = useState('teaching');
 
-  useEffect(() => {
-    fetchTests();
-  }, []);
-
-  const fetchTests = async () => {
+  const fetchTests = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await api.get('/tests');
       const testsWithResults = response.data.tests.filter(test => 
@@ -172,7 +169,11 @@ const TestResults = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchTests();
+  }, [fetchTests, refreshToken]);
 
   const handleViewResults = async (testId, candidateId) => {
     setLoadingDetailed(true);
@@ -500,18 +501,23 @@ const TestResults = () => {
     });
   };
 
-  if (loading) {
-    return <LoadingSpinner message="Loading test results..." />;
-  }
-
-  return (
-    <Container fluid className="super-admin-fluid">
-      <Row className="mb-4">
-        <Col>
-          <h2>Test Results</h2>
-          <p>View all candidate test results and performance metrics.</p>
-        </Col>
-      </Row>
+  const content = (
+    <>
+      {embedded ? (
+        <Row className="mb-3">
+          <Col>
+            <h4 className="mb-1">Test Results Overview</h4>
+            <p className="text-muted mb-0">Review completed assessments and promote candidates.</p>
+          </Col>
+        </Row>
+      ) : (
+        <Row className="mb-4">
+          <Col>
+            <h2>Test Results</h2>
+            <p>View all candidate test results and performance metrics.</p>
+          </Col>
+        </Row>
+      )}
 
       {error && (
         <Row className="mb-3">
@@ -589,6 +595,31 @@ const TestResults = () => {
           </Tabs>
         </>
       )}
+    </>
+  );
+
+  if (loading) {
+    return embedded ? (
+      <div className="py-5 text-center">
+        <Spinner animation="border" />
+        <p className="mt-2 text-muted">Loading test results...</p>
+      </div>
+    ) : (
+      <LoadingSpinner message="Loading test results..." />
+    );
+  }
+
+  if (embedded) {
+    return (
+      <div>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Container fluid className="super-admin-fluid">
+      {content}
 
       {/* Release Results Modal */}
       <Modal

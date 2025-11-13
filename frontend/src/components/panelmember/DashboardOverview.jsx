@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { FaCalendarAlt, FaClipboardCheck, FaChartBar, FaClock, FaCheckCircle, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
+import { FaCalendarAlt, FaChartBar, FaClock, FaCheckCircle, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -530,7 +530,7 @@ const DashboardOverview = () => {
         <HeaderSection>
           <DashboardTitle>Panel Member Dashboard</DashboardTitle>
           <DashboardSubtitle>
-            Manage your assigned interviews, provide feedback, and track your evaluation progress.
+            Manage your assigned interviews, stay updated on schedules, and monitor overall progress.
           </DashboardSubtitle>
         </HeaderSection>
 
@@ -562,12 +562,6 @@ const DashboardOverview = () => {
           </StatCard>
           <StatCard style={{ animationDelay: '0.3s' }} error={!!dashboardData.error}>
             <StatNumber error={!!dashboardData.error}>
-              {dashboardData.stats?.feedbackGiven || 0}
-            </StatNumber>
-            <StatLabel>Feedback Given</StatLabel>
-          </StatCard>
-          <StatCard style={{ animationDelay: '0.4s' }} error={!!dashboardData.error}>
-            <StatNumber error={!!dashboardData.error}>
               {dashboardData.stats?.completionRate || 0}%
             </StatNumber>
             <StatLabel>Completion Rate</StatLabel>
@@ -589,21 +583,7 @@ const DashboardOverview = () => {
             </ActionButton>
           </MainCard>
 
-          <MainCard style={{ animationDelay: '0.4s' }} onClick={() => navigate('/panel-member/feedback')}>
-            <CardIcon>
-              <FaClipboardCheck />
-            </CardIcon>
-            <CardTitle>Feedback & Evaluation</CardTitle>
-            <CardDescription>
-              Submit detailed evaluation feedback for completed interviews. Help candidates improve and make informed hiring decisions.
-            </CardDescription>
-            <ActionButton onClick={(e) => { e.stopPropagation(); navigate('/panel-member/feedback'); }}>
-              <FaClipboardCheck />
-              Submit Feedback
-            </ActionButton>
-          </MainCard>
-
-          <MainCard style={{ animationDelay: '0.6s' }} onClick={() => navigate('/panel-member/reports')}>
+          <MainCard style={{ animationDelay: '0.4s' }} onClick={() => navigate('/panel-member/reports')}>
             <CardIcon>
               <FaChartBar />
             </CardIcon>

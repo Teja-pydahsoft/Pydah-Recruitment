@@ -39,6 +39,151 @@ router.post('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'
 
     await test.save();
 
+    if (!test.testLink) {
+      test.testLink = `test_${test._id}_${Date.now()}`;
+      await test.save();
+    }
+
+    const candidateMap = new Map(
+      candidateData.map(candidate => [candidate._id.toString(), candidate])
+    );
+
+    if (candidateAssignments.length > 0) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
+
+      const notificationSettings = await NotificationSettings.getGlobalSettings();
+      const candidateSettings = notificationSettings?.candidate || {};
+      const templatePrefs = candidateSettings.templates || {};
+      const emailTemplates = templatePrefs.email || {};
+      const smsTemplatesPref = templatePrefs.sms || {};
+
+      const emailChannelEnabled = candidateSettings.email !== false;
+      const emailTemplateEnabled = emailTemplates.testInvitation !== false;
+      const smsChannelEnabled = Boolean(candidateSettings.sms && ensureSMSConfigured());
+      const smsTemplateEnabled = smsTemplatesPref.testInvitation !== false;
+
+      for (const assignment of candidateAssignments) {
+        const candidateId = assignment.candidate.toString();
+        const candidateDetails = candidateMap.get(candidateId);
+
+        if (!candidateDetails) {
+          console.warn(`[NOTIFY] Candidate data missing for assignment ${candidateId}, skipping notification.`);
+          continue;
+        }
+
+        const user = candidateDetails.user;
+        if (!user?.email) {
+          console.warn(`[NOTIFY] Candidate ${candidateId} is missing email address, skipping notification.`);
+          continue;
+        }
+
+        const phone = (user.profile?.phone || '').trim();
+        const canSendSMS = Boolean(smsChannelEnabled && phone && smsTemplateEnabled);
+
+        console.log('[NOTIFY] Candidate test invitation preferences (auto-generate)', {
+          candidateEmail: user.email,
+          candidateName: user.name,
+          emailChannelEnabled,
+          emailTemplateEnabled,
+          smsChannelEnabled: candidateSettings.sms !== false,
+          smsTemplateEnabled,
+          phonePresent: Boolean(phone),
+          testTitle: test.title
+        });
+
+        const candidateLink = `${baseTestLink}?candidate=${candidateId}`;
+
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
+              Test Invitation: ${test.title}
+            </h2>
+            <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+              Dear ${user.name},
+            </p>
+            <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+              You have been invited to complete the "${test.title}" assessment as part of the recruitment process.
+            </p>
+            <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+              <h3 style="color: #1e40af; margin-top: 0;">Test Details</h3>
+              <p style="margin: 5px 0;"><strong>Duration:</strong> ${test.duration} minutes</p>
+              ${test.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${test.description}</p>` : ''}
+              ${test.scheduledDate ? `<p style="margin: 5px 0;"><strong>Scheduled Date:</strong> ${new Date(test.scheduledDate).toLocaleDateString()}</p>` : ''}
+              ${test.scheduledTime ? `<p style="margin: 5px 0;"><strong>Scheduled Time:</strong> ${test.scheduledTime}</p>` : ''}
+            </div>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${candidateLink}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                Start Test
+              </a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">
+              Or copy and paste this link into your browser:<br>
+              <a href="${candidateLink}" style="color: #3b82f6;">${candidateLink}</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            <p style="color: #6b7280; font-size: 12px;">
+              This is an automated message from the Staff Recruitment System. Please do not reply to this email.
+            </p>
+          </div>
+        `;
+
+        const emailText = `
+Test Invitation: ${test.title}
+
+Dear ${user.name},
+
+You have been invited to complete the "${test.title}" assessment as part of the recruitment process.
+
+Duration: ${test.duration} minutes
+${test.description ? `Description: ${test.description}\n` : ''}
+${test.scheduledDate ? `Scheduled Date: ${new Date(test.scheduledDate).toLocaleDateString()}\n` : ''}
+${test.scheduledTime ? `Scheduled Time: ${test.scheduledTime}\n` : ''}
+
+Test Link: ${candidateLink}
+
+This is an automated message from the Staff Recruitment System.
+        `;
+
+        if (emailChannelEnabled && emailTemplateEnabled) {
+          try {
+            await sendEmail(user.email, `Test Invitation: ${test.title}`, emailHtml, emailText);
+          } catch (emailError) {
+            console.error('Email send error (auto-generate):', emailError);
+          }
+        } else if (!emailChannelEnabled) {
+          console.log('Candidate email channel disabled; skipping email for test invitation.');
+        } else if (!emailTemplateEnabled) {
+          console.log('Email test invitation template disabled; skipping email for test invitation.');
+        }
+
+        if (canSendSMS) {
+          try {
+            await sendTemplateSMS({
+              templateKey: 'candidateTestInvitation',
+              phoneNumber: phone,
+              variables: {
+                name: user.name,
+                testTitle: test.title,
+                duration: test.duration,
+                link: candidateLink
+              }
+            });
+          } catch (smsError) {
+            console.error('SMS send error (auto-generate):', smsError);
+          }
+        } else if (candidateSettings.sms) {
+          if (!ensureSMSConfigured()) {
+            console.log('SMS configuration incomplete; skipping SMS for test invitation.');
+          } else if (!phone) {
+            console.log('Candidate phone number missing; skipping SMS for test invitation.');
+          } else if (!smsTemplateEnabled) {
+            console.log('SMS test invitation template disabled; skipping SMS for test invitation.');
+          }
+        }
+      }
+    }
+
     res.status(201).json({
       message: 'Test created successfully',
       test
@@ -259,6 +404,24 @@ router.get('/questions', authenticateToken, requireSuperAdminOrPermission('tests
   }
 });
 
+router.get('/questions/bulk-template', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const headerRow = [['Question', 'OptionA', 'OptionB', 'OptionC', 'OptionD', 'CorrectAnswer']];
+    const worksheet = XLSX.utils.aoa_to_sheet(headerRow);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename="mcq-bulk-template.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error) {
+    console.error('Bulk template generation error:', error);
+    res.status(500).json({ message: 'Unable to generate template.' });
+  }
+});
+
 router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPermission('tests.manage'), upload.single('file'), async (req, res) => {
   let uploadedFilePath;
 
@@ -268,16 +431,6 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
     }
 
     uploadedFilePath = req.file.path;
-
-    const { topicId } = req.body;
-    let defaultTopic = null;
-
-    if (topicId) {
-      defaultTopic = await QuestionTopic.findById(topicId).lean();
-      if (!defaultTopic) {
-        return res.status(400).json({ message: 'Selected topic not found' });
-      }
-    }
 
     const workbook = XLSX.readFile(req.file.path);
     const firstSheetName = workbook.SheetNames[0];
@@ -340,35 +493,29 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
       return null;
     };
 
-    let topicsByName;
-    if (!defaultTopic) {
-      const allTopics = await QuestionTopic.find({}).lean();
-      topicsByName = new Map(
-        allTopics.map(topic => [topic.name.trim().toLowerCase(), topic])
-      );
+    const allTopics = await QuestionTopic.find({ isActive: true }).lean();
+    if (!allTopics.length) {
+      return res.status(400).json({ message: 'No active topics found. Please create a topic before uploading questions.' });
     }
+    const fallbackTopic = allTopics[0];
+    const topicsByName = new Map(allTopics.map(topic => [topic.name.trim().toLowerCase(), topic]));
 
     const questionsToInsert = [];
     const errors = [];
 
     rows.forEach((row, index) => {
       const rowNumber = index + 2; // considering header row
-      let effectiveTopic = defaultTopic;
+      let effectiveTopic = fallbackTopic;
 
-      if (!effectiveTopic) {
         const topicNameFromRow = getCell(row, ['Topic', 'topic', 'Topic Name', 'TopicName']).toString().trim();
-        if (!topicNameFromRow) {
-          errors.push(`Row ${rowNumber}: Topic name is missing`);
-          return;
-        }
-
+      if (topicNameFromRow) {
         const topicLookup = topicsByName.get(topicNameFromRow.toLowerCase());
-        if (!topicLookup) {
+        if (topicLookup) {
+          effectiveTopic = topicLookup;
+        } else {
           errors.push(`Row ${rowNumber}: Topic "${topicNameFromRow}" not found`);
           return;
         }
-
-        effectiveTopic = topicLookup;
       }
 
       const questionText = getCell(row, ['Question', 'question', 'Question Text']).toString().trim();
@@ -818,27 +965,28 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
     let resolvedFormId = formId ? new mongoose.Types.ObjectId(formId) : null;
     let candidateAssignments = [];
 
+    let candidateData = [];
+
     if (Array.isArray(candidateIds) && candidateIds.length > 0) {
       const uniqueCandidateIds = [...new Set(candidateIds.map(id => id.toString()))];
       const candidateObjectIds = uniqueCandidateIds.map(id => new mongoose.Types.ObjectId(id));
-      const candidates = await Candidate.find({ _id: { $in: candidateObjectIds } })
-        .select('form user')
-        .populate('form', 'title')
-        .lean();
+      candidateData = await Candidate.find({ _id: { $in: candidateObjectIds } })
+        .populate('form', 'title position department formCategory')
+        .populate('user', 'name email profile');
 
-      if (candidates.length !== uniqueCandidateIds.length) {
+      if (candidateData.length !== uniqueCandidateIds.length) {
         return res.status(400).json({ message: 'One or more selected candidates could not be found' });
       }
 
-      const formIds = [...new Set(candidates.map(candidate => candidate.form?.toString()))];
+      const formIds = [...new Set(candidateData.map(candidate => candidate.form?._id?.toString() || candidate.form?.toString()))];
 
       if (formIds.length > 1 && !resolvedFormId) {
         return res.status(400).json({ message: 'Selected candidates belong to different forms. Please ensure they are from the same recruitment form or specify a target form.' });
       }
 
-      resolvedFormId = resolvedFormId || candidates[0].form;
+      resolvedFormId = resolvedFormId || candidateData[0].form?._id || candidateData[0].form;
 
-      candidateAssignments = candidates.map(candidate => ({
+      candidateAssignments = candidateData.map(candidate => ({
         candidate: candidate._id,
         status: 'invited',
         invitedAt: new Date()
@@ -874,6 +1022,155 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
     });
 
     await test.save();
+
+    if (!test.testLink) {
+      test.testLink = `test_${test._id}_${Date.now()}`;
+      await test.save();
+    }
+
+    if (candidateAssignments.length > 0) {
+      const candidateMap = new Map(
+        candidateData.map(candidate => {
+          const doc = candidate.toObject({ virtuals: true });
+          return [candidate._id.toString(), doc];
+        })
+      );
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
+
+      const notificationSettings = await NotificationSettings.getGlobalSettings();
+      const candidateSettings = notificationSettings?.candidate || {};
+      const templatePrefs = candidateSettings.templates || {};
+      const emailTemplates = templatePrefs.email || {};
+      const smsTemplatesPref = templatePrefs.sms || {};
+
+      const emailChannelEnabled = candidateSettings.email !== false;
+      const emailTemplateEnabled = emailTemplates.testInvitation !== false;
+      const smsChannelEnabled = Boolean(candidateSettings.sms && ensureSMSConfigured());
+      const smsTemplateEnabled = smsTemplatesPref.testInvitation !== false;
+
+      for (const assignment of candidateAssignments) {
+        const candidateId = assignment.candidate.toString();
+        const candidateDetails = candidateMap.get(candidateId);
+
+        if (!candidateDetails) {
+          console.warn(`[NOTIFY] Candidate data missing for assignment ${candidateId}, skipping notification.`);
+          continue;
+        }
+
+        const user = candidateDetails.user || {};
+        if (!user.email) {
+          console.warn(`[NOTIFY] Candidate ${candidateId} is missing email address, skipping notification.`);
+          continue;
+        }
+
+        const phone = (user.profile?.phone || '').trim();
+        const canSendSMS = Boolean(smsChannelEnabled && phone && smsTemplateEnabled);
+
+        console.log('[NOTIFY] Candidate test invitation preferences (auto-generate)', {
+          candidateEmail: user.email,
+          candidateName: user.name,
+          emailChannelEnabled,
+          emailTemplateEnabled,
+          smsChannelEnabled: candidateSettings.sms !== false,
+          smsTemplateEnabled,
+          phonePresent: Boolean(phone),
+          testTitle: test.title
+        });
+
+        const candidateLink = `${baseTestLink}?candidate=${candidateId}`;
+
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
+              Test Invitation: ${test.title}
+            </h2>
+            <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+              Dear ${user.name || 'Candidate'},
+            </p>
+            <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+              You have been invited to complete the "${test.title}" assessment as part of the recruitment process.
+            </p>
+            <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+              <h3 style="color: #1e40af; margin-top: 0;">Test Details</h3>
+              <p style="margin: 5px 0;"><strong>Duration:</strong> ${test.duration} minutes</p>
+              ${test.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${test.description}</p>` : ''}
+              ${test.scheduledDate ? `<p style="margin: 5px 0;"><strong>Scheduled Date:</strong> ${new Date(test.scheduledDate).toLocaleDateString()}</p>` : ''}
+              ${test.scheduledTime ? `<p style="margin: 5px 0;"><strong>Scheduled Time:</strong> ${test.scheduledTime}</p>` : ''}
+            </div>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${candidateLink}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                Start Test
+              </a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">
+              Or copy and paste this link into your browser:<br>
+              <a href="${candidateLink}" style="color: #3b82f6;">${candidateLink}</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            <p style="color: #6b7280; font-size: 12px;">
+              This is an automated message from the Staff Recruitment System. Please do not reply to this email.
+            </p>
+          </div>
+        `;
+
+        const emailText = `
+Test Invitation: ${test.title}
+
+Dear ${user.name || 'Candidate'},
+
+You have been invited to complete the "${test.title}" assessment as part of the recruitment process.
+
+Duration: ${test.duration} minutes
+${test.description ? `Description: ${test.description}\n` : ''}
+${test.scheduledDate ? `Scheduled Date: ${new Date(test.scheduledDate).toLocaleDateString()}\n` : ''}
+${test.scheduledTime ? `Scheduled Time: ${test.scheduledTime}\n` : ''}
+
+Test Link: ${candidateLink}
+
+This is an automated message from the Staff Recruitment System.
+        `;
+
+        if (emailChannelEnabled && emailTemplateEnabled) {
+          try {
+            await sendEmail(user.email, `Test Invitation: ${test.title}`, emailHtml, emailText);
+            console.log('✅ [TEST INVITATION] Email sent:', user.email);
+          } catch (emailError) {
+            console.error('Email send error (auto-generate):', emailError);
+          }
+        } else if (!emailChannelEnabled) {
+          console.log('Candidate email channel disabled; skipping email for test invitation.');
+        } else if (!emailTemplateEnabled) {
+          console.log('Email test invitation template disabled; skipping email for test invitation.');
+        }
+
+        if (canSendSMS) {
+          try {
+            await sendTemplateSMS({
+              templateKey: 'candidateTestInvitation',
+              phoneNumber: phone,
+              variables: {
+                name: user.name,
+                testTitle: test.title,
+                duration: test.duration,
+                link: candidateLink
+              }
+            });
+          } catch (smsError) {
+            console.error('SMS send error (auto-generate):', smsError);
+          }
+        } else if (candidateSettings.sms) {
+          if (!ensureSMSConfigured()) {
+            console.log('SMS configuration incomplete; skipping SMS for test invitation.');
+          } else if (!phone) {
+            console.log('Candidate phone number missing; skipping SMS for test invitation.');
+          } else if (!smsTemplateEnabled) {
+            console.log('SMS test invitation template disabled; skipping SMS for test invitation.');
+          }
+        }
+      }
+    }
 
     res.status(201).json({
       message: 'Assessment generated successfully',
@@ -1007,12 +1304,10 @@ router.post('/conduct-from-topics', authenticateToken, requireSuperAdminOrPermis
     }
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const testLink = `${frontendUrl}/test/${test.testLink}`;
+    const candidateLink = `${frontendUrl}/test/${test.testLink}?candidate=${candidateId.toString()}`;
 
     const user = candidate.user;
     const phone = (user.profile?.phone || '').trim();
-    const username = phone || user.email;
-    const password = phone || user.email;
 
     const notificationSettings = await NotificationSettings.getGlobalSettings();
     const candidateSettings = notificationSettings?.candidate || {};
@@ -1057,19 +1352,14 @@ router.post('/conduct-from-topics', authenticateToken, requireSuperAdminOrPermis
           ${test.scheduledDate ? `<p style="margin: 5px 0;"><strong>Scheduled Date:</strong> ${new Date(test.scheduledDate).toLocaleDateString()}</p>` : ''}
           ${test.scheduledTime ? `<p style="margin: 5px 0;"><strong>Scheduled Time:</strong> ${test.scheduledTime}</p>` : ''}
         </div>
-        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
-          <h3 style="color: #92400e; margin-top: 0;">Login Credentials</h3>
-          <p style="margin: 5px 0;"><strong>Username:</strong> ${username}</p>
-          <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>
-        </div>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${testLink}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+          <a href="${candidateLink}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
             Start Test
           </a>
         </div>
         <p style="color: #6b7280; font-size: 14px;">
           Or copy and paste this link into your browser:<br>
-          <a href="${testLink}" style="color: #3b82f6;">${testLink}</a>
+          <a href="${candidateLink}" style="color: #3b82f6;">${candidateLink}</a>
         </p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
         <p style="color: #6b7280; font-size: 12px;">
@@ -1090,11 +1380,7 @@ ${test.description ? `Description: ${test.description}\n` : ''}
 ${test.scheduledDate ? `Scheduled Date: ${new Date(test.scheduledDate).toLocaleDateString()}\n` : ''}
 ${test.scheduledTime ? `Scheduled Time: ${test.scheduledTime}\n` : ''}
 
-Login Credentials:
-- Username: ${username}
-- Password: ${password}
-
-Test Link: ${testLink}
+Test Link: ${candidateLink}
 
 This is an automated message from the Staff Recruitment System.
     `;
@@ -1121,9 +1407,7 @@ This is an automated message from the Staff Recruitment System.
             name: user.name,
             testTitle: test.title,
             duration: test.duration,
-            username,
-            password,
-            link: testLink
+            link: candidateLink
           }
         });
       } catch (smsError) {
@@ -1319,21 +1603,14 @@ router.delete('/:id', authenticateToken, requireSuperAdminOrPermission('tests.ma
 });
 
 // Get test by unique link (for candidates only)
-router.get('/take/:testLink', authenticateToken, async (req, res) => {
+router.get('/take/:testLink', async (req, res) => {
   try {
-    console.log(`\n=== Test Access Request ===`);
-    console.log(`Test Link: ${req.params.testLink}`);
-    console.log(`User ID: ${req.user._id}`);
-    console.log(`User Email: ${req.user.email}`);
-    console.log(`User Role: ${req.user.role}`);
+    const { candidateId: candidateIdQuery, candidate: candidateQuery } = req.query;
+    const candidateIdentifier = candidateIdQuery || candidateQuery || '';
 
-    // Only candidates can access tests
-    if (req.user.role !== 'candidate') {
-      console.log(`✗ Access denied: User role is ${req.user.role}, only candidates can access tests`);
-      return res.status(403).json({ 
-        message: 'Access denied. Only candidates can access tests. Please log in with a candidate account.' 
-      });
-    }
+    console.log('\n=== Test Access Request ===');
+    console.log('Test Link:', req.params.testLink);
+    console.log('Candidate Identifier:', candidateIdentifier || 'Not provided');
 
     const test = await Test.findOne({
       testLink: req.params.testLink,
@@ -1341,83 +1618,74 @@ router.get('/take/:testLink', authenticateToken, async (req, res) => {
     }).populate('form', 'title position department');
 
     if (!test) {
-      console.log('✗ Test not found or inactive');
+      console.warn('✗ Test not found or inactive');
       return res.status(404).json({ message: 'Test not found or inactive' });
     }
 
-    console.log(`✓ Test found: ${test.title} (ID: ${test._id})`);
-    console.log(`Test assigned candidates: ${test.candidates.length}`);
+    let candidate = null;
+    let candidateTestEntry = null;
+    let candidateTestIndex = -1;
+    let testModified = false;
 
-    // Find candidate by user ID
-    const candidate = await Candidate.findOne({ user: req.user._id })
-      .populate('user', 'name email')
-      .populate('form', 'title position department');
+    if (candidateIdentifier) {
+      if (!mongoose.Types.ObjectId.isValid(candidateIdentifier)) {
+        console.warn(`⚠ Invalid candidate identifier provided: ${candidateIdentifier}`);
+      } else {
+        candidate = await Candidate.findById(candidateIdentifier)
+          .populate('user', 'name email')
+          .populate('form', 'title position department');
 
-    if (!candidate) {
-      console.log('✗ Candidate profile not found for user:', req.user._id);
-      console.log('User details:', {
-        id: req.user._id,
-        email: req.user.email,
-        role: req.user.role
-      });
-      
-      // Check if any candidate exists with this email
-      const candidatesByEmail = await Candidate.find()
-        .populate('user', 'email')
-        .lean();
-      
-      const candidateWithEmail = candidatesByEmail.find(c => 
-        c.user && c.user.email === req.user.email
-      );
+        if (!candidate) {
+          console.warn(`⚠ Candidate ${candidateIdentifier} not found for test ${test._id}`);
+        } else {
+          candidateTestIndex = test.candidates.findIndex(
+            entry => entry.candidate?.toString() === candidate._id.toString()
+          );
 
-      if (candidateWithEmail) {
-        console.log('⚠ Found candidate with same email but different user ID');
-        return res.status(403).json({ 
-          message: 'Candidate profile not found. Please ensure you are logged in with the correct account that submitted the application form.' 
-        });
+          if (candidateTestIndex === -1) {
+            console.warn(`⚠ Candidate ${candidate._id} was not assigned to test ${test._id}. Auto-assigning entry.`);
+            test.candidates.push({
+              candidate: candidate._id,
+              status: 'started',
+              invitedAt: new Date(),
+              startedAt: new Date()
+            });
+            candidateTestIndex = test.candidates.length - 1;
+            testModified = true;
+          }
+
+          candidateTestEntry = test.candidates[candidateTestIndex];
+
+          if (candidateTestEntry.status === 'completed') {
+            console.warn('⚠ Test already completed by candidate. Providing read-only view.');
+          } else if (candidateTestEntry.status === 'expired') {
+            console.warn('⚠ Test expired for candidate.');
+            return res.status(400).json({ message: 'This test has expired' });
+          } else {
+            if (candidateTestEntry.status !== 'started') {
+              candidateTestEntry.status = 'started';
+              testModified = true;
+            }
+            if (!candidateTestEntry.startedAt) {
+              candidateTestEntry.startedAt = new Date();
+              testModified = true;
+            }
+          }
+        }
       }
-
-      return res.status(403).json({ 
-        message: 'Candidate profile not found. You need to submit an application form first before taking tests. Please contact support if you have already submitted a form.' 
-      });
+    } else {
+      console.warn('⚠ No candidate identifier provided. Results will not be attributed to a profile.');
     }
 
-    console.log(`✓ Candidate profile found: ${candidate._id}`);
-    console.log(`Candidate user: ${candidate.user.name} (${candidate.user.email})`);
-    console.log(`Candidate status: ${candidate.status}`);
-
-    // Check if candidate is assigned to this test
-    const candidateTest = test.candidates.find(
-      c => c.candidate.toString() === candidate._id.toString()
-    );
-
-    if (!candidateTest) {
-      console.log('✗ Candidate not assigned to this test');
-      console.log('Test candidates:', test.candidates.map(c => ({
-        candidateId: c.candidate.toString(),
-        status: c.status
-      })));
-      return res.status(403).json({ 
-        message: 'You are not assigned to this test. Please contact the administrator.' 
-      });
-    }
-
-    console.log(`✓ Candidate is assigned to test (status: ${candidateTest.status})`);
-
-    if (candidateTest.status === 'completed') {
-      console.log('⚠ Test already completed');
-      return res.status(400).json({ message: 'You have already completed this test' });
-    }
-
-    if (candidateTest.status === 'expired') {
-      console.log('⚠ Test expired');
-      return res.status(400).json({ message: 'This test has expired' });
+    if (testModified) {
+      await test.save();
     }
 
     console.log('✓ Test access granted');
+    console.log('Candidate:', candidate ? `${candidate.user?.name} (${candidate.user?.email})` : 'Anonymous');
+    console.log('Candidate Test Status:', candidateTestEntry?.status || 'N/A');
     console.log('===================================\n');
 
-    // Return test without correct answers
     const testForCandidate = {
       _id: test._id,
       title: test.title,
@@ -1433,7 +1701,15 @@ router.get('/take/:testLink', authenticateToken, async (req, res) => {
         timeLimit: q.timeLimit
       })),
       scheduledDate: test.scheduledDate,
-      scheduledTime: test.scheduledTime
+      scheduledTime: test.scheduledTime,
+      candidate: candidate
+        ? {
+            id: candidate._id,
+            name: candidate.user?.name,
+            email: candidate.user?.email
+          }
+        : null,
+      assignmentStatus: candidateTestEntry?.status || null
     };
 
     res.json({ test: testForCandidate });
@@ -1522,29 +1798,48 @@ const validateMCQAnswer = (candidateAnswer, correctAnswer, options) => {
 };
 
 // Submit test answers
-router.post('/:id/submit', authenticateToken, async (req, res) => {
+router.post('/:id/submit', async (req, res) => {
   try {
-    const { answers, screenshots, startedAt } = req.body;
+    const { answers, screenshots, startedAt, candidateId } = req.body;
+
+    console.log('\n=== Test Submission Attempt ===');
+    console.log('Test ID:', req.params.id);
+    console.log('Candidate ID:', candidateId || 'Not provided');
+
+    if (!candidateId || !mongoose.Types.ObjectId.isValid(candidateId)) {
+      console.warn('✗ Submission rejected: candidateId missing or invalid.');
+      return res.status(400).json({ message: 'Candidate identifier is required to submit this test.' });
+    }
+
     const test = await Test.findById(req.params.id);
 
     if (!test) {
+      console.warn('✗ Submission rejected: test not found.');
       return res.status(404).json({ message: 'Test not found' });
     }
 
-    // Find candidate by user ID
-    const candidate = await Candidate.findOne({ user: req.user._id });
+    const candidate = await Candidate.findById(candidateId);
     if (!candidate) {
-      return res.status(403).json({ message: 'Candidate profile not found' });
+      console.warn(`✗ Submission rejected: candidate ${candidateId} not found.`);
+      return res.status(404).json({ message: 'Candidate profile not found' });
     }
 
-    // Find candidate's test entry
-    const candidateTestIndex = test.candidates.findIndex(
-      c => c.candidate.toString() === candidate._id.toString()
+    let candidateTestIndex = test.candidates.findIndex(
+      c => c.candidate?.toString() === candidate._id.toString()
     );
 
     if (candidateTestIndex === -1) {
-      return res.status(403).json({ message: 'You are not assigned to this test' });
+      console.warn(`⚠ Candidate ${candidate._id} was not assigned to test ${test._id}. Auto-assigning entry.`);
+      test.candidates.push({
+        candidate: candidate._id,
+        status: 'started',
+        invitedAt: new Date(),
+        startedAt: startedAt ? new Date(startedAt) : new Date()
+      });
+      candidateTestIndex = test.candidates.length - 1;
     }
+
+    const candidateTestEntry = test.candidates[candidateTestIndex];
 
     // Calculate score
     let totalScore = 0;
@@ -1556,10 +1851,18 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
 
       let isCorrect = false;
       let marks = 0;
+      const rawAnswer = answer.answer;
+      const candidateAnswer = (rawAnswer === -1 || rawAnswer === '' || rawAnswer === null || typeof rawAnswer === 'undefined')
+        ? null
+        : rawAnswer;
 
       if (question.questionType === 'mcq' || question.questionType === 'multiple_answer') {
-        // Use the robust validation function
-        isCorrect = validateMCQAnswer(answer.answer, question.correctAnswer, question.options);
+        if (candidateAnswer === null) {
+          isCorrect = false;
+        } else {
+          // Use the robust validation function
+          isCorrect = validateMCQAnswer(candidateAnswer, question.correctAnswer, question.options);
+        }
       } else if (question.questionType === 'short_answer' || question.questionType === 'long_answer') {
         // For subjective questions, mark as pending for manual evaluation
         isCorrect = null; // null means pending evaluation
@@ -1573,7 +1876,7 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
 
       return {
         questionId: answer.questionId,
-        answer: answer.answer,
+        answer: candidateAnswer,
         isCorrect,
         marks,
         timeTaken: answer.timeTaken || 0, // Time taken in seconds
@@ -1585,41 +1888,43 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
     const percentage = (totalScore / test.totalMarks) * 100;
     const passed = percentage >= test.passingPercentage;
 
-    // Update test candidates array
-    test.candidates[candidateTestIndex].status = 'completed';
-    test.candidates[candidateTestIndex].score = totalScore;
-    test.candidates[candidateTestIndex].percentage = percentage;
-    test.candidates[candidateTestIndex].completedAt = new Date();
+    candidateTestEntry.status = 'completed';
+    candidateTestEntry.score = totalScore;
+    candidateTestEntry.percentage = percentage;
+    candidateTestEntry.completedAt = new Date();
+    candidateTestEntry.startedAt = candidateTestEntry.startedAt || (startedAt ? new Date(startedAt) : new Date());
 
     await test.save();
 
-    // Update candidate's test results
-    if (candidate) {
-      const existingResultIndex = candidate.testResults.findIndex(
-        result => result.test.toString() === req.params.id
-      );
+    const existingResultIndex = candidate.testResults.findIndex(
+      result => result.test.toString() === req.params.id
+    );
 
-      const resultData = {
-        test: req.params.id,
-        score: totalScore,
-        totalScore: test.totalMarks,
-        percentage,
-        status: passed ? 'passed' : 'failed',
-        submittedAt: new Date(),
-        startedAt: startedAt ? new Date(startedAt) : new Date(),
-        answers: processedAnswers,
-        candidatePhotos: req.body.candidatePhotos || [], // Array of candidate photos with timestamps
-        screenshots: screenshots || [] // Legacy field - kept for backward compatibility
-      };
+    const resultData = {
+      test: req.params.id,
+      score: totalScore,
+      totalScore: test.totalMarks,
+      percentage,
+      status: passed ? 'passed' : 'failed',
+      submittedAt: new Date(),
+      startedAt: startedAt ? new Date(startedAt) : candidateTestEntry.startedAt || new Date(),
+      answers: processedAnswers,
+      candidatePhotos: req.body.candidatePhotos || [], // Array of candidate photos with timestamps
+      screenshots: screenshots || [] // Legacy field - kept for backward compatibility
+    };
 
-      if (existingResultIndex >= 0) {
-        candidate.testResults[existingResultIndex] = resultData;
-      } else {
-        candidate.testResults.push(resultData);
-      }
-
-      await candidate.save();
+    if (existingResultIndex >= 0) {
+      candidate.testResults[existingResultIndex] = resultData;
+    } else {
+      candidate.testResults.push(resultData);
     }
+
+    await candidate.save();
+
+    console.log(`[TEST SUBMIT] Candidate ${candidate._id} completed test ${test._id}`);
+    console.log(`Answered: ${processedAnswers.length}/${test.questions.length}`);
+    console.log(`Score: ${totalScore}/${test.totalMarks} (${percentage.toFixed(2)}%) Status: ${passed ? 'passed' : 'failed'}`);
+    console.log('===================================\n');
 
     res.json({
       message: 'Test submitted successfully',
@@ -2120,18 +2425,15 @@ router.post('/conduct-from-csv', authenticateToken, requireSuperAdminOrPermissio
           }
 
           // Generate full test link URL
-          const testLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/test/${test.testLink}`;
-          const username = phone || user.email;
-          const password = phone || user.email;
+          const baseTestLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/test/${test.testLink}`;
+          const candidateLink = `${baseTestLink}?candidate=${candidateId.toString()}`;
 
           // Log test details for debugging
           console.log('\n=== Test Created Successfully ===');
           console.log(`Test ID: ${test._id}`);
           console.log(`Test Title: ${test.title}`);
-          console.log(`Test Link: ${testLink}`);
+          console.log(`Test Link: ${candidateLink}`);
           console.log(`Candidate: ${user.name} (${user.email})`);
-          console.log(`Username: ${username}`);
-          console.log(`Password: ${password}`);
           console.log(`Phone: ${phone || 'Not provided'}`);
           console.log('===================================\n');
 
@@ -2153,19 +2455,14 @@ router.post('/conduct-from-csv', authenticateToken, requireSuperAdminOrPermissio
                   <p style="margin: 5px 0;"><strong>Duration:</strong> ${test.duration} minutes</p>
                   ${test.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${test.description}</p>` : ''}
                 </div>
-                <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
-                  <h3 style="color: #92400e; margin-top: 0;">Login Credentials</h3>
-                  <p style="margin: 5px 0;"><strong>Username:</strong> ${username}</p>
-                  <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>
-                </div>
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${testLink}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                  <a href="${candidateLink}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                     Start Test
                   </a>
                 </div>
                 <p style="color: #6b7280; font-size: 14px;">
                   Or copy and paste this link into your browser:<br>
-                  <a href="${testLink}" style="color: #3b82f6;">${testLink}</a>
+                  <a href="${candidateLink}" style="color: #3b82f6;">${candidateLink}</a>
                 </p>
                 <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
                 <p style="color: #6b7280; font-size: 12px;">
@@ -2186,11 +2483,7 @@ Test Details:
 - Duration: ${test.duration} minutes
 ${test.description ? `- Description: ${test.description}` : ''}
 
-Login Credentials:
-- Username: ${username}
-- Password: ${password}
-
-Test Link: ${testLink}
+Test Link: ${candidateLink}
 
 This is an automated message from the Faculty Recruitment System.
             `;
@@ -2217,9 +2510,7 @@ This is an automated message from the Faculty Recruitment System.
                   name: user.name,
                   testTitle: test.title,
                   duration: test.duration,
-                  username,
-                  password,
-                  link: testLink
+                  link: candidateLink
                 }
               });
             } catch (smsError) {
