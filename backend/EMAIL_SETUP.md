@@ -19,6 +19,40 @@ EMAIL_FROM=your-email@gmail.com
 FRONTEND_URL=http://localhost:3000
 ```
 
+## Optional Timeout Settings (for hosted environments)
+
+If you're experiencing connection timeout errors on hosted platforms (like Render, Heroku, etc.), you can add these optional timeout settings:
+
+```env
+# Connection timeout settings (in milliseconds)
+# Default: 60000 (60 seconds)
+EMAIL_CONNECTION_TIMEOUT=60000
+
+# Greeting timeout (in milliseconds)
+# Default: 30000 (30 seconds)
+EMAIL_GREETING_TIMEOUT=30000
+
+# Socket timeout (in milliseconds)
+# Default: 60000 (60 seconds)
+EMAIL_SOCKET_TIMEOUT=60000
+
+# Enable connection pooling (true/false)
+# Default: false
+EMAIL_POOL=false
+
+# Maximum connections in pool
+# Default: 5
+EMAIL_MAX_CONNECTIONS=5
+
+# Maximum messages per connection
+# Default: 100
+EMAIL_MAX_MESSAGES=100
+
+# Enable debug logging (true/false)
+# Default: false
+EMAIL_DEBUG=false
+```
+
 ## How to Get Gmail App Password
 
 Since you're using Gmail, you need to create an **App Password** (not your regular Gmail password) for authentication.
@@ -117,10 +151,48 @@ If you see "Email service is ready" in the console, your configuration is correc
 
 Google no longer supports "Less secure app access". You **must** use App Passwords instead.
 
+### Error: "Connection timeout" (ETIMEDOUT)
+
+This error typically occurs on hosted platforms (Render, Heroku, etc.) due to network restrictions or slow connections.
+
+**Solutions:**
+
+1. **Increase timeout settings** (already configured by default, but you can adjust):
+   ```env
+   EMAIL_CONNECTION_TIMEOUT=90000
+   EMAIL_SOCKET_TIMEOUT=90000
+   EMAIL_GREETING_TIMEOUT=45000
+   ```
+
+2. **Try port 465 with SSL** (if port 587 is blocked):
+   ```env
+   EMAIL_PORT=465
+   EMAIL_SECURE=true
+   ```
+
+3. **Enable connection pooling**:
+   ```env
+   EMAIL_POOL=true
+   EMAIL_MAX_CONNECTIONS=5
+   ```
+
+4. **Enable debug mode** to see detailed connection logs:
+   ```env
+   EMAIL_DEBUG=true
+   ```
+
+5. **Check hosting platform restrictions**: Some platforms block outbound SMTP connections. Consider:
+   - Using an email service provider (SendGrid, Mailgun, AWS SES)
+   - Contacting your hosting provider about SMTP port access
+   - Using a different port (465 with SSL)
+
+6. **The system automatically retries** failed email sends up to 2 times with exponential backoff, so temporary connection issues may resolve automatically.
+
 ### Still having issues?
 
 1. Double-check all environment variables are correct
 2. Make sure there are no extra spaces in your `.env` file
 3. Restart your backend server after making changes
 4. Check the server logs for detailed error messages
+5. Enable `EMAIL_DEBUG=true` to see detailed SMTP connection logs
 
