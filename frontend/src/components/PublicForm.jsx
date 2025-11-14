@@ -20,6 +20,9 @@ import styles from './PublicForm.module.css';
 
 const cx = (...classes) => classes.filter(Boolean).join(' ');
 
+// Fields to exclude from Application Details (already in Personal Information section)
+const EXCLUDED_FIELDS = ['fullname', 'email', 'name'];
+
 const PublicForm = () => {
   const { uniqueLink } = useParams();
   const navigate = useNavigate();
@@ -239,8 +242,19 @@ const PublicForm = () => {
     setFileUploads({});
 
     try {
-      const files = [];
+      const normalize = (name) => name?.toString().toLowerCase() || '';
+      
+      // Filter out excluded fields from formData (already in userDetails)
+      const cleanedFormData = {};
       Object.entries(formData).forEach(([key, value]) => {
+        const normalizedKey = normalize(key);
+        if (!EXCLUDED_FIELDS.includes(normalizedKey)) {
+          cleanedFormData[key] = value;
+        }
+      });
+
+      const files = [];
+      Object.entries(cleanedFormData).forEach(([key, value]) => {
         if (value instanceof File) {
           files.push({ key, file: value });
         } else if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) {
@@ -269,7 +283,7 @@ const PublicForm = () => {
 
         const fd = new FormData();
         const nonFileData = {};
-        Object.entries(formData).forEach(([key, value]) => {
+        Object.entries(cleanedFormData).forEach(([key, value]) => {
           if (value instanceof File) {
             fd.append(key, value, value.name);
           } else if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) {
@@ -343,7 +357,7 @@ const PublicForm = () => {
       } else {
         setSubmissionState('processing');
         const resp = await api.post(`/forms/public/${uniqueLink}/submit`, {
-          candidateData: formData,
+          candidateData: cleanedFormData,
           userDetails
         });
         if (resp?.data?.warnings?.length) {
@@ -398,6 +412,11 @@ const PublicForm = () => {
     const normalize = (name) => name?.toString().toLowerCase() || '';
 
     return form.formFields
+      .filter((field) => {
+        const normalized = normalize(field.fieldName);
+        // Exclude fields that match excluded field names (exact match only)
+        return !EXCLUDED_FIELDS.includes(normalized);
+      })
       .map((field, index) => {
         const normalized = normalize(field.fieldName);
         const priorityIndex = prioritizedFieldNames.findIndex((key) =>

@@ -71,7 +71,8 @@ const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignm
   const passedTests = testResults.filter(tr => tr.status === 'passed').length;
   const failedTests = testResults.filter(tr => tr.status === 'failed').length;
 
-  const interviewsScheduled = interviews.filter(i => i.status === 'scheduled').length;
+  // Count scheduled interviews: includes both 'scheduled' and 'completed' (since completed interviews were previously scheduled)
+  const interviewsScheduled = interviews.filter(i => ['scheduled', 'completed'].includes(i.status)).length;
   const interviewsCompleted = interviews.filter(i => i.status === 'completed').length;
   const interviewsCancelled = interviews.filter(i => ['cancelled', 'no_show'].includes(i.status)).length;
 
@@ -827,7 +828,6 @@ const CandidateManagement = () => {
             {feedback.map((entry, index) => {
               const ratings = entry.ratings || {};
               const hasRatings = Object.values(ratings).some(value => typeof value === 'number' && !Number.isNaN(value));
-              const recommendation = entry.recommendation || 'Not provided';
 
               return (
                 <Card key={index} className="mb-3 shadow-sm">
@@ -865,20 +865,12 @@ const CandidateManagement = () => {
                           </div>
                         </Col>
                       )}
-                      <Col md={hasRatings ? 6 : 12}>
-                        <h6 className="fw-semibold">Recommendation</h6>
-                        <div className="mb-2">
-                          {typeof recommendation === 'string'
-                            ? <Badge bg="info" className="text-uppercase">{recommendation}</Badge>
-                            : getStatusBadge(recommendation)}
-                        </div>
-                        {entry.comments && (
-                          <>
-                            <h6 className="fw-semibold mt-3">Comments</h6>
-                            <p className="mb-0">{entry.comments}</p>
-                          </>
-                        )}
-                      </Col>
+                      {entry.comments && (
+                        <Col md={hasRatings ? 6 : 12}>
+                          <h6 className="fw-semibold">Comments</h6>
+                          <p className="mb-0">{entry.comments}</p>
+                        </Col>
+                      )}
                     </Row>
 
                     {entry.questionAnswers && entry.questionAnswers.length > 0 && (
@@ -892,7 +884,13 @@ const CandidateManagement = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {entry.questionAnswers.map((answer, answerIdx) => (
+                            {entry.questionAnswers
+                              .filter(answer => {
+                                // Filter out recommendation-related questions
+                                const questionText = (answer.question || '').toLowerCase();
+                                return !questionText.includes('recommend');
+                              })
+                              .map((answer, answerIdx) => (
                               <tr key={answerIdx}>
                                 <td>{answer.question || 'Question'}</td>
                                 <td>
@@ -1128,7 +1126,11 @@ const CandidateManagement = () => {
                         <td>{candidate.user.email}</td>
                         <td>{candidate.form.position}</td>
                         <td>{candidate.form.department}</td>
-                        <td>{getStatusBadge(candidate.status)}</td>
+                        <td>
+                          {candidate.finalDecision?.decision === 'selected' 
+                            ? <Badge bg="success">finalized</Badge>
+                            : getStatusBadge(candidate.status)}
+                        </td>
                         <td>
                           <div className="mb-1">
                             {getWorkflowBadge(candidate.workflow)}
@@ -1174,7 +1176,12 @@ const CandidateManagement = () => {
                             variant="outline-warning"
                             size="sm"
                             className="me-2"
-                            disabled={candidate.status === 'on_hold' || candidate.finalDecision?.decision === 'on_hold'}
+                            disabled={
+                              candidate.status === 'on_hold' || 
+                              candidate.finalDecision?.decision === 'on_hold' ||
+                              candidate.status === 'selected' ||
+                              candidate.finalDecision?.decision === 'selected'
+                            }
                             onClick={() => openDecisionModal(candidate, 'on_hold')}
                           >
                             Put On Hold
@@ -1182,7 +1189,12 @@ const CandidateManagement = () => {
                           <Button
                             variant="outline-danger"
                             size="sm"
-                            disabled={candidate.status === 'rejected' || candidate.finalDecision?.decision === 'rejected'}
+                            disabled={
+                              candidate.status === 'rejected' || 
+                              candidate.finalDecision?.decision === 'rejected' ||
+                              candidate.status === 'selected' ||
+                              candidate.finalDecision?.decision === 'selected'
+                            }
                             onClick={() => openDecisionModal(candidate, 'rejected')}
                           >
                             Reject
@@ -1227,7 +1239,7 @@ const CandidateManagement = () => {
                       <div className="d-flex flex-wrap gap-3 mt-3" style={{ fontSize: '0.85rem', color: '#475569' }}>
                         <span><strong>Tests:</strong> {candidate.workflow?.tests?.completed || 0} / {candidate.workflow?.tests?.assigned || 0}</span>
                         <span><strong>Interviews:</strong> {candidate.workflow?.interviews?.completed || 0} / {candidate.workflow?.interviews?.scheduled || 0}</span>
-                        <span><strong>Status:</strong> {candidate.status}</span>
+                        <span><strong>Status:</strong> {candidate.finalDecision?.decision === 'selected' ? 'finalized' : candidate.status}</span>
                       </div>
 
                       <div className="d-flex gap-2 mt-3">
@@ -1255,7 +1267,12 @@ const CandidateManagement = () => {
                         <Button
                           variant="outline-warning"
                           size="sm"
-                          disabled={candidate.status === 'on_hold' || candidate.finalDecision?.decision === 'on_hold'}
+                          disabled={
+                            candidate.status === 'on_hold' || 
+                            candidate.finalDecision?.decision === 'on_hold' ||
+                            candidate.status === 'selected' ||
+                            candidate.finalDecision?.decision === 'selected'
+                          }
                           onClick={() => {
                             openDecisionModal(candidate, 'on_hold');
                             closeStageDrawer();
@@ -1266,7 +1283,12 @@ const CandidateManagement = () => {
                         <Button
                           variant="outline-danger"
                           size="sm"
-                          disabled={candidate.status === 'rejected' || candidate.finalDecision?.decision === 'rejected'}
+                          disabled={
+                            candidate.status === 'rejected' || 
+                            candidate.finalDecision?.decision === 'rejected' ||
+                            candidate.status === 'selected' ||
+                            candidate.finalDecision?.decision === 'selected'
+                          }
                           onClick={() => {
                             openDecisionModal(candidate, 'rejected');
                             closeStageDrawer();
@@ -1362,7 +1384,9 @@ const CandidateManagement = () => {
                 }}
                 disabled={
                   selectedCandidate.status === 'on_hold' ||
-                  selectedCandidate.finalDecision?.decision === 'on_hold'
+                  selectedCandidate.finalDecision?.decision === 'on_hold' ||
+                  selectedCandidate.status === 'selected' ||
+                  selectedCandidate.finalDecision?.decision === 'selected'
                 }
               >
                 Put On Hold
@@ -1375,7 +1399,9 @@ const CandidateManagement = () => {
                 }}
                 disabled={
                   selectedCandidate.status === 'rejected' ||
-                  selectedCandidate.finalDecision?.decision === 'rejected'
+                  selectedCandidate.finalDecision?.decision === 'rejected' ||
+                  selectedCandidate.status === 'selected' ||
+                  selectedCandidate.finalDecision?.decision === 'selected'
                 }
               >
                 Reject

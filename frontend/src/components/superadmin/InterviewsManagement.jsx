@@ -1389,7 +1389,13 @@ const InterviewsManagement = () => {
                                       {feedback.questionAnswers && feedback.questionAnswers.length > 0 && (
                                         <div style={{ marginBottom: '0.5rem' }}>
                                           <strong>Feedback Form Answers:</strong>
-                                          {feedback.questionAnswers.map((qa, qaIndex) => (
+                                          {feedback.questionAnswers
+                                            .filter(qa => {
+                                              // Filter out recommendation-related questions
+                                              const questionText = (qa.question || '').toLowerCase();
+                                              return !questionText.includes('recommend');
+                                            })
+                                            .map((qa, qaIndex) => (
                                             <div key={qaIndex} style={{ 
                                               marginTop: '0.5rem', 
                                               padding: '0.5rem', 
@@ -1416,22 +1422,6 @@ const InterviewsManagement = () => {
                                           <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', fontStyle: 'italic' }}>
                                             {feedback.comments}
                                           </p>
-                                        </div>
-                                      )}
-                                      
-                                      {feedback.recommendation && (
-                                        <div>
-                                          <strong>Recommendation:</strong>
-                                          <Badge
-                                            bg={
-                                              feedback.recommendation === 'Strongly Recommend' ? 'success' :
-                                              feedback.recommendation === 'Recommend' ? 'info' :
-                                              feedback.recommendation === 'Neutral' ? 'warning' : 'danger'
-                                            }
-                                            style={{ marginLeft: '0.5rem' }}
-                                          >
-                                            {feedback.recommendation}
-                                          </Badge>
                                         </div>
                                       )}
                                     </div>
