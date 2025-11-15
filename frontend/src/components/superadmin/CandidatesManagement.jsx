@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Form, Image } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser } from 'react-icons/fa';
+import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaCopy } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
@@ -17,6 +17,8 @@ const CandidatesManagement = () => {
   const [availableTests, setAvailableTests] = useState([]);
   const [selectedTestId, setSelectedTestId] = useState('');
   const [assignLoading, setAssignLoading] = useState(false);
+  const [assignmentDetails, setAssignmentDetails] = useState(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     fetchCandidates();
@@ -49,12 +51,16 @@ const CandidatesManagement = () => {
     if (!selectedCandidate || !selectedTestId) return;
     setAssignLoading(true);
     try {
-      await api.post(`/tests/${selectedTestId}/assign`, {
+      const response = await api.post(`/tests/${selectedTestId}/assign`, {
         candidateIds: [selectedCandidate._id],
         scheduledDate: new Date(),
         scheduledTime: '00:00'
       });
-      setAssignModalOpen(false);
+      // Store assignment details for copy functionality
+      if (response.data.assignments && response.data.assignments.length > 0) {
+        setAssignmentDetails(response.data.assignments[0]);
+      }
+      // Keep modal open to show copy button
       setSelectedTestId('');
     } catch (err) {
       console.error('Assign test error:', err);
@@ -62,6 +68,20 @@ const CandidatesManagement = () => {
     } finally {
       setAssignLoading(false);
     }
+  };
+
+  const copyTestLink = () => {
+    if (!assignmentDetails) return;
+    
+    const textToCopy = `Candidate Name: ${assignmentDetails.candidateName}\nTest Name: ${assignmentDetails.testName}\nTime Duration: ${assignmentDetails.duration} minutes\nTest Link: ${assignmentDetails.testLink}`;
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 3000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      setError('Failed to copy test link');
+    });
   };
 
   const fetchCandidateProfile = async (candidateId) => {
@@ -616,7 +636,11 @@ const CandidatesManagement = () => {
       </Modal>
 
       {/* Assign Test Modal */}
-      <Modal show={assignModalOpen} onHide={() => setAssignModalOpen(false)} centered>
+      <Modal show={assignModalOpen} onHide={() => {
+        setAssignModalOpen(false);
+        setAssignmentDetails(null);
+        setCopySuccess(false);
+      }} centered>
         <Modal.Header closeButton>
           <Modal.Title>Assign Test to Candidate</Modal.Title>
         </Modal.Header>
@@ -632,12 +656,38 @@ const CandidatesManagement = () => {
               </Form.Select>
             </Form.Group>
           </Form>
+          {assignmentDetails && (
+            <Alert variant="success" className="mt-3">
+              <Alert.Heading>Test Assigned Successfully!</Alert.Heading>
+              <p className="mb-2">
+                <strong>Candidate:</strong> {assignmentDetails.candidateName}<br />
+                <strong>Test:</strong> {assignmentDetails.testName}<br />
+                <strong>Duration:</strong> {assignmentDetails.duration} minutes
+              </p>
+              <Button 
+                variant="primary" 
+                onClick={copyTestLink}
+                className="mt-2"
+              >
+                <FaCopy className="me-2" />
+                {copySuccess ? 'Copied!' : 'Copy Test Link'}
+              </Button>
+            </Alert>
+          )}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setAssignModalOpen(false)}>Cancel</Button>
-          <Button variant="primary" onClick={assignTestToCandidate} disabled={!selectedTestId || assignLoading}>
-            {assignLoading ? 'Assigning...' : 'Assign Test'}
+          <Button variant="secondary" onClick={() => {
+            setAssignModalOpen(false);
+            setAssignmentDetails(null);
+            setCopySuccess(false);
+          }}>
+            {assignmentDetails ? 'Close' : 'Cancel'}
           </Button>
+          {!assignmentDetails && (
+            <Button variant="primary" onClick={assignTestToCandidate} disabled={!selectedTestId || assignLoading}>
+              {assignLoading ? 'Assigning...' : 'Assign Test'}
+            </Button>
+          )}
         </Modal.Footer>
       </Modal>
     </Container>

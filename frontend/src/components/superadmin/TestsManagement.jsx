@@ -28,7 +28,8 @@ import {
   FaCheckCircle,
   FaUpload,
   FaEye,
-  FaDownload
+  FaDownload,
+  FaCopy
 } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
@@ -106,6 +107,8 @@ const TestsManagement = () => {
 
   const [toast, setToast] = useState({ type: '', message: '' });
   const [candidateFilters, setCandidateFilters] = useState({ category: 'all', position: 'all', search: '' });
+  const [assignmentDetails, setAssignmentDetails] = useState(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const formatDateTime = (value) => {
     if (!value) {
@@ -697,7 +700,23 @@ const TestsManagement = () => {
     if (!builderSaving) {
       setBuilderModalVisible(false);
       setBuilderState(defaultBuilderState);
+      setAssignmentDetails(null);
+      setCopySuccess(false);
     }
+  };
+
+  const copyTestLink = () => {
+    if (!assignmentDetails) return;
+    
+    const textToCopy = `Candidate Name: ${assignmentDetails.candidateName}\nTest Name: ${assignmentDetails.testName}\nTime Duration: ${assignmentDetails.duration} minutes\nTest Link: ${assignmentDetails.testLink}`;
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 3000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      setToast({ type: 'danger', message: 'Failed to copy test link' });
+    });
   };
 
   const updateBuilderSelection = (index, key, value) => {
@@ -763,9 +782,13 @@ const TestsManagement = () => {
         candidateIds: [builderState.candidateId]
       };
 
-      await api.post('/tests/auto-generate', payload);
+      const response = await api.post('/tests/auto-generate', payload);
+      // Store assignment details for copy functionality
+      if (response.data.assignments && response.data.assignments.length > 0) {
+        setAssignmentDetails(response.data.assignments[0]);
+      }
       setToast({ type: 'success', message: 'Assessment generated and assigned successfully.' });
-      closeBuilderModal();
+      // Keep modal open to show copy button
       fetchCandidates();
     } catch (error) {
       console.error('Auto-generate assessment error:', error);
@@ -1794,6 +1817,24 @@ const TestsManagement = () => {
                 })}
               </Card.Body>
             </Card>
+            {assignmentDetails && (
+              <Alert variant="success" className="mt-3">
+                <Alert.Heading>Assessment Generated Successfully!</Alert.Heading>
+                <p className="mb-2">
+                  <strong>Candidate:</strong> {assignmentDetails.candidateName}<br />
+                  <strong>Test:</strong> {assignmentDetails.testName}<br />
+                  <strong>Duration:</strong> {assignmentDetails.duration} minutes
+                </p>
+                <Button 
+                  variant="primary" 
+                  onClick={copyTestLink}
+                  className="mt-2"
+                >
+                  <FaCopy className="me-2" />
+                  {copySuccess ? 'Copied!' : 'Copy Test Link'}
+                </Button>
+              </Alert>
+            )}
           </Modal.Body>
           <Modal.Footer className="d-flex justify-content-between align-items-center">
             <div className="text-muted d-flex align-items-center gap-2">
@@ -1802,11 +1843,13 @@ const TestsManagement = () => {
             </div>
             <div className="d-flex gap-2">
               <Button variant="secondary" onClick={closeBuilderModal} disabled={builderSaving}>
-                Cancel
+                {assignmentDetails ? 'Close' : 'Cancel'}
               </Button>
-              <Button type="submit" disabled={builderSaving}>
-                {builderSaving ? <Spinner animation="border" size="sm" className="me-2" /> : <FaCheckCircle className="me-2" />}Generate Assessment
-              </Button>
+              {!assignmentDetails && (
+                <Button type="submit" disabled={builderSaving}>
+                  {builderSaving ? <Spinner animation="border" size="sm" className="me-2" /> : <FaCheckCircle className="me-2" />}Generate Assessment
+                </Button>
+              )}
             </div>
           </Modal.Footer>
         </Form>

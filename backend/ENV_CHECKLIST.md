@@ -1,16 +1,16 @@
 # Environment Variables Checklist
 
-## Required Email Configuration (lines 8-13 in .env)
+## Required Email Configuration
 
 Your `.env` file should have these email-related variables:
 
 ```env
-EMAIL_HOST=smtp.gmail.com
+EMAIL_HOST=smtp-relay.brevo.com
 EMAIL_PORT=587
 EMAIL_SECURE=false
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-16-character-app-password
-EMAIL_FROM=your-email@gmail.com
+EMAIL_USER=your-email@domain.com
+BREVO_SMTP_KEY=xkeysib-your-brevo-api-key
+EMAIL_FROM=your-email@domain.com
 FRONTEND_URL=http://localhost:3000
 ```
 
@@ -44,26 +44,28 @@ WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
 ## How to Verify Your Configuration
 
 ### ✅ Check 1: Format
-- **EMAIL_HOST**: Should be `smtp.gmail.com` (no quotes)
+- **EMAIL_HOST**: Should be `smtp-relay.brevo.com` (no quotes)
 - **EMAIL_PORT**: Should be `587` (number only, no quotes)
 - **EMAIL_SECURE**: Should be `false` (lowercase, no quotes)
-- **EMAIL_USER**: Your full Gmail address (no quotes)
-- **EMAIL_PASS**: Your 16-character App Password (no spaces, no quotes)
+- **EMAIL_USER**: Your email address registered with Brevo (no quotes)
+- **BREVO_SMTP_KEY**: Your Brevo **API key** (starts with `xkeysib-`, no spaces, no quotes) - Note: We use the API key for SMTP authentication
 - **EMAIL_FROM**: Same as EMAIL_USER (no quotes)
 - **FRONTEND_URL**: Your frontend URL (no quotes)
 
 ### ✅ Check 2: No Quotes
-❌ **Wrong**: `EMAIL_USER="your-email@gmail.com"`  
-✅ **Correct**: `EMAIL_USER=your-email@gmail.com`
+❌ **Wrong**: `EMAIL_USER="your-email@domain.com"`  
+✅ **Correct**: `EMAIL_USER=your-email@domain.com`
 
 ### ✅ Check 3: No Spaces
-❌ **Wrong**: `EMAIL_PASS=abcd efgh ijkl mnop`  
-✅ **Correct**: `EMAIL_PASS=abcdefghijklmnop`
+❌ **Wrong**: `BREVO_SMTP_KEY=xkeysib-abc def ghi`  
+✅ **Correct**: `BREVO_SMTP_KEY=xkeysib-abcdefghi`
 
-### ✅ Check 4: App Password (not regular password)
-- Must be a Gmail App Password (16 characters)
-- Generated from Google Account → Security → App passwords
-- NOT your regular Gmail password
+### ✅ Check 4: Authentication
+- **BREVO_SMTP_KEY**: Use your **API key** (starts with `xkeysib-`) from Brevo Settings → SMTP & API → API Keys
+  - **Note**: We use the API key for SMTP authentication (not the SMTP key)
+  - The API key can be used for both REST API and SMTP authentication
+- The key should be the complete string without any spaces
+- Make sure the email address in `EMAIL_USER` matches your Brevo account email
 
 ## What You Should See in Backend Logs
 
@@ -81,12 +83,12 @@ Phone: 1234567890
 ===================================
 
 --- Sending Email ---
-From: your-email@gmail.com
+From: your-email@domain.com
 To: john@example.com
 Subject: Test Invitation: Technical Assessment Test
 --- --- ---
 
-✓ Email sent successfully! Message ID: <abc123@mail.gmail.com>
+✓ Email sent successfully! Message ID: <abc123@mail.brevo.com>
 ```
 
 ## Troubleshooting
@@ -99,4 +101,3 @@ Subject: Test Invitation: Technical Assessment Test
 ### If email is sent but details are missing:
 - The details are now logged BEFORE the email is sent
 - You should see them in the console output
-

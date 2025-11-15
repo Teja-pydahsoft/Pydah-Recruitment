@@ -1028,6 +1028,10 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
       await test.save();
     }
 
+    // Define frontendUrl outside the if block so it's available for assignment details
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
+
     if (candidateAssignments.length > 0) {
       const candidateMap = new Map(
         candidateData.map(candidate => {
@@ -1035,9 +1039,6 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
           return [candidate._id.toString(), doc];
         })
       );
-
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
 
       const notificationSettings = await NotificationSettings.getGlobalSettings();
       const candidateSettings = notificationSettings?.candidate || {};
@@ -1172,9 +1173,27 @@ This is an automated message from the Staff Recruitment System.
       }
     }
 
+    // Generate assignment details for response
+    const assignmentDetails = candidateData.map(candidate => {
+      const candidateLink = `${frontendUrl}/test/${test.testLink}?candidate=${candidate._id.toString()}`;
+      return {
+        candidateId: candidate._id.toString(),
+        candidateName: candidate.user?.name || 'Unknown',
+        testName: test.title,
+        duration: test.duration,
+        testLink: candidateLink
+      };
+    });
+
     res.status(201).json({
       message: 'Assessment generated successfully',
-      test
+      test: {
+        _id: test._id,
+        title: test.title,
+        duration: test.duration,
+        testLink: test.testLink
+      },
+      assignments: assignmentDetails
     });
   } catch (error) {
     console.error('Auto-generate test error:', error);
@@ -1946,15 +1965,26 @@ router.post('/:id/submit', async (req, res) => {
 router.post('/:id/assign', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
     const { candidateIds, scheduledDate, scheduledTime } = req.body;
-    const test = await Test.findById(req.params.id);
+    const test = await Test.findById(req.params.id)
+      .populate('form', 'title position department');
 
     if (!test) {
       return res.status(404).json({ message: 'Test not found' });
     }
 
+    // Ensure testLink exists
+    if (!test.testLink) {
+      test.testLink = `test_${test._id}_${Date.now()}`;
+      await test.save();
+    }
+
     // Update test schedule
     test.scheduledDate = scheduledDate;
     test.scheduledTime = scheduledTime;
+
+    // Fetch candidate details
+    const candidates = await Candidate.find({ _id: { $in: candidateIds } })
+      .populate('user', 'name email');
 
     // Add candidates to test
     for (const candidateId of candidateIds) {
@@ -1974,9 +2004,31 @@ router.post('/:id/assign', authenticateToken, requireSuperAdminOrPermission('tes
 
     await test.save();
 
+    // Generate test links for each candidate
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
+    
+    const assignmentDetails = candidates.map(candidate => {
+      const candidateLink = `${baseTestLink}?candidate=${candidate._id.toString()}`;
+      return {
+        candidateId: candidate._id.toString(),
+        candidateName: candidate.user?.name || 'Unknown',
+        testName: test.title,
+        duration: test.duration,
+        testLink: candidateLink
+      };
+    });
+
     res.json({
       message: 'Test assigned to candidates successfully',
-      assignedCount: candidateIds.length
+      assignedCount: candidateIds.length,
+      test: {
+        _id: test._id,
+        title: test.title,
+        duration: test.duration,
+        testLink: test.testLink
+      },
+      assignments: assignmentDetails
     });
   } catch (error) {
     console.error('Test assignment error:', error);
