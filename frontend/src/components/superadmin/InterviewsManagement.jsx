@@ -295,7 +295,7 @@ const SectionTitle = styled.h4`
 `;
 
 const AssignButton = styled.button`
-  background: #10b981;
+  background: ${props => props.assigned ? '#059669' : '#10b981'};
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -303,14 +303,20 @@ const AssignButton = styled.button`
   font-size: 0.875rem;
   cursor: pointer;
   transition: background 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 
   &:hover {
-    background: #059669;
+    background: ${props => props.assigned ? '#047857' : '#059669'};
   }
 `;
 
 const StyledButton = styled.button`
-  background: ${props => props.danger ? '#ef4444' : props.variant === 'info' ? '#3b82f6' : '#6b7280'};
+  background: ${props => 
+    props.danger ? '#ef4444' : 
+    props.configured ? '#059669' :
+    props.variant === 'info' ? '#3b82f6' : '#6b7280'};
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -318,9 +324,15 @@ const StyledButton = styled.button`
   font-size: 0.875rem;
   cursor: pointer;
   transition: background 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 
   &:hover {
-    background: ${props => props.danger ? '#dc2626' : props.variant === 'info' ? '#2563eb' : '#4b5563'};
+    background: ${props => 
+      props.danger ? '#dc2626' : 
+      props.configured ? '#047857' :
+      props.variant === 'info' ? '#2563eb' : '#4b5563'};
   }
 `;
 
@@ -990,10 +1002,18 @@ const InterviewsManagement = () => {
                                     <td>
                                       <div className="d-flex flex-wrap gap-2 justify-content-end">
                                         <AssignButton
+                                          assigned={candidateEntry.panelMembers && Array.isArray(candidateEntry.panelMembers) && candidateEntry.panelMembers.length > 0}
                                           style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
                                           onClick={() => handleAssignPanelMembers(interview, candidateEntry)}
                                         >
-                                          Assign Panel Members
+                                          {candidateEntry.panelMembers && Array.isArray(candidateEntry.panelMembers) && candidateEntry.panelMembers.length > 0 ? (
+                                            <>
+                                              <span style={{ fontSize: '1rem' }}>✓</span>
+                                              Assigned ({candidateEntry.panelMembers.length})
+                                            </>
+                                          ) : (
+                                            'Assign Panel Members'
+                                          )}
                                         </AssignButton>
                                         <StyledButton
                                           variant="info"
@@ -1045,13 +1065,21 @@ const InterviewsManagement = () => {
                                         </StyledButton>
                                         <StyledButton
                                           variant="info"
+                                          configured={interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0}
                                           style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
                                           onClick={() => {
                                             setSelectedInterview(interview);
                                             handleConfigureFeedbackForm(interview);
                                           }}
                                         >
-                                          Configure Feedback Form
+                                          {interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0 ? (
+                                            <>
+                                              <span style={{ fontSize: '1rem' }}>✓</span>
+                                              Configured
+                                            </>
+                                          ) : (
+                                            'Configure Feedback Form'
+                                          )}
                                         </StyledButton>
                                         <StyledButton
                                           danger
