@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner, Image, Tabs, Tab } from 'react-bootstrap';
-import { FaCheckCircle, FaEye, FaCamera } from 'react-icons/fa';
+import { FaCheckCircle, FaEye, FaCamera, FaClipboardCheck, FaListUl } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -747,143 +747,240 @@ const TestResults = ({ embedded = false, refreshToken = 0 }) => {
         size="xl"
         centered
         scrollable
+        style={{ maxWidth: '98vw', width: '98vw' }}
+        dialogClassName="test-results-modal"
       >
-        <Modal.Header closeButton>
-          <Modal.Title>
+        <Modal.Header closeButton style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+          <Modal.Title style={{ color: 'white', fontWeight: '600' }}>
+            <FaEye className="me-2" />
             Detailed Test Results
             {detailedResult && (
-              <small className="text-muted ms-2">
+              <small className="ms-2" style={{ opacity: 0.9 }}>
                 - {detailedResult.candidate?.name || 'Candidate'}
               </small>
             )}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body style={{ padding: '1.5rem', background: '#f8f9fa', maxHeight: '85vh', overflowY: 'auto' }}>
           {loadingDetailed ? (
-            <div className="text-center py-4">
-              <Spinner animation="border" />
-              <p className="mt-2">Loading detailed results...</p>
+            <div className="text-center py-5">
+              <Spinner animation="border" variant="primary" />
+              <p className="mt-3 text-muted">Loading detailed results...</p>
             </div>
           ) : detailedResult ? (
-            <div>
+            <div style={{ maxWidth: '100%' }}>
               {/* Test and Candidate Info */}
-              <Row className="mb-4">
+              <Row className="mb-4 g-3">
                 <Col md={6}>
-                  <Card className="h-100">
-                    <Card.Body>
-                      <h6 className="text-muted mb-2">Test Information</h6>
-                      <p className="mb-1"><strong>Title:</strong> {detailedResult.test?.title}</p>
-                      <p className="mb-1"><strong>Duration:</strong> {detailedResult.test?.duration} minutes</p>
-                      <p className="mb-1"><strong>Total Marks:</strong> {detailedResult.test?.totalMarks}</p>
-                      <p className="mb-1"><strong>Passing Percentage:</strong> {detailedResult.test?.passingPercentage}%</p>
+                  <Card className="h-100 border-0 shadow-sm" style={{ background: 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)' }}>
+                    <Card.Body style={{ padding: '1.25rem' }}>
+                      <h6 className="text-muted mb-3 text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.5px', fontWeight: '600' }}>
+                        <FaClipboardCheck className="me-2" />
+                        Test Information
+                      </h6>
+                      <div style={{ lineHeight: '1.8' }}>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Title:</strong>
+                          <span style={{ color: '#212529' }}> {detailedResult.test?.title}</span>
+                        </p>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Duration:</strong>
+                          <span style={{ color: '#212529' }}> {detailedResult.test?.duration} minutes</span>
+                        </p>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Total Marks:</strong>
+                          <span style={{ color: '#212529' }}> {detailedResult.test?.totalMarks}</span>
+                        </p>
+                        <p className="mb-0">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Passing %:</strong>
+                          <span style={{ color: '#212529' }}> {detailedResult.test?.passingPercentage}%</span>
+                        </p>
+                      </div>
                     </Card.Body>
                   </Card>
                 </Col>
                 <Col md={6}>
-                  <Card className="h-100">
-                    <Card.Body>
-                      <h6 className="text-muted mb-2">Candidate Performance</h6>
-                      <p className="mb-1"><strong>Name:</strong> {detailedResult.candidate?.name}</p>
-                      <p className="mb-1"><strong>Email:</strong> {detailedResult.candidate?.email}</p>
-                      <p className="mb-1">
-                        <strong>Score:</strong> {detailedResult.result?.score || 0}/{detailedResult.result?.totalScore || 0}
-                      </p>
-                      <p className="mb-1">
-                        <strong>Percentage:</strong> {detailedResult.result?.percentage?.toFixed(1) || 0}%
-                      </p>
-                      <p className="mb-0">
-                        <strong>Status:</strong>{' '}
-                        <Badge bg={detailedResult.result?.passed ? 'success' : 'danger'}>
-                          {detailedResult.result?.passed ? 'Passed' : 'Failed'}
-                        </Badge>
-                      </p>
+                  <Card className="h-100 border-0 shadow-sm" style={{ background: 'linear-gradient(135deg, #f093fb15 0%, #f5576c15 100%)' }}>
+                    <Card.Body style={{ padding: '1.25rem' }}>
+                      <h6 className="text-muted mb-3 text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.5px', fontWeight: '600' }}>
+                        <FaCheckCircle className="me-2" />
+                        Candidate Performance
+                      </h6>
+                      <div style={{ lineHeight: '1.8' }}>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Name:</strong>
+                          <span style={{ color: '#212529' }}> {detailedResult.candidate?.name}</span>
+                        </p>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Email:</strong>
+                          <span style={{ color: '#212529' }}> {detailedResult.candidate?.email}</span>
+                        </p>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Score:</strong>
+                          <span style={{ color: '#212529', fontWeight: '600' }}>
+                            {detailedResult.result?.score || 0}/{detailedResult.result?.totalScore || 0}
+                          </span>
+                        </p>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Percentage:</strong>
+                          <span style={{ color: '#212529', fontWeight: '600', fontSize: '1.1rem' }}>
+                            {detailedResult.result?.percentage?.toFixed(1) || 0}%
+                          </span>
+                        </p>
+                        <p className="mb-0">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Status:</strong>
+                          <Badge 
+                            bg={detailedResult.result?.passed ? 'success' : 'danger'} 
+                            className="ms-2"
+                            style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
+                          >
+                            {detailedResult.result?.passed ? 'Passed' : 'Failed'}
+                          </Badge>
+                        </p>
+                      </div>
                     </Card.Body>
                   </Card>
                 </Col>
               </Row>
 
               {/* Answers Summary */}
-              <Card className="mb-4">
-                <Card.Header>
-                  <h5 className="mb-0">Question-wise Answers</h5>
+              <Card className="mb-4 border-0 shadow-sm">
+                <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+                  <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+                    <FaListUl className="me-2" />
+                    Question-wise Answers
+                  </h5>
                 </Card.Header>
-                <Card.Body>
+                <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
                   {detailedResult.result?.answers && detailedResult.result.answers.length > 0 ? (
-                    <div>
+                    <div style={{ width: '100%' }}>
                       {detailedResult.result.answers.map((answer, index) => (
-                        <Card key={index} className="mb-3" style={{ borderLeft: `4px solid ${answer.isCorrect ? '#10b981' : answer.isCorrect === false ? '#ef4444' : '#f59e0b'}` }}>
-                          <Card.Body>
-                            <div className="d-flex justify-content-between align-items-start mb-2">
-                              <h6 className="mb-0">Question {index + 1}</h6>
-                              <Badge bg={answer.isCorrect ? 'success' : answer.isCorrect === false ? 'danger' : 'warning'}>
+                        <Card 
+                          key={index} 
+                          className="mb-3 border-0 shadow-sm" 
+                          style={{ 
+                            borderLeft: `5px solid ${answer.isCorrect ? '#10b981' : answer.isCorrect === false ? '#ef4444' : '#f59e0b'}`,
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                            width: '100%'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                          }}
+                        >
+                          <Card.Body style={{ padding: '1.25rem' }}>
+                            <div className="d-flex justify-content-between align-items-start mb-3">
+                              <h6 className="mb-0" style={{ color: '#212529', fontWeight: '600' }}>
+                                Question {index + 1}
+                              </h6>
+                              <Badge 
+                                bg={answer.isCorrect ? 'success' : answer.isCorrect === false ? 'danger' : 'warning'}
+                                style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', fontWeight: '500' }}
+                              >
                                 {answer.isCorrect ? 'Correct' : answer.isCorrect === false ? 'Incorrect' : 'Pending'}
                               </Badge>
                             </div>
-                            <p className="mb-2"><strong>Question:</strong> {answer.questionText}</p>
+                            <p className="mb-3" style={{ lineHeight: '1.6', color: '#495057' }}>
+                              <strong style={{ color: '#212529' }}>Question:</strong> {answer.questionText}
+                            </p>
                             
                             {/* Options */}
                             {answer.options && answer.options.length > 0 && (
-                              <div className="mb-2">
-                                <strong>Options:</strong>
-                                <ul className="mb-1" style={{ listStyle: 'none', paddingLeft: 0 }}>
-                                  {answer.options.map((option, optIdx) => (
-                                    <li key={optIdx} style={{ 
-                                      padding: '0.25rem 0',
-                                      color: (answer.candidateAnswerFormatted?.index === optIdx || 
-                                              (Array.isArray(answer.candidateAnswerFormatted?.indices) && 
-                                               answer.candidateAnswerFormatted.indices.includes(optIdx))) 
-                                        ? '#0d6efd' : 
-                                        (answer.correctAnswerFormatted?.index === optIdx || 
-                                         (Array.isArray(answer.correctAnswerFormatted?.indices) && 
-                                          answer.correctAnswerFormatted.indices.includes(optIdx)))
-                                        ? '#198754' : '#6c757d'
-                                    }}>
-                                      {String.fromCharCode(65 + optIdx)}. {option}
-                                      {answer.candidateAnswerFormatted?.index === optIdx && (
-                                        <Badge bg="primary" className="ms-2">Your Answer</Badge>
-                                      )}
-                                      {answer.correctAnswerFormatted?.index === optIdx && (
-                                        <Badge bg="success" className="ms-2">Correct Answer</Badge>
-                                      )}
-                                    </li>
-                                  ))}
+                              <div className="mb-3" style={{ background: '#f8f9fa', padding: '1rem', borderRadius: '8px' }}>
+                                <strong style={{ color: '#212529', display: 'block', marginBottom: '0.75rem' }}>Options:</strong>
+                                <ul className="mb-0" style={{ listStyle: 'none', paddingLeft: 0 }}>
+                                  {answer.options.map((option, optIdx) => {
+                                    const isCandidateAnswer = answer.candidateAnswerFormatted?.index === optIdx || 
+                                                              (Array.isArray(answer.candidateAnswerFormatted?.indices) && 
+                                                               answer.candidateAnswerFormatted.indices.includes(optIdx));
+                                    const isCorrectAnswer = answer.correctAnswerFormatted?.index === optIdx || 
+                                                           (Array.isArray(answer.correctAnswerFormatted?.indices) && 
+                                                            answer.correctAnswerFormatted.indices.includes(optIdx));
+                                    return (
+                                      <li 
+                                        key={optIdx} 
+                                        style={{ 
+                                          padding: '0.5rem 0.75rem',
+                                          marginBottom: '0.5rem',
+                                          borderRadius: '6px',
+                                          background: isCandidateAnswer ? '#e7f3ff' : isCorrectAnswer ? '#d1f2eb' : '#ffffff',
+                                          border: isCandidateAnswer ? '1px solid #0d6efd' : isCorrectAnswer ? '1px solid #198754' : '1px solid #dee2e6',
+                                          color: isCandidateAnswer ? '#0d6efd' : isCorrectAnswer ? '#198754' : '#495057',
+                                          fontWeight: isCandidateAnswer || isCorrectAnswer ? '500' : '400'
+                                        }}
+                                      >
+                                        <span style={{ fontWeight: '600', marginRight: '0.5rem' }}>
+                                          {String.fromCharCode(65 + optIdx)}.
+                                        </span>
+                                        {option}
+                                        {isCandidateAnswer && (
+                                          <Badge bg="primary" className="ms-2" style={{ fontSize: '0.75rem' }}>Your Answer</Badge>
+                                        )}
+                                        {isCorrectAnswer && (
+                                          <Badge bg="success" className="ms-2" style={{ fontSize: '0.75rem' }}>Correct</Badge>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
                                 </ul>
                               </div>
                             )}
 
                             {/* Answers Display */}
-                            <Row className="mb-2">
+                            <Row className="mb-3 g-3">
                               <Col md={6}>
-                                <p className="mb-1">
-                                  <strong>Your Answer:</strong>{' '}
-                                  {answer.candidateAnswerFormatted?.display || 
-                                   (typeof answer.candidateAnswer === 'number' && answer.options 
-                                    ? `Option ${String.fromCharCode(65 + answer.candidateAnswer)}: ${answer.options[answer.candidateAnswer]}` 
-                                    : answer.candidateAnswer) || 'Not answered'}
-                                </p>
+                                <div style={{ background: '#fff3cd', padding: '0.75rem', borderRadius: '6px', border: '1px solid #ffc107' }}>
+                                  <p className="mb-0">
+                                    <strong style={{ color: '#856404' }}>Your Answer:</strong>{' '}
+                                    <span style={{ color: '#856404' }}>
+                                      {answer.candidateAnswerFormatted?.display || 
+                                       (typeof answer.candidateAnswer === 'number' && answer.options 
+                                        ? `Option ${String.fromCharCode(65 + answer.candidateAnswer)}: ${answer.options[answer.candidateAnswer]}` 
+                                        : answer.candidateAnswer) || 'Not answered'}
+                                    </span>
+                                  </p>
+                                </div>
                               </Col>
                               <Col md={6}>
-                                <p className="mb-1">
-                                  <strong>Correct Answer:</strong>{' '}
-                                  {answer.correctAnswerFormatted?.display || 
-                                   (typeof answer.correctAnswer === 'number' && answer.options 
-                                    ? `Option ${String.fromCharCode(65 + answer.correctAnswer)}: ${answer.options[answer.correctAnswer]}` 
-                                    : answer.correctAnswer)}
-                                </p>
+                                <div style={{ background: '#d1f2eb', padding: '0.75rem', borderRadius: '6px', border: '1px solid #198754' }}>
+                                  <p className="mb-0">
+                                    <strong style={{ color: '#0f5132' }}>Correct Answer:</strong>{' '}
+                                    <span style={{ color: '#0f5132' }}>
+                                      {answer.correctAnswerFormatted?.display || 
+                                       (typeof answer.correctAnswer === 'number' && answer.options 
+                                        ? `Option ${String.fromCharCode(65 + answer.correctAnswer)}: ${answer.options[answer.correctAnswer]}` 
+                                        : answer.correctAnswer)}
+                                    </span>
+                                  </p>
+                                </div>
                               </Col>
                             </Row>
 
                             {/* Marks and Time */}
-                            <Row>
+                            <Row className="g-3">
                               <Col md={6}>
-                                <p className="mb-0 text-muted">
-                                  <strong>Marks:</strong> {answer.marks || 0}/{answer.questionMarks || 0}
-                                </p>
+                                <div style={{ background: '#f8f9fa', padding: '0.75rem', borderRadius: '6px' }}>
+                                  <p className="mb-0 text-muted">
+                                    <strong>Marks:</strong>{' '}
+                                    <span style={{ color: '#212529', fontWeight: '600' }}>
+                                      {answer.marks || 0}/{answer.questionMarks || 0}
+                                    </span>
+                                  </p>
+                                </div>
                               </Col>
                               <Col md={6}>
-                                <p className="mb-0 text-muted">
-                                  <strong>Time Taken:</strong> {answer.timeTaken || 0} seconds
-                                </p>
+                                <div style={{ background: '#f8f9fa', padding: '0.75rem', borderRadius: '6px' }}>
+                                  <p className="mb-0 text-muted">
+                                    <strong>Time Taken:</strong>{' '}
+                                    <span style={{ color: '#212529', fontWeight: '600' }}>
+                                      {answer.timeTaken || 0} seconds
+                                    </span>
+                                  </p>
+                                </div>
                               </Col>
                             </Row>
                           </Card.Body>
@@ -898,25 +995,48 @@ const TestResults = ({ embedded = false, refreshToken = 0 }) => {
 
               {/* Candidate Photos if available */}
               {detailedResult.result?.candidatePhotos && detailedResult.result.candidatePhotos.length > 0 && (
-                <Card className="mb-4">
-                  <Card.Header>
-                    <h5 className="mb-0">
+                <Card className="mb-4 border-0 shadow-sm">
+                  <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+                    <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
                       <FaCamera className="me-2" />
                       Candidate Photos ({detailedResult.result.candidatePhotos.length})
                     </h5>
                   </Card.Header>
-                  <Card.Body>
-                    <Row>
+                  <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
+                    <Row className="g-3">
                       {detailedResult.result.candidatePhotos.map((photo, idx) => (
-                        <Col md={6} key={idx} className="mb-3">
-                          <Card>
-                            <Card.Body>
-                              <p className="text-muted mb-2">{photo.description || `Photo ${idx + 1}`}</p>
+                        <Col md={6} key={idx}>
+                          <Card className="border-0 shadow-sm" style={{ borderRadius: '10px', overflow: 'hidden' }}>
+                            <Card.Body style={{ padding: '1rem' }}>
+                              <p className="text-muted mb-2" style={{ fontWeight: '500', fontSize: '0.9rem' }}>
+                                {photo.description || `Photo ${idx + 1}`}
+                              </p>
                               {photo.url && (
-                                <Image src={photo.url} fluid rounded style={{ maxHeight: '200px', width: 'auto' }} />
+                                <div style={{ 
+                                  borderRadius: '8px', 
+                                  overflow: 'hidden',
+                                  border: '1px solid #e9ecef',
+                                  background: '#f8f9fa',
+                                  display: 'flex',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  minHeight: '200px'
+                                }}>
+                                  <Image 
+                                    src={photo.url} 
+                                    fluid 
+                                    rounded 
+                                    style={{ 
+                                      maxHeight: '200px', 
+                                      width: 'auto',
+                                      maxWidth: '100%',
+                                      objectFit: 'contain'
+                                    }} 
+                                  />
+                                </div>
                               )}
                               {photo.timestamp && (
-                                <small className="text-muted d-block mt-2">
+                                <small className="text-muted d-block mt-2" style={{ fontSize: '0.8rem' }}>
                                   {new Date(photo.timestamp).toLocaleString()}
                                 </small>
                               )}
@@ -930,25 +1050,48 @@ const TestResults = ({ embedded = false, refreshToken = 0 }) => {
               )}
               {/* Legacy Screenshots if available (for backward compatibility) */}
               {detailedResult.result?.screenshots && detailedResult.result.screenshots.length > 0 && (
-                <Card className="mb-4">
-                  <Card.Header>
-                    <h5 className="mb-0">
+                <Card className="mb-4 border-0 shadow-sm">
+                  <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+                    <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
                       <FaCamera className="me-2" />
                       Screenshots ({detailedResult.result.screenshots.length})
                     </h5>
                   </Card.Header>
-                  <Card.Body>
-                    <Row>
+                  <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
+                    <Row className="g-3">
                       {detailedResult.result.screenshots.map((screenshot, idx) => (
-                        <Col md={6} key={idx} className="mb-3">
-                          <Card>
-                            <Card.Body>
-                              <p className="text-muted mb-2">{screenshot.description || `Screenshot ${idx + 1}`}</p>
+                        <Col md={6} key={idx}>
+                          <Card className="border-0 shadow-sm" style={{ borderRadius: '10px', overflow: 'hidden' }}>
+                            <Card.Body style={{ padding: '1rem' }}>
+                              <p className="text-muted mb-2" style={{ fontWeight: '500', fontSize: '0.9rem' }}>
+                                {screenshot.description || `Screenshot ${idx + 1}`}
+                              </p>
                               {screenshot.url && (
-                                <Image src={screenshot.url} fluid rounded style={{ maxHeight: '200px', width: 'auto' }} />
+                                <div style={{ 
+                                  borderRadius: '8px', 
+                                  overflow: 'hidden',
+                                  border: '1px solid #e9ecef',
+                                  background: '#f8f9fa',
+                                  display: 'flex',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  minHeight: '200px'
+                                }}>
+                                  <Image 
+                                    src={screenshot.url} 
+                                    fluid 
+                                    rounded 
+                                    style={{ 
+                                      maxHeight: '200px', 
+                                      width: 'auto',
+                                      maxWidth: '100%',
+                                      objectFit: 'contain'
+                                    }} 
+                                  />
+                                </div>
                               )}
                               {screenshot.timestamp && (
-                                <small className="text-muted d-block mt-2">
+                                <small className="text-muted d-block mt-2" style={{ fontSize: '0.8rem' }}>
                                   {new Date(screenshot.timestamp).toLocaleString()}
                                 </small>
                               )}

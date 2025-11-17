@@ -5,6 +5,8 @@ import LoadingSpinner from '../LoadingSpinner';
 
 const Container = styled.div`
   width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: clamp(1.5rem, 2vw, 2.5rem);
@@ -20,12 +22,9 @@ const Header = styled.div`
 const Title = styled.h2`
   color: #1e293b;
   margin: 0;
-`;
-
-const Subtitle = styled.p`
-  margin: 0;
-  color: #64748b;
-  max-width: 760px;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 `;
 
 const Toolbar = styled.div`
@@ -45,15 +44,22 @@ const AddButton = styled.button`
   background: linear-gradient(135deg, #ef4444, #f97316);
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 10px;
+  padding: 0.875rem 2rem;
+  border-radius: 12px;
   font-weight: 600;
+  font-size: 1rem;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
 
   &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 24px rgba(249, 115, 22, 0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(249, 115, 22, 0.4);
+    background: linear-gradient(135deg, #f97316, #fb923c);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
@@ -61,25 +67,34 @@ const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   background: white;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 15px 35px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
 `;
 
 const Th = styled.th`
-  background: #f8fafc;
-  padding: 1rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 1.25rem 1.5rem;
   text-align: left;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.875rem;
   color: #334155;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 2px solid #e2e8f0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 `;
 
 const Td = styled.td`
-  padding: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
   color: #475569;
   vertical-align: top;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: #f8fafc;
+  }
 `;
 
 const Actions = styled.div`
@@ -93,7 +108,7 @@ const ActionButton = styled.button`
       case 'danger':
         return '#fee2e2';
       case 'secondary':
-        return '#e2e8f0';
+        return '#f1f5f9';
       default:
         return '#dcfce7';
     }
@@ -108,16 +123,36 @@ const ActionButton = styled.button`
         return '#15803d';
     }
   }};
-  border: none;
-  padding: 0.45rem 0.9rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
+  border: 1px solid ${({ variant }) => {
+    switch (variant) {
+      case 'danger':
+        return '#fecaca';
+      case 'secondary':
+        return '#e2e8f0';
+      default:
+        return '#bbf7d0';
+    }
+  }};
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: all 0.2s ease;
 
   &:hover {
     transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+    background: ${({ variant }) => {
+      switch (variant) {
+        case 'danger':
+          return '#fecaca';
+        case 'secondary':
+          return '#e2e8f0';
+        default:
+          return '#bbf7d0';
+      }
+    }};
   }
 `;
 
@@ -134,13 +169,47 @@ const Modal = styled.div`
 
 const ModalContent = styled.div`
   background: white;
-  border-radius: 16px;
+  border-radius: 24px;
   width: 100%;
-  max-width: 560px;
-  padding: 2rem;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.25);
+  max-width: 1400px;
+  padding: 2.5rem 3rem;
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  
+  @media (max-width: 1200px) {
+    max-width: 95vw;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 2rem 1.5rem;
+    border-radius: 20px;
+  }
+`;
+
+const SectionsContainer = styled.div`
+  display: grid;
+  grid-template-columns: 0.4fr 1.6fr;
+  gap: 2.5rem;
+  margin-bottom: 2rem;
+  
+  @media (max-width: 1200px) {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+`;
+
+const SectionWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+`;
+
+const SectionContent = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 `;
 
 const ModalHeader = styled.div`
@@ -153,6 +222,9 @@ const ModalHeader = styled.div`
 const ModalTitle = styled.h3`
   margin: 0;
   color: #0f172a;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 `;
 
 const CloseButton = styled.button`
@@ -171,117 +243,318 @@ const CloseButton = styled.button`
 const Form = styled.form`
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.5rem;
 `;
 
 const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
 `;
 
 const Label = styled.label`
   font-weight: 600;
-  color: #334155;
+  color: #1e293b;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
 `;
 
 const Input = styled.input`
-  padding: 0.75rem;
-  border: 1px solid #cbd5f5;
-  border-radius: 10px;
+  padding: 0.875rem 1.125rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
   font-size: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease;
+  background: #ffffff;
 
   &:focus {
     outline: none;
     border-color: #f97316;
-    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15);
+    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+    background: #fff;
+  }
+
+  &:hover:not(:focus) {
+    border-color: #cbd5e1;
   }
 `;
 
 const PermissionsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
-`;
-
-const PermissionCard = styled.label`
-  border: 1px solid ${({ checked }) => (checked ? 'rgba(249, 115, 22, 0.5)' : '#e2e8f0')};
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  display: flex;
-  gap: 0.75rem;
-  background: ${({ checked }) => (checked ? 'rgba(249, 115, 22, 0.07)' : 'white')};
-  cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
-
-  &:hover {
-    border-color: rgba(249, 115, 22, 0.5);
+  grid-template-columns: 1fr 1fr;
+  gap: 0.875rem;
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
   }
 `;
 
+const PermissionCard = styled.div`
+  border: 2px solid ${({ enabled }) => (enabled ? 'rgba(249, 115, 22, 0.4)' : '#e2e8f0')};
+  border-radius: 12px;
+  padding: 1rem;
+  background: ${({ enabled }) => (enabled ? 'linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(249, 115, 22, 0.03) 100%)' : 'white')};
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: pointer;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: ${({ enabled }) => (enabled ? '3px' : '0')};
+    background: linear-gradient(90deg, #f97316, #fb923c);
+    transition: height 0.2s ease;
+    border-radius: 12px 12px 0 0;
+  }
+
+  &:hover {
+    border-color: ${({ enabled }) => (enabled ? 'rgba(249, 115, 22, 0.5)' : '#cbd5e1')};
+    transform: translateY(-1px);
+    box-shadow: ${({ enabled }) => (enabled ? '0 4px 12px rgba(249, 115, 22, 0.12)' : '0 2px 8px rgba(15, 23, 42, 0.06)')};
+  }
+`;
+
+const PermissionHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+`;
+
 const PermissionCheckbox = styled.input`
-  margin-top: 0.3rem;
+  margin-top: 0.2rem;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #f97316;
+  flex-shrink: 0;
+  
+  &:checked {
+    filter: drop-shadow(0 2px 4px rgba(249, 115, 22, 0.3));
+  }
 `;
 
 const PermissionDetails = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  flex: 1;
 `;
 
 const PermissionLabel = styled.span`
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.95rem;
+  line-height: 1.3;
 `;
 
 const PermissionHint = styled.span`
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #64748b;
+  line-height: 1.4;
+`;
+
+const AccessLevelGroup = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  margin-top: auto;
+  
+  @media (max-width: 480px) {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+`;
+
+const AccessLevelOption = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  padding: 0.625rem 0.875rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  flex: 1;
+  justify-content: center;
+  background: ${({ selected }) => (selected ? 'rgba(249, 115, 22, 0.1)' : 'transparent')};
+  border: 2px solid ${({ selected }) => (selected ? 'rgba(249, 115, 22, 0.3)' : 'rgba(226, 232, 240, 0.5)')};
+  
+  input[type="radio"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: #f97316;
+    margin: 0;
+    flex-shrink: 0;
+  }
+  
+  span {
+    white-space: nowrap;
+  }
+  
+  &:hover {
+    color: #1e293b;
+    background: ${({ selected }) => (selected ? 'rgba(249, 115, 22, 0.15)' : 'rgba(15, 23, 42, 0.03)')};
+    border-color: ${({ selected }) => (selected ? 'rgba(249, 115, 22, 0.4)' : 'rgba(15, 23, 42, 0.15)')};
+    transform: translateY(-1px);
+  }
+`;
+
+const SectionTitle = styled.h4`
+  margin: 0 0 0.75rem 0;
+  color: #1e293b;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e2e8f0;
+  
+  &::before {
+    content: '';
+    width: 4px;
+    height: 20px;
+    background: linear-gradient(135deg, #f97316, #fb923c);
+    border-radius: 2px;
+  }
+`;
+
+const SectionDescription = styled.p`
+  margin: 0 0 1.25rem 0;
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.5;
+`;
+
+const PermissionsAndAccessSection = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  
+  @media (max-width: 1400px) {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+`;
+
+const PermissionsSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+`;
+
+const AccessLevelsSection = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  
+  @media (max-width: 1400px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const AccessLevelCard = styled.div`
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  background: white;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  
+  &:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    transform: translateY(-1px);
+  }
+`;
+
+const AccessLevelCardHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+`;
+
+const AccessLevelCardTitle = styled.span`
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.8rem;
+  flex: 1;
+  line-height: 1.3;
+`;
+
+const AccessLevelCardDescription = styled.span`
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-bottom: 0.75rem;
+  display: block;
+  line-height: 1.3;
 `;
 
 const ButtonRow = styled.div`
   display: flex;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
 `;
 
 const SubmitButton = styled.button`
   flex: 1;
   border: none;
-  border-radius: 10px;
-  padding: 0.85rem 1.5rem;
-  font-weight: 600;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  font-weight: 700;
+  font-size: 1rem;
   cursor: pointer;
   background: linear-gradient(135deg, #10b981, #059669);
   color: white;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
 
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 24px rgba(16, 185, 129, 0.25);
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35);
+    background: linear-gradient(135deg, #059669, #047857);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 
   &:disabled {
-    background: #a7f3d0;
+    background: #cbd5e1;
     cursor: not-allowed;
     box-shadow: none;
+    transform: none;
   }
 `;
 
 const CancelButton = styled.button`
   flex: 1;
-  border: none;
-  border-radius: 10px;
-  padding: 0.85rem 1.5rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
   font-weight: 600;
+  font-size: 1rem;
   cursor: pointer;
-  background: #e2e8f0;
+  background: white;
   color: #475569;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
 
   &:hover {
-    background: #cbd5f5;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #334155;
   }
 `;
 
@@ -318,7 +591,7 @@ const SubAdminManagement = () => {
     name: '',
     email: '',
     password: '',
-    permissions: []
+    permissions: {} // Object: { 'forms.manage': 'read_only' | 'full_access', ... }
   });
 
   const permissionDetails = useMemo(() => {
@@ -350,7 +623,7 @@ const SubAdminManagement = () => {
       name: '',
       email: '',
       password: '',
-      permissions: []
+      permissions: {}
     });
     setEditingSubAdmin(null);
   };
@@ -362,11 +635,23 @@ const SubAdminManagement = () => {
 
   const openEditModal = (subAdmin) => {
     setEditingSubAdmin(subAdmin);
+    
+    // Convert permissions from array (old format) or object (new format) to object format
+    let permissionsObj = {};
+    if (Array.isArray(subAdmin.permissions)) {
+      // Old format: convert array to object with full_access (legacy support)
+      subAdmin.permissions.forEach(key => {
+        permissionsObj[key] = 'full_access';
+      });
+    } else if (typeof subAdmin.permissions === 'object' && subAdmin.permissions !== null) {
+      permissionsObj = subAdmin.permissions;
+    }
+    
     setFormState({
       name: subAdmin.name,
       email: subAdmin.email,
       password: '',
-      permissions: subAdmin.permissions || [],
+      permissions: permissionsObj,
       isActive: subAdmin.isActive
     });
     setShowModal(true);
@@ -389,15 +674,33 @@ const SubAdminManagement = () => {
 
   const togglePermission = (permissionKey) => {
     setFormState((prev) => {
-      const current = new Set(prev.permissions || []);
-      if (current.has(permissionKey)) {
-        current.delete(permissionKey);
+      const current = prev.permissions || {};
+      const newPermissions = { ...current };
+      
+      if (newPermissions[permissionKey]) {
+        // Remove permission if it exists
+        delete newPermissions[permissionKey];
       } else {
-        current.add(permissionKey);
+        // Add permission with default 'view_only' access
+        newPermissions[permissionKey] = 'view_only';
       }
+      
       return {
         ...prev,
-        permissions: Array.from(current)
+        permissions: newPermissions
+      };
+    });
+  };
+
+  const setPermissionAccess = (permissionKey, accessLevel) => {
+    setFormState((prev) => {
+      const current = prev.permissions || {};
+      return {
+        ...prev,
+        permissions: {
+          ...current,
+          [permissionKey]: accessLevel
+        }
       };
     });
   };
@@ -467,10 +770,6 @@ const SubAdminManagement = () => {
     <Container>
       <Header>
         <Title>Delegated Access & Sub Admins</Title>
-        <Subtitle>
-          Create focused sub admin roles to run day-to-day recruitment workflows while you retain full oversight.
-          Assign module-level permissions to align responsibilities with your governance model.
-        </Subtitle>
       </Header>
 
       <Toolbar>
@@ -495,7 +794,7 @@ const SubAdminManagement = () => {
             <tr key={subAdmin._id}>
               <Td>
                 <div style={{ fontWeight: 600, color: '#0f172a' }}>{subAdmin.name}</div>
-                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Sub Admin</div>
+                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>User Management</div>
               </Td>
               <Td>{subAdmin.email}</Td>
               <Td>
@@ -504,17 +803,43 @@ const SubAdminManagement = () => {
                 </StatusPill>
               </Td>
               <Td>
-                {subAdmin.permissions?.length ? (
-                  <PermissionList>
-                    {subAdmin.permissions.map((permission) => (
-                      <li key={permission}>
-                        {permissionDetails[permission]?.label || permission}
-                      </li>
-                    ))}
-                  </PermissionList>
-                ) : (
-                  <span style={{ color: '#ef4444', fontWeight: 600 }}>No permissions assigned</span>
-                )}
+                {(() => {
+                  // Handle both old format (array) and new format (object)
+                  let permissionsList = [];
+                  if (Array.isArray(subAdmin.permissions)) {
+                    // Old format: convert to display format
+                    permissionsList = subAdmin.permissions.map(key => ({
+                      key,
+                      accessLevel: 'full_access'
+                    }));
+                  } else if (typeof subAdmin.permissions === 'object' && subAdmin.permissions !== null) {
+                    // New format: convert object to array
+                    permissionsList = Object.entries(subAdmin.permissions).map(([key, accessLevel]) => ({
+                      key,
+                      accessLevel
+                    }));
+                  }
+                  
+                  return permissionsList.length > 0 ? (
+                    <PermissionList>
+                      {permissionsList.map(({ key, accessLevel }) => (
+                        <li key={key}>
+                          {permissionDetails[key]?.label || key}
+                          <span style={{ 
+                            marginLeft: '0.5rem', 
+                            fontSize: '0.75rem',
+                            color: accessLevel === 'full_access' ? '#059669' : '#f59e0b',
+                            fontWeight: 600
+                          }}>
+                            ({accessLevel === 'full_access' ? 'Full Access' : 'View Only'})
+                          </span>
+                        </li>
+                      ))}
+                    </PermissionList>
+                  ) : (
+                    <span style={{ color: '#ef4444', fontWeight: 600 }}>No permissions assigned</span>
+                  );
+                })()}
               </Td>
               <Td>
                 <Actions>
@@ -541,81 +866,173 @@ const SubAdminManagement = () => {
             </ModalHeader>
 
             <Form onSubmit={handleSubmit}>
-              <FormGroup>
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  type="text"
-                  value={formState.name}
-                  onChange={handleInputChange}
-                  required
-                />
-              </FormGroup>
+              <SectionsContainer>
+                {/* Section 1: User Details */}
+                <SectionWrapper>
+                  <SectionTitle>User Details</SectionTitle>
+                  <SectionDescription>Enter the basic information for the sub-admin account.</SectionDescription>
+                  <SectionContent>
+                    <FormGroup>
+                      <Label htmlFor="name">Name</Label>
+                      <Input
+                        id="name"
+                        name="name"
+                        type="text"
+                        value={formState.name}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="Enter full name"
+                      />
+                    </FormGroup>
 
-              <FormGroup>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formState.email}
-                  onChange={handleInputChange}
-                  required
-                />
-              </FormGroup>
+                    <FormGroup>
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        value={formState.email}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="Enter email address"
+                      />
+                    </FormGroup>
 
-              <FormGroup>
-                <Label htmlFor="password">
-                  {editingSubAdmin ? 'New Password (optional)' : 'Password'}
-                </Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  value={formState.password}
-                  onChange={handleInputChange}
-                  placeholder={editingSubAdmin ? 'Leave blank to keep existing password' : ''}
-                  required={!editingSubAdmin}
-                />
-              </FormGroup>
+                    <FormGroup>
+                      <Label htmlFor="password">
+                        {editingSubAdmin ? 'New Password (optional)' : 'Password'}
+                      </Label>
+                      <Input
+                        id="password"
+                        name="password"
+                        type="password"
+                        value={formState.password}
+                        onChange={handleInputChange}
+                        placeholder={editingSubAdmin ? 'Leave blank to keep existing password' : 'Enter password'}
+                        required={!editingSubAdmin}
+                      />
+                    </FormGroup>
 
-              <FormGroup>
-                <Label>Assign Permissions</Label>
-                <PermissionsGrid>
-                  {availablePermissions.map((permission) => {
-                    const checked = formState.permissions.includes(permission.key);
-                    return (
-                      <PermissionCard key={permission.key} checked={checked}>
-                        <PermissionCheckbox
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePermission(permission.key)}
-                        />
-                        <PermissionDetails>
-                          <PermissionLabel>{permission.label}</PermissionLabel>
-                          <PermissionHint>{permission.description || permission.key}</PermissionHint>
-                        </PermissionDetails>
-                      </PermissionCard>
-                    );
-                  })}
-                </PermissionsGrid>
-              </FormGroup>
+                    {editingSubAdmin && (
+                      <FormGroup>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={!!formState.isActive}
+                            onChange={(event) =>
+                              setFormState((prev) => ({ ...prev, isActive: event.target.checked }))
+                            }
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <span>Active Account</span>
+                        </label>
+                      </FormGroup>
+                    )}
+                  </SectionContent>
+                </SectionWrapper>
 
-              {editingSubAdmin && (
-                <FormGroup>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!formState.isActive}
-                      onChange={(event) =>
-                        setFormState((prev) => ({ ...prev, isActive: event.target.checked }))
-                      }
-                    />
-                    Active
-                  </label>
-                </FormGroup>
-              )}
+                {/* Section 2: Permissions & Access Levels */}
+                <SectionWrapper>
+                  <PermissionsAndAccessSection>
+                    {/* Permissions Section */}
+                    <div>
+                      <SectionTitle>Permissions</SectionTitle>
+                      <SectionDescription>Select which modules the sub-admin can access.</SectionDescription>
+                      <PermissionsSection>
+                        <PermissionsGrid>
+                          {availablePermissions.map((permission) => {
+                            const isEnabled = !!formState.permissions[permission.key];
+                            return (
+                              <PermissionCard 
+                                key={permission.key} 
+                                enabled={isEnabled}
+                                onClick={() => togglePermission(permission.key)}
+                              >
+                                <PermissionHeader>
+                                  <PermissionCheckbox
+                                    type="checkbox"
+                                    checked={isEnabled}
+                                    onChange={() => togglePermission(permission.key)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <PermissionDetails>
+                                    <PermissionLabel>{permission.label}</PermissionLabel>
+                                    <PermissionHint>{permission.description || permission.key}</PermissionHint>
+                                  </PermissionDetails>
+                                </PermissionHeader>
+                              </PermissionCard>
+                            );
+                          })}
+                        </PermissionsGrid>
+                      </PermissionsSection>
+                    </div>
+
+                    {/* Access Levels Section */}
+                    <div>
+                      <SectionTitle>Access Levels</SectionTitle>
+                      <SectionDescription>
+                        {Object.keys(formState.permissions).length > 0 
+                          ? 'Set the access level for each enabled module.' 
+                          : 'Select permissions first to set access levels.'}
+                      </SectionDescription>
+                      {Object.keys(formState.permissions).length > 0 ? (
+                        <AccessLevelsSection>
+                          {availablePermissions
+                            .filter(permission => formState.permissions[permission.key])
+                            .map((permission) => {
+                              const accessLevel = formState.permissions[permission.key] || 'view_only';
+                              return (
+                                <AccessLevelCard key={permission.key}>
+                                  <AccessLevelCardHeader>
+                                    <AccessLevelCardTitle>{permission.label}</AccessLevelCardTitle>
+                                  </AccessLevelCardHeader>
+                                  <AccessLevelCardDescription>{permission.description || permission.key}</AccessLevelCardDescription>
+                                  <AccessLevelGroup enabled={true}>
+                                    <AccessLevelOption selected={accessLevel === 'view_only'}>
+                                      <input
+                                        type="radio"
+                                        name={`access-${permission.key}`}
+                                        value="view_only"
+                                        checked={accessLevel === 'view_only'}
+                                        onChange={() => setPermissionAccess(permission.key, 'view_only')}
+                                      />
+                                      <span>View Only</span>
+                                    </AccessLevelOption>
+                                    <AccessLevelOption selected={accessLevel === 'full_access'}>
+                                      <input
+                                        type="radio"
+                                        name={`access-${permission.key}`}
+                                        value="full_access"
+                                        checked={accessLevel === 'full_access'}
+                                        onChange={() => setPermissionAccess(permission.key, 'full_access')}
+                                      />
+                                      <span>Full Access</span>
+                                    </AccessLevelOption>
+                                  </AccessLevelGroup>
+                                </AccessLevelCard>
+                              );
+                            })}
+                        </AccessLevelsSection>
+                      ) : (
+                        <div style={{ 
+                          padding: '2rem', 
+                          textAlign: 'center', 
+                          color: '#94a3b8',
+                          backgroundColor: '#f8fafc',
+                          borderRadius: '12px',
+                          border: '2px dashed #e2e8f0',
+                          marginTop: '1rem'
+                        }}>
+                          <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                            No permissions selected yet.<br />
+                            Select modules in the Permissions section.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </PermissionsAndAccessSection>
+                </SectionWrapper>
+              </SectionsContainer>
 
               <ButtonRow>
                 <CancelButton type="button" onClick={closeModal}>

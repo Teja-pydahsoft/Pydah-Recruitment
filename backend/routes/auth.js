@@ -29,19 +29,51 @@ const AVAILABLE_PERMISSIONS = [
   },
   {
     key: 'users.manage',
-    label: 'Manage Users & Panel Members',
-    description: 'Add or update panel members and manage user account status.'
+    label: 'User Management',
+    description: 'Manage user accounts, roles, and access control.'
+  },
+  {
+    key: 'panel_members.manage',
+    label: 'Panel Members Management',
+    description: 'Add, update, and manage interview panel members.'
   }
 ];
 
 const PERMISSION_KEYS = new Set(AVAILABLE_PERMISSIONS.map(permission => permission.key));
 
-const normalizePermissions = (permissionList = []) => {
-  if (!Array.isArray(permissionList)) {
-    return [];
+// Normalize permissions - supports both old format (array) and new format (object with access levels)
+const normalizePermissions = (permissions = {}) => {
+  // If it's an array (old format), convert to object with full_access
+  if (Array.isArray(permissions)) {
+    const normalized = {};
+    permissions.forEach(key => {
+      if (PERMISSION_KEYS.has(key)) {
+        normalized[key] = 'full_access';
+      }
+    });
+    return normalized;
   }
 
-  return [...new Set(permissionList.filter(key => PERMISSION_KEYS.has(key)))];
+  // If it's already an object, validate and normalize
+  if (typeof permissions === 'object' && permissions !== null) {
+    const normalized = {};
+    Object.entries(permissions).forEach(([key, value]) => {
+      if (PERMISSION_KEYS.has(key)) {
+        // Ensure value is either 'view_only' or 'full_access'
+        // Support both 'read_only' (legacy) and 'view_only' (new)
+        if (value === 'view_only' || value === 'read_only' || value === 'full_access') {
+          // Normalize 'read_only' to 'view_only' for consistency
+          normalized[key] = value === 'read_only' ? 'view_only' : value;
+        } else if (value === true || value === 'true') {
+          // Legacy: treat true as full_access
+          normalized[key] = 'full_access';
+        }
+      }
+    });
+    return normalized;
+  }
+
+  return {};
 };
 
 // Register new user (only super admin can create panel members and other admins)
@@ -75,8 +107,8 @@ router.post('/register', authenticateToken, async (req, res) => {
     }
 
     if (role === 'panel_member') {
-      const canManageUsers = hasPermission(req.user, 'users.manage');
-      if (!canManageUsers) {
+      const canManagePanelMembers = hasPermission(req.user, 'panel_members.manage');
+      if (!canManagePanelMembers) {
         console.error('❌ [USER REGISTRATION] Unauthorized attempt to create panel member');
         return res.status(403).json({ message: 'Insufficient permissions to create panel members' });
       }
@@ -417,7 +449,7 @@ router.put('/users/:userId/status', authenticateToken, requireSuperAdminOrPermis
 });
 
 // Update panel member details (super admin only)
-router.put('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermission('users.manage'), async (req, res) => {
+router.put('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermission('panel_members.manage'), async (req, res) => {
   try {
     console.log('\n👤 [PANEL MEMBER UPDATE] Request received from:', req.user.email);
     console.log('👤 [PANEL MEMBER UPDATE] User ID:', req.params.userId);
@@ -504,7 +536,7 @@ router.put('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermi
 });
 
 // Delete panel member (super admin only)
-router.delete('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermission('users.manage'), async (req, res) => {
+router.delete('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermission('panel_members.manage'), async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
 
@@ -528,7 +560,7 @@ router.delete('/panel-members/:userId', authenticateToken, requireSuperAdminOrPe
 });
 
 // Get all panel members (super admin only)
-router.get('/panel-members', authenticateToken, requireSuperAdminOrPermission('users.manage'), async (req, res) => {
+router.get('/panel-members', authenticateToken, requireSuperAdminOrPermission('panel_members.manage'), async (req, res) => {
   try {
     const panelMembers = await User.find({ role: 'panel_member' }).select('-password').sort({ createdAt: -1 });
     res.json({ panelMembers });
@@ -572,16 +604,113 @@ router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res
       Object.entries(profile).filter(([_, value]) => value !== '' && value !== null && value !== undefined)
     ) : {};
 
+    const normalizedPermissions = normalizePermissions(permissions || {});
+
     const subAdmin = new User({
       name,
       email,
       password,
       role: 'sub_admin',
       profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined,
-      permissions: normalizePermissions(permissions)
+      permissions: normalizedPermissions
     });
 
     await subAdmin.save();
+
+    // Send email notification to sub-admin with credentials and permissions
+    if (password) {
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const loginUrl = `${frontendUrl}/login`;
+
+        // Build permissions list for email
+        const permissionsList = Object.entries(normalizedPermissions)
+          .map(([key, accessLevel]) => {
+            const permission = AVAILABLE_PERMISSIONS.find(p => p.key === key);
+            const label = permission ? permission.label : key;
+            const accessLabel = accessLevel === 'full_access' ? 'Full Access' : 'View Only';
+            return `<li style="margin: 8px 0;"><strong>${label}:</strong> ${accessLabel}</li>`;
+          })
+          .join('');
+
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #1e293b;">Welcome to Staff Recruitment System</h2>
+            <p>Dear ${name},</p>
+            <p>Your sub-admin account has been created successfully. Below are your account details:</p>
+            
+            <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ea580c;">
+              <h3 style="margin: 0 0 15px 0; color: #1e293b;">Your Login Credentials</h3>
+              <p style="margin: 8px 0;"><strong>Email:</strong> ${email}</p>
+              <p style="margin: 8px 0;"><strong>Password:</strong> ${password}</p>
+              <p style="margin: 8px 0;"><strong>Role:</strong> Sub Admin</p>
+            </div>
+
+            ${Object.keys(normalizedPermissions).length > 0 ? `
+            <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+              <h3 style="margin: 0 0 15px 0; color: #1e293b;">Your Permissions & Access Levels</h3>
+              <ul style="margin: 0; padding-left: 20px; color: #475569;">
+                ${permissionsList}
+              </ul>
+            </div>
+            ` : `
+            <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+              <p style="margin: 0; color: #92400e;"><strong>Note:</strong> No specific permissions have been assigned yet. Please contact the super admin to configure your access.</p>
+            </div>
+            `}
+
+            <p><strong>Important:</strong> Please change your password after your first login for security purposes.</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${loginUrl}" style="background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Login to Portal</a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">
+              If the button doesn't work, copy and paste this link into your browser:<br>
+              <a href="${loginUrl}" style="color: #3b82f6;">${loginUrl}</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            <p style="color: #6b7280; font-size: 12px;">
+              This is an automated message from the Staff Recruitment System. Please do not reply to this email.
+            </p>
+          </div>
+        `;
+
+        const permissionsText = Object.entries(normalizedPermissions)
+          .map(([key, accessLevel]) => {
+            const permission = AVAILABLE_PERMISSIONS.find(p => p.key === key);
+            const label = permission ? permission.label : key;
+            const accessLabel = accessLevel === 'full_access' ? 'Full Access' : 'View Only';
+            return `  - ${label}: ${accessLabel}`;
+          })
+          .join('\n');
+
+        const emailText = `
+          Welcome to Staff Recruitment System
+
+          Dear ${name},
+
+          Your sub-admin account has been created successfully. Below are your account details:
+
+          Login Credentials:
+          Email: ${email}
+          Password: ${password}
+          Role: Sub Admin
+
+          ${Object.keys(normalizedPermissions).length > 0 ? `Your Permissions & Access Levels:\n${permissionsText}` : 'Note: No specific permissions have been assigned yet. Please contact the super admin to configure your access.'}
+
+          Important: Please change your password after your first login for security purposes.
+
+          Login URL: ${loginUrl}
+
+          This is an automated message from the Staff Recruitment System. Please do not reply to this email.
+        `;
+
+        await sendEmail(email, 'Sub Admin Account Created - Staff Recruitment System', emailHtml, emailText);
+        console.log('✅ [SUB ADMIN CREATION] Email notification sent to:', email);
+      } catch (emailError) {
+        console.error('❌ [SUB ADMIN CREATION] Failed to send email notification:', emailError);
+        // Don't fail the creation if email fails
+      }
+    }
 
     const userResponse = subAdmin.toObject();
     delete userResponse.password;
@@ -625,7 +754,7 @@ router.put('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (r
     }
 
     if (permissions !== undefined) {
-      subAdmin.permissions = normalizePermissions(permissions);
+      subAdmin.permissions = normalizePermissions(permissions || {});
     }
 
     await subAdmin.save();

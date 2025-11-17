@@ -601,12 +601,24 @@ const InterviewsManagement = () => {
         await fetchInterviews();
         
         // Show detailed feedback
-        const { successful, failed } = response.data.emailNotifications || {};
-        if (successful !== undefined || failed !== undefined) {
-          alert(`Panel members assigned successfully!\n\nEmail notifications:\n✅ Successful: ${successful || 0}\n❌ Failed: ${failed || 0}`);
-        } else {
-          alert('Panel members assigned successfully!');
+        const { successful, failed, skipped, total, warning } = response.data.emailNotifications || {};
+        let message = 'Panel members assigned successfully!';
+        
+        if (warning) {
+          message += `\n\n⚠️ Warning: ${warning}`;
         }
+        
+        if (total !== undefined) {
+          message += `\n\nEmail notifications:\n✅ Successful: ${successful || 0}\n❌ Failed: ${failed || 0}`;
+          if (skipped && skipped > 0) {
+            message += `\n⚠️ Skipped: ${skipped} (no email address or panel member not found)`;
+          }
+          message += `\n📊 Total: ${total}`;
+        } else if (successful !== undefined || failed !== undefined) {
+          message += `\n\nEmail notifications:\n✅ Successful: ${successful || 0}\n❌ Failed: ${failed || 0}`;
+        }
+        
+        alert(message);
       } catch (error) {
         const errorMessage = error.response?.data?.message || error.message || 'Error assigning panel members. Please try again.';
         alert(errorMessage);
@@ -989,10 +1001,21 @@ const InterviewsManagement = () => {
                                           onClick={() => {
                                             setSelectedInterview(interview);
                                             setSelectedCandidate(candidateEntry);
+                                            // Fix date conversion to handle timezone properly
+                                            let formattedDate = '';
+                                            if (candidateEntry.scheduledDate) {
+                                              const date = new Date(candidateEntry.scheduledDate);
+                                              // Get local date string in YYYY-MM-DD format
+                                              const year = date.getFullYear();
+                                              const month = String(date.getMonth() + 1).padStart(2, '0');
+                                              const day = String(date.getDate()).padStart(2, '0');
+                                              formattedDate = `${year}-${month}-${day}`;
+                                            }
                                             setScheduleFormData({
-                                              scheduledDate: candidateEntry.scheduledDate ? new Date(candidateEntry.scheduledDate).toISOString().split('T')[0] : '',
+                                              scheduledDate: formattedDate,
                                               scheduledTime: candidateEntry.scheduledTime || '',
                                               duration: candidateEntry.duration || 30,
+                                              meetingLink: candidateEntry.meetingLink || '',
                                               notes: candidateEntry.notes || '',
                                               status: candidateEntry.status || 'scheduled'
                                             });
@@ -1008,7 +1031,9 @@ const InterviewsManagement = () => {
                                             try {
                                               setSelectedInterview(interview);
                                               setSelectedCandidate(candidateEntry);
-                                              const response = await api.get(`/interviews/${interview._id}/feedback-summary`);
+                                              // Pass candidateId to get feedback for this specific candidate only
+                                              const candidateId = candidateEntry.candidate?._id || candidateEntry.candidate;
+                                              const response = await api.get(`/interviews/${interview._id}/feedback-summary${candidateId ? `?candidateId=${candidateId}` : ''}`);
                                               setFeedbackSummary(response.data);
                                               setShowFeedbackModal(true);
                                             } catch {
@@ -1076,7 +1101,7 @@ const InterviewsManagement = () => {
           <ModalContent>
             <ModalHeader>
               <ModalTitle>
-                Assign Panel Members to {selectedInterview?.title}
+                Assign Panel Members {selectedCandidate ? `to ${selectedCandidate.candidate?.user?.name || 'Candidate'}` : `to ${selectedInterview?.title}`}
               </ModalTitle>
               <CloseButton onClick={() => setShowAssignModal(false)}>×</CloseButton>
             </ModalHeader>
@@ -1163,6 +1188,24 @@ const InterviewsManagement = () => {
                             type="number"
                             value={scheduleFormData.duration || 30}
                             onChange={(e) => setScheduleFormData({ ...scheduleFormData, duration: parseInt(e.target.value) })}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                            Meeting Link
+                          </label>
+                          <input
+                            type="url"
+                            value={scheduleFormData.meetingLink || ''}
+                            onChange={(e) => setScheduleFormData({ ...scheduleFormData, meetingLink: e.target.value })}
+                            placeholder="https://meet.google.com/..."
                             style={{
                               width: '100%',
                               padding: '0.75rem',
@@ -1295,11 +1338,23 @@ const InterviewsManagement = () => {
                                         variant="info"
                                         style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
                                         onClick={() => {
+                                          setSelectedInterview(selectedInterview);
                                           setSelectedCandidate(candidateEntry);
+                                          // Fix date conversion to handle timezone properly
+                                          let formattedDate = '';
+                                          if (candidateEntry.scheduledDate) {
+                                            const date = new Date(candidateEntry.scheduledDate);
+                                            // Get local date string in YYYY-MM-DD format
+                                            const year = date.getFullYear();
+                                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                                            const day = String(date.getDate()).padStart(2, '0');
+                                            formattedDate = `${year}-${month}-${day}`;
+                                          }
                                           setScheduleFormData({
-                                            scheduledDate: candidateEntry.scheduledDate ? new Date(candidateEntry.scheduledDate).toISOString().split('T')[0] : '',
+                                            scheduledDate: formattedDate,
                                             scheduledTime: candidateEntry.scheduledTime || '',
                                             duration: candidateEntry.duration || 30,
+                                            meetingLink: candidateEntry.meetingLink || '',
                                             notes: candidateEntry.notes || '',
                                             status: candidateEntry.status || 'scheduled'
                                           });
@@ -1340,9 +1395,13 @@ const InterviewsManagement = () => {
                     <ModalContent style={{ maxWidth: '800px' }}>
                       <ModalHeader>
                         <ModalTitle>
-                          Feedback Summary - {selectedInterview?.title}
+                          Feedback Summary - {selectedCandidate?.candidate?.user?.name || selectedCandidate?.candidate?.name || 'Candidate'} 
+                          {selectedInterview?.title ? ` (${selectedInterview.title})` : ''}
                         </ModalTitle>
-                        <CloseButton onClick={() => setShowFeedbackModal(false)}>×</CloseButton>
+                        <CloseButton onClick={() => {
+                          setShowFeedbackModal(false);
+                          setSelectedCandidate(null);
+                        }}>×</CloseButton>
                       </ModalHeader>
           
                       <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -1354,9 +1413,51 @@ const InterviewsManagement = () => {
                               padding: '1rem',
                               marginBottom: '1rem'
                             }}>
-                              <h4 style={{ margin: '0 0 1rem 0', color: '#1e293b' }}>
-                                {candidateData.candidate.name || 'Unknown Candidate'}
-                              </h4>
+                              <div style={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center',
+                                marginBottom: '1rem',
+                                paddingBottom: '0.75rem',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                <div>
+                                  <h4 style={{ margin: '0 0 0.25rem 0', color: '#1e293b', fontSize: '1.25rem' }}>
+                                    {candidateData.candidate.name || 'Unknown Candidate'}
+                                  </h4>
+                                  {candidateData.candidate.candidateNumber && (
+                                    <span style={{ 
+                                      color: '#6b7280', 
+                                      fontSize: '0.875rem',
+                                      background: '#f3f4f6',
+                                      padding: '0.25rem 0.5rem',
+                                      borderRadius: '4px'
+                                    }}>
+                                      ID: {candidateData.candidate.candidateNumber}
+                                    </span>
+                                  )}
+                                  {candidateData.candidate.email && (
+                                    <div style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                                      {candidateData.candidate.email}
+                                    </div>
+                                  )}
+                                </div>
+                                {candidateData.averageRating > 0 && (
+                                  <div style={{
+                                    background: '#f0f9ff',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: '8px',
+                                    textAlign: 'center'
+                                  }}>
+                                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                                      Average Rating
+                                    </div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1e40af' }}>
+                                      {candidateData.averageRating.toFixed(1)}/5
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                               
                               {candidateData.feedbacks && candidateData.feedbacks.length > 0 ? (
                                 <div>
@@ -1367,10 +1468,32 @@ const InterviewsManagement = () => {
                                       borderRadius: '6px',
                                       marginBottom: '0.5rem'
                                     }}>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                        <strong>{feedback.panelMember?.name || 'Unknown Panel Member'}</strong>
+                                      <div style={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        marginBottom: '0.75rem',
+                                        paddingBottom: '0.5rem',
+                                        borderBottom: '2px solid #e5e7eb'
+                                      }}>
+                                        <div>
+                                          <strong style={{ fontSize: '1rem', color: '#1e293b' }}>
+                                            {feedback.panelMember?.name || 'Unknown Panel Member'}
+                                          </strong>
+                                          {feedback.panelMember?.email && (
+                                            <div style={{ color: '#6b7280', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                                              {feedback.panelMember.email}
+                                            </div>
+                                          )}
+                                        </div>
                                         <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-                                          {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString() : 'Not submitted'}
+                                          {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString('en-IN', {
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          }) : 'Not submitted'}
                                         </span>
                                       </div>
                                       
@@ -1416,10 +1539,41 @@ const InterviewsManagement = () => {
                                         </div>
                                       )}
                                       
+                                      {feedback.recommendation && (
+                                        <div style={{ marginBottom: '0.5rem' }}>
+                                          <strong>Recommendation:</strong>
+                                          <div style={{ 
+                                            display: 'inline-block',
+                                            marginLeft: '0.5rem',
+                                            padding: '0.25rem 0.75rem',
+                                            borderRadius: '4px',
+                                            fontSize: '0.875rem',
+                                            fontWeight: '600',
+                                            background: feedback.recommendation === 'strong_accept' || feedback.recommendation === 'accept' 
+                                              ? '#dcfce7' 
+                                              : feedback.recommendation === 'reject' || feedback.recommendation === 'strong_reject'
+                                              ? '#fee2e2'
+                                              : '#fef3c7',
+                                            color: feedback.recommendation === 'strong_accept' || feedback.recommendation === 'accept'
+                                              ? '#166534'
+                                              : feedback.recommendation === 'reject' || feedback.recommendation === 'strong_reject'
+                                              ? '#991b1b'
+                                              : '#92400e'
+                                          }}>
+                                            {feedback.recommendation === 'strong_accept' ? 'Strong Accept' :
+                                             feedback.recommendation === 'accept' ? 'Accept' :
+                                             feedback.recommendation === 'neutral' ? 'Neutral' :
+                                             feedback.recommendation === 'reject' ? 'Reject' :
+                                             feedback.recommendation === 'strong_reject' ? 'Strong Reject' :
+                                             feedback.recommendation}
+                                          </div>
+                                        </div>
+                                      )}
+                                      
                                       {feedback.comments && (
                                         <div>
                                           <strong>Comments:</strong>
-                                          <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', fontStyle: 'italic' }}>
+                                          <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', fontStyle: 'italic', color: '#374151' }}>
                                             {feedback.comments}
                                           </p>
                                         </div>

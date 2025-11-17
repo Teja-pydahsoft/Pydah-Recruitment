@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const { uploadToDrive, ensureFolder, verifyFolderAccess } = require('../config/googleDrive');
-const { authenticateToken, requireSuperAdminOrPermission, hasPermission } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, requireSuperAdminOrWritePermission, hasPermission } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -88,7 +88,7 @@ async function provisionDriveStructureForForm(form) {
 }
 
 // Create new recruitment form (Super Admin only)
-router.post('/', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
+router.post('/', authenticateToken, requireSuperAdminOrWritePermission('forms.manage'), async (req, res) => {
   try {
     console.log('\n📝 [FORM CREATION] Request received from:', req.user.email);
     console.log('📝 [FORM CREATION] Request body:', {
@@ -316,7 +316,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Update form (Super Admin only)
-router.put('/:id', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
+router.put('/:id', authenticateToken, requireSuperAdminOrWritePermission('forms.manage'), async (req, res) => {
   try {
     console.log('\n📝 [FORM UPDATE] Request received from:', req.user.email);
     console.log('📝 [FORM UPDATE] Form ID:', req.params.id);
@@ -397,7 +397,7 @@ router.put('/:id', authenticateToken, requireSuperAdminOrPermission('forms.manag
 });
 
 // Delete form (Super Admin only)
-router.delete('/:id', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
+router.delete('/:id', authenticateToken, requireSuperAdminOrWritePermission('forms.manage'), async (req, res) => {
   try {
     console.log('\n🗑️  [FORM DELETE] Request received from:', req.user.email);
     console.log('🗑️  [FORM DELETE] Form ID:', req.params.id);

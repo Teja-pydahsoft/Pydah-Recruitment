@@ -56,14 +56,15 @@ const AppLayout = ({ children, showSidebar = true }) => {
       <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
       <main
         style={{
-          marginLeft: sidebarOpen ? '280px' : '70px',
-          transition: 'margin-left 0.3s ease',
+          marginLeft: sidebarOpen ? '300px' : '70px',
           padding: 'clamp(1.25rem, 2.5vw, 3rem)',
           minHeight: '100vh',
           background: '#f8fafc',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          width: `calc(100% - ${sidebarOpen ? '300px' : '70px'})`
         }}
+        className="main-content"
       >
         <div
           style={{

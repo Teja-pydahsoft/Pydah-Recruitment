@@ -29,7 +29,8 @@ import {
   FaUpload,
   FaEye,
   FaDownload,
-  FaCopy
+  FaCopy,
+  FaUser
 } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
@@ -107,6 +108,7 @@ const TestsManagement = () => {
 
   const [toast, setToast] = useState({ type: '', message: '' });
   const [candidateFilters, setCandidateFilters] = useState({ category: 'all', position: 'all', search: '' });
+  const [searchInput, setSearchInput] = useState(''); // Separate state for input value
   const [assignmentDetails, setAssignmentDetails] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
 
@@ -223,81 +225,118 @@ const TestsManagement = () => {
     };
 
     return (
-      <div>
-        <div className="mb-4">
-          <h5 className="mb-1">{profileData.personalDetails?.name || profileData.user?.name}</h5>
-          {profileData.personalDetails?.email && (
-            <div className="text-muted">{profileData.personalDetails.email}</div>
-          )}
-          {profileData.personalDetails?.phone && (
-            <div className="text-muted">Phone: {profileData.personalDetails.phone}</div>
-          )}
-          <div className="text-muted">
-            {profileData.form?.position || '—'}
-            {profileData.form?.department ? ` • ${profileData.form.department}` : ''}
+      <div style={{ width: '100%' }}>
+        <div className="mb-4" style={{ 
+          padding: '1rem 1.5rem', 
+          background: 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)',
+          borderRadius: '10px',
+          border: '1px solid rgba(102, 126, 234, 0.2)'
+        }}>
+          <div className="d-flex flex-wrap align-items-center gap-3" style={{ flexWrap: 'wrap' }}>
+            <h5 className="mb-0" style={{ color: '#212529', fontWeight: '600', marginRight: '1.5rem' }}>
+              {profileData.personalDetails?.name || profileData.user?.name}
+            </h5>
+            {profileData.personalDetails?.email && (
+              <div className="text-muted" style={{ fontSize: '0.95rem' }}>
+                <FaUser className="me-2" />
+                {profileData.personalDetails.email}
+              </div>
+            )}
+            {profileData.personalDetails?.phone && (
+              <div className="text-muted" style={{ fontSize: '0.95rem' }}>
+                Phone: {profileData.personalDetails.phone}
+              </div>
+            )}
+            <div className="text-muted" style={{ fontSize: '0.95rem' }}>
+              {profileData.form?.position || '—'}
+              {profileData.form?.department ? ` • ${profileData.form.department}` : ''}
+            </div>
+            {profileData.workflow?.label && (
+              <Badge 
+                bg="info" 
+                className="text-uppercase"
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', fontWeight: '500' }}
+              >
+                {profileData.workflow.label}
+              </Badge>
+            )}
           </div>
-          {profileData.workflow?.label && (
-            <Badge bg="info" className="mt-2 text-uppercase">
-              {profileData.workflow.label}
-            </Badge>
-          )}
         </div>
 
         <Row className="g-3 mb-4">
           <Col md={3}>
-            <Card className="text-center h-100">
-              <Card.Body>
-                <h6 className="text-muted text-uppercase mb-2">Total Tests</h6>
-                <h3 className="mb-0 text-primary">{totalTests}</h3>
+            <Card className="text-center h-100 border-0 shadow-sm" style={{ borderRadius: '10px' }}>
+              <Card.Body style={{ padding: '1.25rem' }}>
+                <h6 className="text-muted text-uppercase mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.5px', fontWeight: '600' }}>
+                  Total Tests
+                </h6>
+                <h3 className="mb-0 text-primary" style={{ fontWeight: '700', fontSize: '2rem' }}>{totalTests}</h3>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
-            <Card className="text-center h-100">
-              <Card.Body>
-                <h6 className="text-muted text-uppercase mb-2">Tests Passed</h6>
-                <h3 className="mb-0 text-success">{passedTests}</h3>
+            <Card className="text-center h-100 border-0 shadow-sm" style={{ borderRadius: '10px' }}>
+              <Card.Body style={{ padding: '1.25rem' }}>
+                <h6 className="text-muted text-uppercase mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.5px', fontWeight: '600' }}>
+                  Tests Passed
+                </h6>
+                <h3 className="mb-0 text-success" style={{ fontWeight: '700', fontSize: '2rem' }}>{passedTests}</h3>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
-            <Card className="text-center h-100">
-              <Card.Body>
-                <h6 className="text-muted text-uppercase mb-2">Average Score</h6>
-                <h3 className="mb-0 text-info">{averageScoreValue.toFixed(1)}%</h3>
+            <Card className="text-center h-100 border-0 shadow-sm" style={{ borderRadius: '10px' }}>
+              <Card.Body style={{ padding: '1.25rem' }}>
+                <h6 className="text-muted text-uppercase mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.5px', fontWeight: '600' }}>
+                  Average Score
+                </h6>
+                <h3 className="mb-0 text-info" style={{ fontWeight: '700', fontSize: '2rem' }}>{averageScoreValue.toFixed(1)}%</h3>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
-            <Card className="text-center h-100">
-              <Card.Body>
-                <h6 className="text-muted text-uppercase mb-2">First Submission</h6>
+            <Card className="text-center h-100 border-0 shadow-sm" style={{ borderRadius: '10px' }}>
+              <Card.Body style={{ padding: '1.25rem' }}>
+                <h6 className="text-muted text-uppercase mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.5px', fontWeight: '600' }}>
+                  First Submission
+                </h6>
                 {firstSubmission ? (
                   <>
-                    <div className="fw-semibold">{firstSubmission.testTitle || 'Assessment'}</div>
-                    <small className="text-muted">{formatDateTime(firstSubmission.submittedAt)}</small>
+                    <div className="fw-semibold mb-1" style={{ color: '#212529', fontSize: '0.95rem' }}>
+                      {firstSubmission.testTitle || 'Assessment'}
+                    </div>
+                    <small className="text-muted" style={{ fontSize: '0.8rem' }}>
+                      {formatDateTime(firstSubmission.submittedAt)}
+                    </small>
                   </>
                 ) : (
-                  <p className="text-muted mb-0">Not submitted yet</p>
+                  <p className="text-muted mb-0" style={{ fontSize: '0.9rem' }}>Not submitted yet</p>
                 )}
               </Card.Body>
             </Card>
           </Col>
         </Row>
 
-        <h6 className="mb-2">Completed Tests</h6>
-        {completedTests.length > 0 ? (
-          <Table striped bordered hover responsive>
-            <thead>
-              <tr>
-                <th>Test Title</th>
-                <th>Score</th>
-                <th>Percentage</th>
-                <th>Status</th>
-                <th>Submitted At</th>
-                <th>Details</th>
-              </tr>
-            </thead>
+        <Card className="mb-4 border-0 shadow-sm">
+          <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+            <h6 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+              <FaClipboardCheck className="me-2" />
+              Completed Tests
+            </h6>
+          </Card.Header>
+          <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
+            {completedTests.length > 0 ? (
+              <Table striped bordered hover responsive style={{ marginBottom: 0 }}>
+                <thead style={{ background: '#f8f9fa' }}>
+                  <tr>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Test Title</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Score</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Percentage</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Status</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Submitted At</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Details</th>
+                  </tr>
+                </thead>
             <tbody>
               {completedTests.map((test, index) => {
                 const testKey = test.testId || index;
@@ -321,56 +360,78 @@ const TestsManagement = () => {
                   </tr>
                   {expandedTestResults[testKey] && (
                     <tr>
-                      <td colSpan={6}>
-                        <div className="p-3 bg-light rounded">
-                          <div className="d-flex flex-wrap gap-3 mb-3">
-                            <div><strong>Score:</strong> {scoreFormatter(test.score, test.totalScore)}</div>
-                            <div><strong>Percentage:</strong> {percentageFormatter(test.percentage)}</div>
-                            <div><strong>Started:</strong> {formatDateTime(test.startedAt)}</div>
-                            <div><strong>Submitted:</strong> {formatDateTime(test.submittedAt)}</div>
+                      <td colSpan={6} style={{ padding: 0, border: 'none' }}>
+                        <div className="p-4" style={{ background: '#f8f9fa', borderRadius: '8px', margin: '0.5rem' }}>
+                          <div className="d-flex flex-wrap gap-3 mb-3" style={{ 
+                            background: '#ffffff', 
+                            padding: '1rem', 
+                            borderRadius: '8px',
+                            border: '1px solid #e9ecef'
+                          }}>
+                            <div style={{ flex: '1 1 auto', minWidth: '150px' }}>
+                              <strong style={{ color: '#495057', display: 'block', marginBottom: '0.25rem' }}>Score:</strong>
+                              <span style={{ color: '#212529', fontWeight: '600' }}>{scoreFormatter(test.score, test.totalScore)}</span>
+                            </div>
+                            <div style={{ flex: '1 1 auto', minWidth: '150px' }}>
+                              <strong style={{ color: '#495057', display: 'block', marginBottom: '0.25rem' }}>Percentage:</strong>
+                              <span style={{ color: '#212529', fontWeight: '600' }}>{percentageFormatter(test.percentage)}</span>
+                            </div>
+                            <div style={{ flex: '1 1 auto', minWidth: '150px' }}>
+                              <strong style={{ color: '#495057', display: 'block', marginBottom: '0.25rem' }}>Started:</strong>
+                              <span style={{ color: '#212529' }}>{formatDateTime(test.startedAt)}</span>
+                            </div>
+                            <div style={{ flex: '1 1 auto', minWidth: '150px' }}>
+                              <strong style={{ color: '#495057', display: 'block', marginBottom: '0.25rem' }}>Submitted:</strong>
+                              <span style={{ color: '#212529' }}>{formatDateTime(test.submittedAt)}</span>
+                            </div>
                             {test.duration && (
-                              <div><strong>Test Duration:</strong> {test.duration} minutes</div>
+                              <div style={{ flex: '1 1 auto', minWidth: '150px' }}>
+                                <strong style={{ color: '#495057', display: 'block', marginBottom: '0.25rem' }}>Test Duration:</strong>
+                                <span style={{ color: '#212529' }}>{test.duration} minutes</span>
+                              </div>
                             )}
                           </div>
                           {test.answers && test.answers.length > 0 ? (
-                            <Table size="sm" bordered hover responsive>
-                              <thead>
-                                <tr>
-                                  <th>#</th>
-                                  <th>Question</th>
-                                  <th>Your Answer</th>
-                                  <th>Correct Answer</th>
-                                  <th>Result</th>
-                                  <th>Marks</th>
-                                  <th>Time Taken</th>
-                                  <th>Answered At</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {test.answers.map((answer, answerIndex) => (
-                                  <tr key={`${testKey}-${answer.questionId || answerIndex}`}>
-                                    <td>{answerIndex + 1}</td>
-                                    <td>{answer.questionText}</td>
-                                    <td>{formatOptionList(answer.selectedOptions)}</td>
-                                    <td>{formatOptionList(answer.correctOptions, 'Not available')}</td>
-                                    <td>
-                                      {answer.isCorrect === true ? (
-                                        <Badge bg="success">Correct</Badge>
-                                      ) : answer.isCorrect === false ? (
-                                        <Badge bg="danger">Incorrect</Badge>
-                                      ) : (
-                                        <Badge bg="secondary">Pending</Badge>
-                                      )}
-                                    </td>
-                                    <td>{typeof answer.marksAwarded === 'number' ? answer.marksAwarded : '--'}</td>
-                                    <td>{formatDurationSeconds(answer.timeTaken)}</td>
-                                    <td>{formatDateTime(answer.answeredAt)}</td>
+                            <div style={{ background: '#ffffff', padding: '1rem', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                              <Table size="sm" bordered hover responsive style={{ marginBottom: 0 }}>
+                                <thead style={{ background: '#f8f9fa' }}>
+                                  <tr>
+                                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>#</th>
+                                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Question</th>
+                                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Your Answer</th>
+                                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Correct Answer</th>
+                                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Result</th>
+                                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Marks</th>
+                                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Time Taken</th>
+                                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Answered At</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </Table>
+                                </thead>
+                                <tbody>
+                                  {test.answers.map((answer, answerIndex) => (
+                                    <tr key={`${testKey}-${answer.questionId || answerIndex}`}>
+                                      <td>{answerIndex + 1}</td>
+                                      <td style={{ maxWidth: '300px', wordWrap: 'break-word' }}>{answer.questionText}</td>
+                                      <td style={{ maxWidth: '200px', wordWrap: 'break-word' }}>{formatOptionList(answer.selectedOptions)}</td>
+                                      <td style={{ maxWidth: '200px', wordWrap: 'break-word' }}>{formatOptionList(answer.correctOptions, 'Not available')}</td>
+                                      <td>
+                                        {answer.isCorrect === true ? (
+                                          <Badge bg="success" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Correct</Badge>
+                                        ) : answer.isCorrect === false ? (
+                                          <Badge bg="danger" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Incorrect</Badge>
+                                        ) : (
+                                          <Badge bg="secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>Pending</Badge>
+                                        )}
+                                      </td>
+                                      <td>{typeof answer.marksAwarded === 'number' ? answer.marksAwarded : '--'}</td>
+                                      <td>{formatDurationSeconds(answer.timeTaken)}</td>
+                                      <td>{formatDateTime(answer.answeredAt)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </Table>
+                            </div>
                           ) : (
-                            <Alert variant="info" className="mb-0">
+                            <Alert variant="info" className="mb-0" style={{ borderRadius: '8px' }}>
                               No answer details available for this test.
                             </Alert>
                           )}
@@ -380,38 +441,47 @@ const TestsManagement = () => {
                   )}
                 </React.Fragment>
               );})}
-            </tbody>
-          </Table>
-        ) : (
-          <Alert variant="info">No completed tests yet.</Alert>
-        )}
+                </tbody>
+              </Table>
+            ) : (
+              <Alert variant="info" className="mb-0">No completed tests yet.</Alert>
+            )}
+          </Card.Body>
+        </Card>
 
         {assignments.length > 0 && (
-          <div className="mt-4">
-            <h6 className="mb-2">Assigned Tests</h6>
-            <Table striped bordered hover responsive>
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Status</th>
-                  <th>Invited</th>
-                  <th>Completed</th>
-                  <th>Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assignments.map(assignment => (
-                  <tr key={assignment.testId}>
-                    <td>{assignment.title}</td>
-                    <td>{renderResultBadge(assignment.status)}</td>
-                    <td>{formatDateTime(assignment.invitedAt)}</td>
-                    <td>{formatDateTime(assignment.completedAt)}</td>
-                    <td>{percentageFormatter(assignment.percentage)}</td>
+          <Card className="border-0 shadow-sm">
+            <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+              <h6 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+                <FaListUl className="me-2" />
+                Assigned Tests
+              </h6>
+            </Card.Header>
+            <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
+              <Table striped bordered hover responsive style={{ marginBottom: 0 }}>
+                <thead style={{ background: '#f8f9fa' }}>
+                  <tr>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Title</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Status</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Invited</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Completed</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Score</th>
                   </tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
+                </thead>
+                <tbody>
+                  {assignments.map((assignment, idx) => (
+                    <tr key={assignment.testId || `assignment-${idx}`}>
+                      <td>{assignment.title}</td>
+                      <td>{renderResultBadge(assignment.status)}</td>
+                      <td>{formatDateTime(assignment.invitedAt)}</td>
+                      <td>{formatDateTime(assignment.completedAt)}</td>
+                      <td>{percentageFormatter(assignment.percentage)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card.Body>
+          </Card>
         )}
       </div>
     );
@@ -491,14 +561,6 @@ const TestsManagement = () => {
       setToast({ type: 'danger', message: 'Unable to load candidate pool.' });
     } finally {
       setCandidatesLoading(false);
-    }
-  };
-
-  const handleRefreshData = async () => {
-    try {
-      await Promise.all([fetchTopics(), fetchCandidates()]);
-    } catch (error) {
-      console.error('Refresh data error:', error);
     }
   };
 
@@ -840,6 +902,7 @@ const TestsManagement = () => {
       const position = candidate.form?.position || '';
       const department = candidate.form?.department || '';
       const name = candidate.user?.name || '';
+      const candidateId = candidate.candidateNumber || '';
       const testsMeta = candidate.workflow?.tests || {};
       const testsCompletedCount = Number(testsMeta.completed) || 0;
 
@@ -849,7 +912,8 @@ const TestsManagement = () => {
         !search ||
         name.toLowerCase().includes(search) ||
         position.toLowerCase().includes(search) ||
-        department.toLowerCase().includes(search);
+        department.toLowerCase().includes(search) ||
+        candidateId.toLowerCase().includes(search);
 
       const matchesTestStatus =
         testStatusFilter === 'all' ||
@@ -996,26 +1060,6 @@ const TestsManagement = () => {
 
   return (
     <Container fluid className="super-admin-fluid">
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
-            <div>
-              <h2 className="mb-1">Assessments & Question Bank</h2>
-              <p className="text-muted mb-0">
-                Build reusable topics, curate MCQ banks, and launch assessments that match your recruitment workflow.
-              </p>
-            </div>
-            <div className="d-flex gap-2">
-              <Button variant="outline-secondary" onClick={handleRefreshData}>
-                <FaSync className="me-2" />Refresh Data
-              </Button>
-              <Button variant="primary" onClick={() => openBuilderModal()}>
-                <FaPlus className="me-2" />Quick Assessment
-              </Button>
-            </div>
-          </div>
-        </Col>
-      </Row>
 
       {toast.message && (
         <Row className="mb-3">
@@ -1030,12 +1074,33 @@ const TestsManagement = () => {
       <Tabs activeKey={activeTab} onSelect={(key) => setActiveTab(key || 'assessments')} className="mb-4">
         <Tab eventKey="assessments" title="Candidate Assessments">
           <Row className="g-3 align-items-end mb-3">
-            <Col lg={4}>
+            <Col lg={3}>
               <div className="d-flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   variant={candidateFilters.category === 'all' ? 'primary' : 'outline-primary'}
                   onClick={() => setCandidateFilters(prev => ({ ...prev, category: 'all' }))}
+                  style={{ 
+                    borderRadius: '8px',
+                    fontWeight: '500',
+                    transition: 'all 0.3s',
+                    ...(candidateFilters.category === 'all' && {
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none'
+                    })
+                  }}
+                  onMouseEnter={(e) => {
+                    if (candidateFilters.category !== 'all') {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (candidateFilters.category !== 'all') {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
+                  }}
                 >
                   All ({candidates.length})
                 </Button>
@@ -1043,6 +1108,27 @@ const TestsManagement = () => {
                   size="sm"
                   variant={candidateFilters.category === 'teaching' ? 'primary' : 'outline-primary'}
                   onClick={() => setCandidateFilters(prev => ({ ...prev, category: 'teaching' }))}
+                  style={{ 
+                    borderRadius: '8px',
+                    fontWeight: '500',
+                    transition: 'all 0.3s',
+                    ...(candidateFilters.category === 'teaching' && {
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none'
+                    })
+                  }}
+                  onMouseEnter={(e) => {
+                    if (candidateFilters.category !== 'teaching') {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (candidateFilters.category !== 'teaching') {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
+                  }}
                 >
                   Teaching ({categoryCounts.teaching})
                 </Button>
@@ -1050,6 +1136,27 @@ const TestsManagement = () => {
                   size="sm"
                   variant={candidateFilters.category === 'non_teaching' ? 'primary' : 'outline-primary'}
                   onClick={() => setCandidateFilters(prev => ({ ...prev, category: 'non_teaching' }))}
+                  style={{ 
+                    borderRadius: '8px',
+                    fontWeight: '500',
+                    transition: 'all 0.3s',
+                    ...(candidateFilters.category === 'non_teaching' && {
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none'
+                    })
+                  }}
+                  onMouseEnter={(e) => {
+                    if (candidateFilters.category !== 'non_teaching') {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (candidateFilters.category !== 'non_teaching') {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
+                  }}
                 >
                   Non-Teaching ({categoryCounts.non_teaching})
                 </Button>
@@ -1066,7 +1173,7 @@ const TestsManagement = () => {
                 <option value="conducted">Test Conducted</option>
               </Form.Select>
             </Col>
-            <Col lg={3}>
+            <Col lg={2}>
               <Form.Select
                 size="sm"
                 value={candidateFilters.position}
@@ -1081,16 +1188,36 @@ const TestsManagement = () => {
             <Col lg={4}>
               <InputGroup size="sm">
                 <Form.Control
-                  placeholder="Search candidate, role, or department..."
-                  value={candidateFilters.search}
-                  onChange={(event) => setCandidateFilters(prev => ({ ...prev, search: event.target.value }))}
+                  placeholder="Search by name, candidate ID, role, or department..."
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      setCandidateFilters(prev => ({ ...prev, search: searchInput }));
+                    }
+                  }}
                 />
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setCandidateFilters(prev => ({ ...prev, search: searchInput }));
+                  }}
+                  style={{ 
+                    borderRadius: '0 8px 8px 0',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    border: 'none'
+                  }}
+                >
+                  <FaSearch />
+                </Button>
                 <Button
                   variant="outline-secondary"
                   onClick={() => {
+                    setSearchInput('');
                     setCandidateFilters({ category: 'all', position: 'all', search: '' });
                     setTestStatusFilter('all');
                   }}
+                  style={{ borderRadius: '8px', marginLeft: '0.5rem' }}
                 >
                   Reset
                 </Button>
@@ -1099,15 +1226,39 @@ const TestsManagement = () => {
           </Row>
           <Row className="g-4">
             <Col lg={12}>
-              <Card className="h-100">
-                <Card.Header className="d-flex justify-content-between align-items-center">
+              <Card className="h-100 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+                <Card.Header 
+                  className="d-flex justify-content-between align-items-center"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    borderBottom: 'none',
+                    padding: '1.25rem'
+                  }}
+                >
                   <div>
-                    <h5 className="mb-0">Approved Candidate Pool</h5>
-                    <small className="text-muted">Launch topic-driven assessments directly</small>
+                    <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+                      <FaClipboardCheck className="me-2" />
+                      Approved Candidate Pool
+                    </h5>
+                    <small style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem' }}>
+                      Launch topic-driven assessments directly
+                    </small>
                   </div>
-                  <Badge bg="primary">{filteredAssessmentCandidates.length}</Badge>
+                  <Badge 
+                    bg="light" 
+                    text="dark"
+                    style={{ 
+                      fontSize: '0.9rem', 
+                      padding: '0.5rem 1rem',
+                      fontWeight: '600',
+                      borderRadius: '20px'
+                    }}
+                  >
+                    {filteredAssessmentCandidates.length}
+                  </Badge>
                 </Card.Header>
-                <Card.Body style={{ maxHeight: '420px', overflowY: 'auto' }}>
+                <Card.Body style={{ maxHeight: '420px', overflowY: 'auto', padding: '1.25rem', background: '#ffffff' }}>
                   {candidatesLoading ? (
                     <div className="text-center py-4">
                       <Spinner animation="border" />
@@ -1115,15 +1266,15 @@ const TestsManagement = () => {
                   ) : filteredAssessmentCandidates.length === 0 ? (
                     <Alert variant="light">No candidates match the current filters.</Alert>
                   ) : (
-                    <Table responsive striped hover size="sm">
-                      <thead>
+                    <Table responsive striped hover size="sm" style={{ marginBottom: 0 }}>
+                      <thead style={{ background: '#f8f9fa' }}>
                         <tr>
-                          <th>Name</th>
-                          <th>Candidate ID</th>
-                          <th>Position</th>
-                          <th>Department</th>
-                          <th>Stage</th>
-                          <th className="text-end">Actions</th>
+                          <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Name</th>
+                          <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Candidate ID</th>
+                          <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Position</th>
+                          <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Department</th>
+                          <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Stage</th>
+                          <th className="text-end" style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1318,10 +1469,27 @@ const TestsManagement = () => {
           <Row className="mb-3">
             <Col className="d-flex justify-content-between align-items-center">
               <div>
-                <h5 className="mb-1">Reusable Question Topics</h5>
-                <span className="text-muted">Organise MCQ templates by department & stream</span>
+                <h5 className="mb-1" style={{ fontWeight: '600', color: '#212529' }}>Reusable Question Topics</h5>
+                <span className="text-muted" style={{ fontSize: '0.9rem' }}>Organise MCQ templates by department & stream</span>
               </div>
-              <Button onClick={() => openTopicModal()}>
+              <Button 
+                onClick={() => openTopicModal()}
+                style={{ 
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  fontWeight: '500',
+                  transition: 'all 0.3s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 12px rgba(102, 126, 234, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
                 <FaPlus className="me-2" />Add Topic
               </Button>
             </Col>
@@ -1331,15 +1499,36 @@ const TestsManagement = () => {
               const items = topicsByCategory[category.value] || [];
               return (
                 <Col key={category.value} md={6}>
-                  <Card className="h-100">
-                    <Card.Header className="d-flex justify-content-between align-items-center">
+                  <Card className="h-100 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+                    <Card.Header 
+                      className="d-flex justify-content-between align-items-center"
+                      style={{ 
+                        background: category.value === 'teaching' 
+                          ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                          : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                        color: 'white',
+                        borderBottom: 'none',
+                        padding: '1.25rem'
+                      }}
+                    >
                       <div className="d-flex align-items-center gap-2">
-                        <FaLayerGroup />
-                        <span>{category.label}</span>
+                        <FaLayerGroup style={{ fontSize: '1.2rem' }} />
+                        <span style={{ fontWeight: '600' }}>{category.label}</span>
                       </div>
-                      <Badge bg="secondary">{items.length}</Badge>
+                      <Badge 
+                        bg="light" 
+                        text="dark"
+                        style={{ 
+                          fontSize: '0.9rem', 
+                          padding: '0.5rem 1rem',
+                          fontWeight: '600',
+                          borderRadius: '20px'
+                        }}
+                      >
+                        {items.length}
+                      </Badge>
                     </Card.Header>
-                    <Card.Body style={{ maxHeight: '420px', overflowY: 'auto' }}>
+                    <Card.Body style={{ maxHeight: '420px', overflowY: 'auto', padding: '1.25rem', background: '#ffffff' }}>
                       {topicsLoading ? (
                         <div className="text-center py-4">
                           <Spinner animation="border" size="sm" />
@@ -1348,29 +1537,70 @@ const TestsManagement = () => {
                         <Alert variant="light" className="mb-0">No topics created yet.</Alert>
                       ) : (
                         items.map(topic => (
-                          <Card key={topic._id} className="mb-3 shadow-sm">
-                            <Card.Body>
+                          <Card 
+                            key={topic._id} 
+                            className="mb-3 border-0 shadow-sm"
+                            style={{ 
+                              borderRadius: '10px',
+                              transition: 'transform 0.2s, box-shadow 0.2s',
+                              border: '1px solid #e9ecef'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                            }}
+                          >
+                            <Card.Body style={{ padding: '1rem' }}>
                               <div className="d-flex justify-content-between align-items-start">
-                                <div>
-                                  <h6 className="mb-1">{topic.name}</h6>
+                                <div style={{ flex: 1 }}>
+                                  <h6 className="mb-1" style={{ fontWeight: '600', color: '#212529' }}>{topic.name}</h6>
                                   {topic.description && (
-                                    <p className="text-muted mb-1" style={{ fontSize: '0.9rem' }}>{topic.description}</p>
+                                    <p className="text-muted mb-2" style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>{topic.description}</p>
                                   )}
-                                  <Badge bg="info" className="me-2">
-                                    <FaListUl className="me-1" />{topic.questionCount || 0} questions
-                                  </Badge>
-                                  <Badge bg={topic.isActive ? 'success' : 'secondary'}>
-                                    {topic.isActive ? 'Active' : 'Inactive'}
-                                  </Badge>
+                                  <div className="d-flex gap-2 flex-wrap">
+                                    <Badge 
+                                      bg="info" 
+                                      className="me-2"
+                                      style={{ 
+                                        fontSize: '0.8rem', 
+                                        padding: '0.4rem 0.8rem',
+                                        borderRadius: '6px',
+                                        fontWeight: '500'
+                                      }}
+                                    >
+                                      <FaListUl className="me-1" />{topic.questionCount || 0} questions
+                                    </Badge>
+                                    <Badge 
+                                      bg={topic.isActive ? 'success' : 'secondary'}
+                                      style={{ 
+                                        fontSize: '0.8rem', 
+                                        padding: '0.4rem 0.8rem',
+                                        borderRadius: '6px',
+                                        fontWeight: '500'
+                                      }}
+                                    >
+                                      {topic.isActive ? 'Active' : 'Inactive'}
+                                    </Badge>
+                                  </div>
                                 </div>
-                                <div className="d-flex flex-column gap-2">
-                                  <Button variant="outline-secondary" size="sm" onClick={() => openTopicModal(topic)}>
+                                <div className="d-flex flex-column gap-2 ms-3">
+                                  <Button 
+                                    variant="outline-secondary" 
+                                    size="sm" 
+                                    onClick={() => openTopicModal(topic)}
+                                    style={{ borderRadius: '6px', fontWeight: '500' }}
+                                  >
                                     <FaEdit className="me-1" />Edit
                                   </Button>
                                   <Button
                                     variant={topic.isActive ? 'outline-danger' : 'outline-success'}
                                     size="sm"
                                     onClick={() => handleToggleTopicActive(topic)}
+                                    style={{ borderRadius: '6px', fontWeight: '500' }}
                                   >
                                     {topic.isActive ? 'Deactivate' : 'Activate'}
                                   </Button>
@@ -1441,17 +1671,47 @@ const TestsManagement = () => {
 
           <Row>
             <Col>
-              <Card className="h-100">
-                <Card.Header className="d-flex justify-content-between align-items-center">
+              <Card className="h-100 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+                <Card.Header 
+                  className="d-flex justify-content-between align-items-center"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    borderBottom: 'none',
+                    padding: '1.25rem'
+                  }}
+                >
                   <div>
-                    <h5 className="mb-0">Question Library</h5>
-                    <small className="text-muted">Curated MCQs grouped by topics</small>
+                    <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+                      <FaListUl className="me-2" />
+                      Question Library
+                    </h5>
+                    <small style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem' }}>
+                      Curated MCQs grouped by topics
+                    </small>
                   </div>
-                  <Button variant="outline-secondary" size="sm" onClick={fetchQuestions}>
+                  <Button 
+                    variant="light" 
+                    size="sm" 
+                    onClick={fetchQuestions}
+                    style={{ 
+                      borderRadius: '6px',
+                      fontWeight: '500',
+                      transition: 'all 0.3s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
                     <FaSync className="me-2" />Refresh
                   </Button>
                 </Card.Header>
-                <Card.Body style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                <Card.Body style={{ maxHeight: '500px', overflowY: 'auto', padding: '1.25rem', background: '#ffffff' }}>
                   {questionLoading ? (
                     <div className="text-center py-4">
                       <Spinner animation="border" />
@@ -1636,41 +1896,90 @@ const TestsManagement = () => {
       </Modal>
 
       {/* Candidate Profile Modal */}
-      <Modal show={profileModalVisible} onHide={closeProfileModal} size="lg" centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Candidate Test Overview</Modal.Title>
+      <Modal 
+        show={profileModalVisible} 
+        onHide={closeProfileModal} 
+        size="xl" 
+        centered
+        scrollable
+        style={{ maxWidth: '98vw', width: '98vw' }}
+        dialogClassName="candidate-test-overview-modal"
+      >
+        <Modal.Header 
+          closeButton 
+          style={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+            color: 'white', 
+            borderBottom: 'none' 
+          }}
+        >
+          <Modal.Title style={{ color: 'white', fontWeight: '600' }}>
+            <FaEye className="me-2" />
+            Candidate Test Overview
+          </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body style={{ padding: '1.5rem', background: '#f8f9fa', maxHeight: '85vh', overflowY: 'auto' }}>
           {profileLoading ? (
-            <div className="text-center py-4">
-              <Spinner animation="border" />
+            <div className="text-center py-5">
+              <Spinner animation="border" variant="primary" />
+              <p className="mt-3 text-muted">Loading candidate test data...</p>
             </div>
           ) : (
             renderCandidateProfileContent()
           )}
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={closeProfileModal} disabled={profileLoading}>
+        <Modal.Footer style={{ borderTop: '1px solid #dee2e6', background: '#ffffff' }}>
+          <Button 
+            variant="secondary" 
+            onClick={closeProfileModal} 
+            disabled={profileLoading}
+            style={{ borderRadius: '8px', fontWeight: '500' }}
+          >
             Close
           </Button>
         </Modal.Footer>
       </Modal>
 
       {/* Assessment Builder Modal */}
-      <Modal show={builderModalVisible} onHide={closeBuilderModal} size="lg" centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Build Topic-Based Assessment</Modal.Title>
+      <Modal 
+        show={builderModalVisible} 
+        onHide={closeBuilderModal} 
+        size="lg" 
+        centered
+        scrollable
+        style={{ maxWidth: '90vw' }}
+        dialogClassName="assessment-builder-modal"
+      >
+        <Modal.Header 
+          closeButton
+          style={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+            color: 'white', 
+            borderBottom: 'none' 
+          }}
+        >
+          <Modal.Title style={{ color: 'white', fontWeight: '600' }}>
+            <FaClipboardCheck className="me-2" />
+            Build Topic-Based Assessment
+          </Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleGenerateAssessment}>
-          <Modal.Body>
-            <Row className="mb-3">
+          <Modal.Body style={{ padding: '1.5rem', background: '#f8f9fa', maxHeight: '75vh', overflowY: 'auto' }}>
+            <Row className="mb-3 g-3">
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Assign to Candidate<span className="text-danger">*</span></Form.Label>
+                  <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                    Assign to Candidate<span className="text-danger">*</span>
+                  </Form.Label>
                   <Form.Select
                     value={builderState.candidateId}
                     onChange={(event) => setBuilderState(prev => ({ ...prev, candidateId: event.target.value }))}
                     required
+                    style={{ 
+                      borderRadius: '8px',
+                      border: '1px solid #dee2e6',
+                      padding: '0.75rem'
+                    }}
                   >
                     <option value="">Select candidate</option>
                     {candidates.map(candidate => (
@@ -1683,101 +1992,194 @@ const TestsManagement = () => {
               </Col>
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Assessment Title<span className="text-danger">*</span></Form.Label>
+                  <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                    Assessment Title<span className="text-danger">*</span>
+                  </Form.Label>
                   <Form.Control
                     value={builderState.title}
                     onChange={(event) => setBuilderState(prev => ({ ...prev, title: event.target.value }))}
                     placeholder="e.g., CSE Technical Screening"
                     required
+                    style={{ 
+                      borderRadius: '8px',
+                      border: '1px solid #dee2e6',
+                      padding: '0.75rem'
+                    }}
                   />
                 </Form.Group>
               </Col>
             </Row>
 
-            <Row className="mb-3">
+            <Row className="mb-3 g-3">
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Duration (minutes)<span className="text-danger">*</span></Form.Label>
+                  <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                    Duration (minutes)<span className="text-danger">*</span>
+                  </Form.Label>
                   <Form.Control
                     type="number"
                     min={10}
                     value={builderState.duration}
                     onChange={(event) => setBuilderState(prev => ({ ...prev, duration: Number(event.target.value) }))}
                     required
+                    style={{ 
+                      borderRadius: '8px',
+                      border: '1px solid #dee2e6',
+                      padding: '0.75rem'
+                    }}
                   />
                 </Form.Group>
               </Col>
               <Col md={3}>
                 <Form.Group>
-                  <Form.Label>Passing %</Form.Label>
+                  <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                    Passing %
+                  </Form.Label>
                   <Form.Control
                     type="number"
                     min={0}
                     max={100}
                     value={builderState.passingPercentage}
                     onChange={(event) => setBuilderState(prev => ({ ...prev, passingPercentage: Number(event.target.value) }))}
+                    style={{ 
+                      borderRadius: '8px',
+                      border: '1px solid #dee2e6',
+                      padding: '0.75rem'
+                    }}
                   />
                 </Form.Group>
               </Col>
               <Col md={3}>
                 <Form.Group>
-                  <Form.Label>Cutoff %</Form.Label>
+                  <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                    Cutoff %
+                  </Form.Label>
                   <Form.Control
                     type="number"
                     min={0}
                     max={100}
                     value={builderState.cutoffPercentage}
                     onChange={(event) => setBuilderState(prev => ({ ...prev, cutoffPercentage: Number(event.target.value) }))}
+                    style={{ 
+                      borderRadius: '8px',
+                      border: '1px solid #dee2e6',
+                      padding: '0.75rem'
+                    }}
                   />
                 </Form.Group>
               </Col>
             </Row>
 
             <Form.Group className="mb-3">
-              <Form.Label>Description</Form.Label>
+              <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                Description
+              </Form.Label>
               <Form.Control
                 as="textarea"
                 rows={2}
                 value={builderState.description}
                 onChange={(event) => setBuilderState(prev => ({ ...prev, description: event.target.value }))}
                 placeholder="Purpose and overview of the assessment"
+                style={{ 
+                  borderRadius: '8px',
+                  border: '1px solid #dee2e6',
+                  padding: '0.75rem'
+                }}
               />
             </Form.Group>
 
             <Form.Group className="mb-4">
-              <Form.Label>Candidate Instructions</Form.Label>
+              <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                Candidate Instructions
+              </Form.Label>
               <Form.Control
                 as="textarea"
                 rows={2}
                 value={builderState.instructions}
                 onChange={(event) => setBuilderState(prev => ({ ...prev, instructions: event.target.value }))}
                 placeholder="Any instructions to show before the assessment begins"
+                style={{ 
+                  borderRadius: '8px',
+                  border: '1px solid #dee2e6',
+                  padding: '0.75rem'
+                }}
               />
             </Form.Group>
 
-            <Card className="mb-3">
-              <Card.Header className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="mb-0">Topic Mix</h6>
-                  <small className="text-muted">Total Questions: {totalSelectedQuestions}</small>
+            <Card className="mb-3 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+              <Card.Header 
+                className="d-flex justify-content-between align-items-center"
+                style={{ 
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderBottom: 'none',
+                  padding: '1rem 1.25rem'
+                }}
+              >
+                <div className="d-flex align-items-center gap-3">
+                  <div>
+                    <h6 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+                      <FaLayerGroup className="me-2" />
+                      Topic Mix
+                    </h6>
+                  </div>
+                  <div style={{ 
+                    background: 'rgba(255,255,255,0.2)', 
+                    padding: '0.25rem 0.75rem', 
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    fontWeight: '500'
+                  }}>
+                    Total Questions: <strong>{totalSelectedQuestions}</strong>
+                  </div>
                 </div>
-                <Button variant="outline-primary" size="sm" onClick={addBuilderSelection}>
+                <Button 
+                  variant="light" 
+                  size="sm" 
+                  onClick={addBuilderSelection}
+                  style={{ 
+                    borderRadius: '6px',
+                    fontWeight: '500',
+                    transition: 'all 0.3s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
                   <FaPlus className="me-1" />Add Topic
                 </Button>
               </Card.Header>
-              <Card.Body className="p-3">
+              <Card.Body className="p-3" style={{ background: '#ffffff', padding: '1.25rem' }}>
                 {builderState.selections.map((selection, index) => {
                   const topic = getTopicById(selection.topicId);
                   const available = topic?.questionCount || 0;
                   return (
-                    <Row className="align-items-end mb-3" key={index}>
+                    <Row className="align-items-end mb-3 g-3" key={index} style={{ 
+                      padding: '1rem', 
+                      background: '#f8f9fa', 
+                      borderRadius: '8px',
+                      border: '1px solid #e9ecef',
+                      marginBottom: '1rem'
+                    }}>
                       <Col md={6}>
                         <Form.Group>
-                          <Form.Label>Topic<span className="text-danger">*</span></Form.Label>
+                          <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                            Topic<span className="text-danger">*</span>
+                          </Form.Label>
                           <Form.Select
                             value={selection.topicId}
                             onChange={(event) => updateBuilderSelection(index, 'topicId', event.target.value)}
                             required
+                            style={{ 
+                              borderRadius: '8px',
+                              border: '1px solid #dee2e6',
+                              padding: '0.75rem'
+                            }}
                           >
                             <option value="">Select topic</option>
                             {activeTopicOptions.map(item => (
@@ -1790,24 +2192,46 @@ const TestsManagement = () => {
                       </Col>
                       <Col md={4}>
                         <Form.Group>
-                          <Form.Label>Question Count<span className="text-danger">*</span></Form.Label>
-                          <Form.Control
-                            type="number"
-                            min={1}
-                            value={selection.questionCount}
-                            onChange={(event) => updateBuilderSelection(index, 'questionCount', Number(event.target.value))}
-                            required
-                          />
-                          {selection.topicId && (
-                            <Form.Text className={available < selection.questionCount ? 'text-danger' : 'text-muted'}>
-                              {available} available in bank
-                            </Form.Text>
-                          )}
+                          <Form.Label style={{ fontWeight: '600', color: '#495057', marginBottom: '0.5rem' }}>
+                            Question Count<span className="text-danger">*</span>
+                          </Form.Label>
+                          <div className="d-flex align-items-center gap-2">
+                            <Form.Control
+                              type="number"
+                              min={1}
+                              value={selection.questionCount}
+                              onChange={(event) => updateBuilderSelection(index, 'questionCount', Number(event.target.value))}
+                              required
+                              style={{ 
+                                borderRadius: '8px',
+                                border: '1px solid #dee2e6',
+                                padding: '0.75rem',
+                                flex: 1
+                              }}
+                            />
+                            {selection.topicId && (
+                              <span 
+                                className={available < selection.questionCount ? 'text-danger' : 'text-muted'}
+                                style={{ 
+                                  fontSize: '0.85rem', 
+                                  fontWeight: '500',
+                                  whiteSpace: 'nowrap',
+                                  minWidth: 'fit-content'
+                                }}
+                              >
+                                {available} available
+                              </span>
+                            )}
+                          </div>
                         </Form.Group>
                       </Col>
                       <Col md={2} className="text-end">
                         {builderState.selections.length > 1 && (
-                          <Button variant="outline-danger" onClick={() => removeBuilderSelection(index)}>
+                          <Button 
+                            variant="outline-danger" 
+                            onClick={() => removeBuilderSelection(index)}
+                            style={{ borderRadius: '8px', fontWeight: '500' }}
+                          >
                             <FaTrash />
                           </Button>
                         )}
@@ -1836,18 +2260,58 @@ const TestsManagement = () => {
               </Alert>
             )}
           </Modal.Body>
-          <Modal.Footer className="d-flex justify-content-between align-items-center">
-            <div className="text-muted d-flex align-items-center gap-2">
-              <FaClipboardCheck />
+          <Modal.Footer 
+            className="d-flex justify-content-between align-items-center"
+            style={{ borderTop: '1px solid #dee2e6', background: '#ffffff', padding: '1.25rem' }}
+          >
+            <div className="text-muted d-flex align-items-center gap-2" style={{ fontWeight: '500' }}>
+              <FaClipboardCheck style={{ color: '#667eea' }} />
               <span>{totalSelectedQuestions} question(s) will be included.</span>
             </div>
             <div className="d-flex gap-2">
-              <Button variant="secondary" onClick={closeBuilderModal} disabled={builderSaving}>
+              <Button 
+                variant="secondary" 
+                onClick={closeBuilderModal} 
+                disabled={builderSaving}
+                style={{ borderRadius: '8px', fontWeight: '500' }}
+              >
                 {assignmentDetails ? 'Close' : 'Cancel'}
               </Button>
               {!assignmentDetails && (
-                <Button type="submit" disabled={builderSaving}>
-                  {builderSaving ? <Spinner animation="border" size="sm" className="me-2" /> : <FaCheckCircle className="me-2" />}Generate Assessment
+                <Button 
+                  type="submit" 
+                  disabled={builderSaving}
+                  style={{ 
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    border: 'none',
+                    fontWeight: '500',
+                    transition: 'all 0.3s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!builderSaving) {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 12px rgba(102, 126, 234, 0.4)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!builderSaving) {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
+                  }}
+                >
+                  {builderSaving ? (
+                    <>
+                      <Spinner animation="border" size="sm" className="me-2" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <FaCheckCircle className="me-2" />
+                      Generate Assessment
+                    </>
+                  )}
                 </Button>
               )}
             </div>

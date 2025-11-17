@@ -36,7 +36,8 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
-const hasPermission = (user, permission) => {
+// Check if user has permission (read access - allows both read_only and full_access)
+const hasPermission = (user, permission, requireWrite = false) => {
   if (!user) return false;
   if (user.role === 'super_admin') return true;
 
@@ -45,11 +46,43 @@ const hasPermission = (user, permission) => {
       return true;
     }
 
-    const userPermissions = Array.isArray(user.permissions) ? user.permissions : [];
-    return userPermissions.includes(permission) || userPermissions.includes('*');
+    // Handle both old format (array) and new format (object)
+    if (Array.isArray(user.permissions)) {
+      // Old format: array of permission keys (all are full_access)
+      return user.permissions.includes(permission) || user.permissions.includes('*');
+    }
+
+    // New format: object with access levels
+    if (typeof user.permissions === 'object' && user.permissions !== null) {
+      const accessLevel = user.permissions[permission];
+      
+      if (accessLevel === 'full_access') {
+        return true; // Full access allows both read and write
+      }
+      
+      // Support both 'view_only' (new) and 'read_only' (legacy)
+      if (accessLevel === 'view_only' || accessLevel === 'read_only') {
+        return !requireWrite; // View-only only allows read/view operations
+      }
+      
+      // Check for wildcard
+      if (user.permissions['*'] === 'full_access') {
+        return true;
+      }
+      
+      // Support both 'view_only' and 'read_only' for wildcard
+      if (user.permissions['*'] === 'view_only' || user.permissions['*'] === 'read_only') {
+        return !requireWrite;
+      }
+    }
   }
 
   return false;
+};
+
+// Check if user has write permission (full access only)
+const hasWritePermission = (user, permission) => {
+  return hasPermission(user, permission, true);
 };
 
 // Middleware to check if user has required role
@@ -98,7 +131,7 @@ const requirePermission = (permission) => {
   };
 };
 
-const requireSuperAdminOrPermission = (permission) => {
+const requireSuperAdminOrPermission = (permission, requireWrite = false) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -108,17 +141,24 @@ const requireSuperAdminOrPermission = (permission) => {
       return next();
     }
 
-    if (hasPermission(req.user, permission)) {
+    if (hasPermission(req.user, permission, requireWrite)) {
       return next();
     }
 
-    console.error('❌ [AUTHORIZATION] Access denied. Missing permission:', permission);
+    console.error('❌ [AUTHORIZATION] Access denied. Missing permission:', permission, requireWrite ? '(write required)' : '');
     return res.status(403).json({
-      message: 'Access denied. Insufficient permissions',
+      message: requireWrite 
+        ? 'Access denied. Write permission required' 
+        : 'Access denied. Insufficient permissions',
       requiredPermission: permission,
       userRole: req.user.role
     });
   };
+};
+
+// Middleware for write operations (POST, PUT, DELETE) - requires full_access
+const requireSuperAdminOrWritePermission = (permission) => {
+  return requireSuperAdminOrPermission(permission, true);
 };
 
 // Specific role middlewares
@@ -157,6 +197,8 @@ module.exports = {
   requireCandidate,
   requireOwnershipOrAdmin,
   hasPermission,
+  hasWritePermission,
   requirePermission,
-  requireSuperAdminOrPermission
+  requireSuperAdminOrPermission,
+  requireSuperAdminOrWritePermission
 };

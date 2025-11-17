@@ -40,18 +40,48 @@ const DashboardContainer = styled.div`
   min-height: 100vh;
   background: linear-gradient(135deg, #fef7ed 0%, #fed7aa 100%);
   padding: 2rem 0;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0.75rem 0;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.5rem 0;
+  }
 `;
 
 const DashboardWrapper = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 1rem;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0 0.5rem;
+    max-width: 100%;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0 0.5rem;
+    max-width: 100%;
+  }
 `;
 
 const HeaderSection = styled.div`
   text-align: center;
   margin-bottom: 3rem;
   animation: ${fadeInUp} 0.6s ease-out;
+
+  @media (max-width: 768px) {
+    margin-bottom: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    margin-bottom: 1rem;
+  }
 `;
 
 const DashboardTitle = styled.h1`
@@ -63,6 +93,16 @@ const DashboardTitle = styled.h1`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+
+  @media (max-width: 768px) {
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
 `;
 
 const DashboardSubtitle = styled.p`
@@ -71,6 +111,18 @@ const DashboardSubtitle = styled.p`
   max-width: 600px;
   margin: 0 auto;
   line-height: 1.6;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    padding: 0 0.5rem;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.8rem;
+    padding: 0;
+    line-height: 1.4;
+  }
 `;
 
 const StatsOverview = styled.div`
@@ -78,6 +130,18 @@ const StatsOverview = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   margin-bottom: 3rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+  }
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
 `;
 
 const StatCard = styled.div`
@@ -109,6 +173,16 @@ const StatNumber = styled.div`
   font-weight: 800;
   color: ${props => props.error ? '#dc2626' : '#ea580c'};
   margin-bottom: 0.5rem;
+
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+    margin-bottom: 0.25rem;
+  }
 `;
 
 const StatLabel = styled.div`
@@ -117,6 +191,16 @@ const StatLabel = styled.div`
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+
+  @media (max-width: 768px) {
+    font-size: 0.75rem;
+    letter-spacing: 0.3px;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.7rem;
+    letter-spacing: 0.25px;
+  }
 `;
 
 const ErrorState = styled.div`
@@ -162,6 +246,17 @@ const MainCardsGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 2rem;
   margin-bottom: 2rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
 `;
 
 const MainCard = styled.div`
@@ -191,6 +286,15 @@ const MainCard = styled.div`
   }
 
   animation: ${fadeInUp} 0.6s ease-out both;
+
+  @media (max-width: 768px) {
+    padding: 2rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1.5rem;
+    border-radius: 12px;
+  }
 `;
 
 const CardIcon = styled.div`
@@ -198,6 +302,16 @@ const CardIcon = styled.div`
   color: #ea580c;
   margin-bottom: 1.5rem;
   opacity: 0.8;
+
+  @media (max-width: 768px) {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+  }
 `;
 
 const CardTitle = styled.h3`
@@ -205,6 +319,16 @@ const CardTitle = styled.h3`
   font-weight: 700;
   color: #1e293b;
   margin-bottom: 1rem;
+
+  @media (max-width: 768px) {
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+  }
 `;
 
 const CardDescription = styled.p`
@@ -212,6 +336,18 @@ const CardDescription = styled.p`
   font-size: 1rem;
   line-height: 1.6;
   margin-bottom: 1.5rem;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-bottom: 0.75rem;
+  }
 `;
 
 const ActionButton = styled.button`
@@ -236,6 +372,18 @@ const ActionButton = styled.button`
   &:active {
     transform: translateY(0);
   }
+
+  @media (max-width: 768px) {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    width: 100%;
+    justify-content: center;
+  }
 `;
 
 const UpcomingInterviews = styled.div`
@@ -245,6 +393,18 @@ const UpcomingInterviews = styled.div`
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   margin-top: 2rem;
   animation: ${fadeInUp} 0.6s ease-out 0.6s both;
+
+  @media (max-width: 768px) {
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    border-radius: 12px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1rem;
+    margin-top: 1rem;
+    border-radius: 8px;
+  }
 `;
 
 const SectionTitle = styled.h3`
@@ -255,6 +415,18 @@ const SectionTitle = styled.h3`
   display: flex;
   align-items: center;
   gap: 0.75rem;
+
+  @media (max-width: 768px) {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+    gap: 0.5rem;
+  }
 `;
 
 const InterviewItem = styled.div`
@@ -293,12 +465,28 @@ const InterviewTitle = styled.h4`
   font-weight: 600;
   color: #1e293b;
   margin-bottom: 0.25rem;
+
+  @media (max-width: 768px) {
+    font-size: 1rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.9rem;
+  }
 `;
 
 const InterviewDetails = styled.p`
   color: #64748b;
   font-size: 0.9rem;
   margin: 0;
+
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.8rem;
+  }
 `;
 
 const InterviewTime = styled.div`

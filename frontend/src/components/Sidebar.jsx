@@ -31,30 +31,71 @@ const SidebarContainer = styled.div`
   z-index: 1000;
   box-shadow: 6px 0 24px rgba(127, 29, 29, 0.3);
   overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 
   @media (max-width: 768px) {
-    width: ${props => props.$isOpen ? '280px' : '0'};
+    width: ${props => props.$isOpen ? '280px' : '60px'};
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @media (max-width: 480px) {
+    width: ${props => props.$isOpen ? '100%' : '60px'};
   }
 `;
 
 const SidebarHeader = styled.div`
-  padding: 1.5rem;
+  padding: ${props => props.$isOpen ? '1.5rem' : '1rem'};
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: ${props => props.$isOpen ? 'space-between' : 'center'};
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(10px);
+  transition: padding 0.3s ease;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  flex-shrink: 0;
+  min-height: ${props => props.$isOpen ? 'auto' : '60px'};
+
+  @media (max-width: 768px) {
+    padding: ${props => props.$isOpen ? '1.25rem' : '0.75rem'};
+    justify-content: center;
+    min-height: 60px;
+  }
+
+  @media (max-width: 480px) {
+    padding: ${props => props.$isOpen ? '1rem' : '0.75rem'};
+    justify-content: center;
+    min-height: 60px;
+  }
 `;
 
 const Logo = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  transition: transform 0.3s ease;
+  justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
+  gap: ${props => props.$isOpen ? '0.75rem' : '0'};
+  width: ${props => props.$isOpen ? 'auto' : '0'};
+  max-width: 100%;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  overflow: hidden;
+  opacity: ${props => props.$isOpen ? 1 : 0};
+  pointer-events: ${props => props.$isOpen ? 'auto' : 'none'};
 
   &:hover {
     transform: scale(1.05);
+  }
+
+  @media (max-width: 768px) {
+    display: ${props => props.$isOpen ? 'flex' : 'none'};
+  }
+
+  @media (max-width: 480px) {
+    display: ${props => props.$isOpen ? 'flex' : 'none'};
   }
 `;
 
@@ -69,7 +110,9 @@ const LogoText = styled.span`
   font-weight: 700;
   white-space: nowrap;
   opacity: ${props => props.$isOpen ? 1 : 0};
-  transition: opacity 0.3s ease;
+  width: ${props => props.$isOpen ? 'auto' : '0'};
+  overflow: hidden;
+  transition: opacity 0.3s ease, width 0.3s ease;
   background: linear-gradient(135deg, #ef4444, #f97316);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -85,10 +128,37 @@ const ToggleButton = styled.button`
   padding: 0.5rem;
   border-radius: 8px;
   transition: all 0.3s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: ${props => props.$isOpen ? 'static' : 'absolute'};
+  left: ${props => props.$isOpen ? 'auto' : '50%'};
+  top: ${props => props.$isOpen ? 'auto' : '50%'};
+  transform: ${props => props.$isOpen ? 'none' : 'translate(-50%, -50%)'};
+  z-index: 10;
+  width: ${props => props.$isOpen ? 'auto' : '40px'};
+  height: ${props => props.$isOpen ? 'auto' : '40px'};
 
   &:hover {
     background: rgba(255, 255, 255, 0.18);
-    transform: scale(1.1);
+    transform: ${props => props.$isOpen ? 'scale(1.1)' : 'translate(-50%, -50%) scale(1.1)'};
+  }
+
+  @media (max-width: 768px) {
+    position: static;
+    transform: none;
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 480px) {
+    position: static;
+    transform: none;
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
   }
 `;
 
@@ -97,14 +167,21 @@ const SidebarContent = styled.div`
   height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 `;
 
 const Navigation = styled.nav`
   flex: 1;
-  padding: 0 1rem;
+  padding: ${props => props.$isOpen ? '0 1rem' : '0 0.5rem'};
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  transition: padding 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -117,6 +194,10 @@ const Navigation = styled.nav`
   &::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 2px;
+  }
+
+  @media (max-width: 768px) {
+    padding: ${props => props.$isOpen ? '0 1rem' : '0 0.5rem'};
   }
 `;
 
@@ -140,27 +221,37 @@ const NavList = styled.ul`
   list-style: none;
   padding: 0;
   margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 `;
 
 const NavItem = styled.li`
   margin-bottom: 0.25rem;
   position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
 
   &:hover {
-    transform: translateX(2px);
+    transform: ${props => props.$isOpen ? 'translateX(2px)' : 'none'};
   }
 `;
 
 const NavLink = styled(Link)`
   display: flex;
   align-items: center;
-  padding: 0.875rem 1rem;
+  justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
+  padding: ${props => props.$isOpen ? '0.875rem 1rem' : '0.875rem 0'};
   color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
   border-radius: 12px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
 
   &::before {
     content: '';
@@ -176,7 +267,7 @@ const NavLink = styled(Link)`
   &:hover {
     background: rgba(255, 255, 255, 0.18);
     color: #fff7ed;
-    transform: translateX(4px);
+    transform: ${props => props.$isOpen ? 'translateX(4px)' : 'scale(1.05)'};
   }
 
   &:hover::before {
@@ -186,29 +277,72 @@ const NavLink = styled(Link)`
   &.active {
     background: linear-gradient(135deg, rgba(239, 68, 68, 0.35), rgba(249, 115, 22, 0.3));
     color: #fff7ed;
-    border-left: 3px solid #f97316;
+    border-left: ${props => props.$isOpen ? '3px solid #f97316' : 'none'};
     box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
   }
 
   svg {
-    font-size: 1.1rem;
+    font-size: ${props => props.$isOpen ? '1.1rem' : '1.25rem'};
     margin-right: ${props => props.$isOpen ? '0.75rem' : '0'};
-    min-width: 20px;
+    margin-left: ${props => props.$isOpen ? '0' : '0'};
+    min-width: ${props => props.$isOpen ? '20px' : '24px'};
+    width: ${props => props.$isOpen ? 'auto' : '24px'};
     text-align: center;
-    transition: transform 0.3s ease;
+    transition: transform 0.3s ease, font-size 0.3s ease, margin 0.3s ease;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   &:hover svg {
-    transform: scale(1.1);
+    transform: scale(1.15);
     color: #f97316;
   }
 `;
 
 const NavText = styled.span`
   opacity: ${props => props.$isOpen ? 1 : 0};
-  transition: opacity 0.3s ease;
+  width: ${props => props.$isOpen ? 'auto' : '0'};
+  overflow: hidden;
+  transition: opacity 0.3s ease, width 0.3s ease;
   white-space: nowrap;
   font-weight: 500;
+  pointer-events: ${props => props.$isOpen ? 'auto' : 'none'};
+  margin: 0;
+`;
+
+const Tooltip = styled.div`
+  position: fixed;
+  left: ${props => props.$sidebarWidth ? `${props.$sidebarWidth + 10}px` : 'calc(100% + 10px)'};
+  top: ${props => props.$top ? `${props.$top}px` : '50%'};
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  opacity: ${props => props.$show ? 1 : 0};
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 1001;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  visibility: ${props => props.$show ? 'visible' : 'hidden'};
+
+  &::before {
+    content: '';
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 6px solid transparent;
+    border-right-color: rgba(0, 0, 0, 0.9);
+  }
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const NotificationBadge = styled.div`
@@ -229,20 +363,27 @@ const NotificationBadge = styled.div`
 
 const UserSection = styled.div`
   border-top: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 1rem;
+  padding: ${props => props.$isOpen ? '1rem' : '1rem 0.5rem'};
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
+  transition: padding 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  flex-shrink: 0;
 `;
 
 const UserInfo = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
+  gap: ${props => props.$isOpen ? '0.75rem' : '0'};
   margin-bottom: 1rem;
-  padding: 0.75rem;
+  padding: ${props => props.$isOpen ? '0.75rem' : '0.75rem 0'};
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.08);
-  transition: background 0.3s ease;
+  transition: all 0.3s ease;
+  width: 100%;
 
   &:hover {
     background: rgba(255, 255, 255, 0.12);
@@ -250,34 +391,40 @@ const UserInfo = styled.div`
 `;
 
 const UserAvatar = styled.div`
-  width: 45px;
-  height: 45px;
+  width: ${props => props.$isOpen ? '45px' : '40px'};
+  height: ${props => props.$isOpen ? '45px' : '40px'};
   border-radius: 50%;
   background: linear-gradient(135deg, #ef4444, #f97316);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: ${props => props.$isOpen ? '1.2rem' : '1rem'};
   font-weight: 600;
   box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
   position: relative;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
 
   &::after {
     content: '';
     position: absolute;
     bottom: 0;
     right: 0;
-    width: 12px;
-    height: 12px;
+    width: ${props => props.$isOpen ? '12px' : '10px'};
+    height: ${props => props.$isOpen ? '12px' : '10px'};
     background: #16a34a;
     border: 2px solid #431407;
     border-radius: 50%;
+    transition: all 0.3s ease;
   }
 `;
 
 const UserDetails = styled.div`
   opacity: ${props => props.$isOpen ? 1 : 0};
-  transition: opacity 0.3s ease;
+  width: ${props => props.$isOpen ? 'auto' : '0'};
+  overflow: hidden;
+  transition: opacity 0.3s ease, width 0.3s ease;
+  flex-shrink: 0;
 `;
 
 const UserName = styled.div`
@@ -300,7 +447,8 @@ const LogoutButton = styled.button`
   width: 100%;
   display: flex;
   align-items: center;
-  padding: 0.875rem 1rem;
+  justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
+  padding: ${props => props.$isOpen ? '0.875rem 1rem' : '0.875rem 0'};
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.25);
   color: #fecaca;
@@ -310,7 +458,7 @@ const LogoutButton = styled.button`
   cursor: pointer;
   font-size: 0.9rem;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 
   &::before {
     content: '';
@@ -326,7 +474,7 @@ const LogoutButton = styled.button`
   &:hover {
     background: rgba(239, 68, 68, 0.25);
     color: #fff5f5;
-    transform: translateX(4px);
+    transform: ${props => props.$isOpen ? 'translateX(4px)' : 'scale(1.05)'};
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
   }
 
@@ -335,21 +483,30 @@ const LogoutButton = styled.button`
   }
 
   svg {
-    font-size: 1rem;
+    font-size: ${props => props.$isOpen ? '1rem' : '1.1rem'};
     margin-right: ${props => props.$isOpen ? '0.75rem' : '0'};
-    min-width: 16px;
-    transition: transform 0.3s ease;
+    margin-left: ${props => props.$isOpen ? '0' : '0'};
+    min-width: ${props => props.$isOpen ? '16px' : '20px'};
+    width: ${props => props.$isOpen ? 'auto' : '20px'};
+    transition: transform 0.3s ease, margin 0.3s ease;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   &:hover svg {
-    transform: scale(1.1);
+    transform: scale(1.15);
   }
 `;
 
 const LogoutText = styled.span`
   opacity: ${props => props.$isOpen ? 1 : 0};
-  transition: opacity 0.3s ease;
+  width: ${props => props.$isOpen ? 'auto' : '0'};
+  overflow: hidden;
+  transition: opacity 0.3s ease, width 0.3s ease;
   font-weight: 500;
+  margin: 0;
 `;
 
 const Overlay = styled.div`
@@ -373,6 +530,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const navigate = useNavigate();
   const { user, logout, hasPermission } = useAuth();
   const [notifications, setNotifications] = useState({ feedback: 0, interviews: 0 });
+  const [hoveredItem, setHoveredItem] = useState(null);
 
   useEffect(() => {
     if (user?.role === 'panel_member') {
@@ -401,7 +559,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/super-admin/submissions', icon: FaFileAlt, label: 'Form Submissions' },
       { path: '/super-admin/tests', icon: FaClipboardList, label: 'Test Management' },
       { path: '/super-admin/users', icon: FaUserTie, label: 'Panel Members' },
-      { path: '/super-admin/sub-admins', icon: FaUserShield, label: 'Sub Admins' },
+      { path: '/super-admin/sub-admins', icon: FaUserShield, label: 'User Management' },
       { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management' },
       { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
       { path: '/super-admin/settings', icon: FaCog, label: 'Notifications' },
@@ -426,7 +584,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { path: '/sub-admin/candidates', icon: FaUsers, label: 'Candidates', permission: 'candidates.manage' },
     { path: '/sub-admin/tests', icon: FaClipboardList, label: 'Tests', permission: 'tests.manage' },
     { path: '/sub-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management', permission: 'interviews.manage' },
-    { path: '/sub-admin/users', icon: FaUserTie, label: 'Panel Members', permission: 'users.manage' },
+    { path: '/sub-admin/users', icon: FaUserTie, label: 'Panel Members', permission: 'panel_members.manage' },
   ];
 
   let currentNavItems = navigationItems[user?.role] || [];
@@ -444,30 +602,41 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       <Overlay $isOpen={isOpen} $showOnMobile={true} onClick={toggleSidebar} />
       <SidebarContainer $isOpen={isOpen}>
         <SidebarHeader $isOpen={isOpen}>
-          <Logo>
+          <Logo $isOpen={isOpen}>
             <LogoIcon />
             <LogoText $isOpen={isOpen}>SRS</LogoText>
           </Logo>
-          <ToggleButton onClick={toggleSidebar}>
+          <ToggleButton onClick={toggleSidebar} $isOpen={isOpen}>
             {isOpen ? <FaTimes /> : <FaBars />}
           </ToggleButton>
         </SidebarHeader>
 
         <SidebarContent>
-          <Navigation>
+          <Navigation $isOpen={isOpen}>
             <NavSection>
               <SectionTitle $isOpen={isOpen}>Navigation</SectionTitle>
               <NavList>
                 {currentNavItems.map((item) => (
-                  <NavItem key={item.path}>
+                  <NavItem key={item.path} $isOpen={isOpen}>
                     <NavLink
                       to={item.path}
                       className={location.pathname === item.path ? 'active' : ''}
                       $isOpen={isOpen}
+                      onMouseEnter={() => !isOpen && setHoveredItem(item.path)}
+                      onMouseLeave={() => setHoveredItem(null)}
                     >
                       <item.icon />
                       <NavText $isOpen={isOpen}>{item.label}</NavText>
-                      {item.badge && item.badge > 0 && (
+                      {!isOpen && (
+                        <Tooltip 
+                          $show={hoveredItem === item.path}
+                          $sidebarWidth={isOpen ? 300 : 70}
+                        >
+                          {item.label}
+                          {item.badge && item.badge > 0 && ` (${item.badge > 99 ? '99+' : item.badge})`}
+                        </Tooltip>
+                      )}
+                      {item.badge && item.badge > 0 && isOpen && (
                         <NotificationBadge count={item.badge}>
                           {item.badge > 99 ? '99+' : item.badge}
                         </NotificationBadge>
@@ -479,9 +648,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </NavSection>
           </Navigation>
 
-          <UserSection>
-            <UserInfo>
-              <UserAvatar>
+          <UserSection $isOpen={isOpen}>
+            <UserInfo 
+              $isOpen={isOpen}
+              onMouseEnter={() => !isOpen && setHoveredItem('user')}
+              onMouseLeave={() => setHoveredItem(null)}
+            >
+              <UserAvatar $isOpen={isOpen}>
                 {user?.name?.charAt(0)?.toUpperCase() || 'U'}
               </UserAvatar>
               <UserDetails $isOpen={isOpen}>
@@ -491,12 +664,27 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                   {formatUserRole(user?.role || 'User')}
                 </UserRole>
               </UserDetails>
+              {!isOpen && (
+                <Tooltip $show={hoveredItem === 'user'}>
+                  {user?.name || 'User'}
+                </Tooltip>
+              )}
             </UserInfo>
 
 
-            <LogoutButton onClick={handleLogout} $isOpen={isOpen}>
+            <LogoutButton 
+              onClick={handleLogout} 
+              $isOpen={isOpen}
+              onMouseEnter={() => !isOpen && setHoveredItem('logout')}
+              onMouseLeave={() => setHoveredItem(null)}
+            >
               <FaSignOutAlt />
               <LogoutText $isOpen={isOpen}>Logout</LogoutText>
+              {!isOpen && (
+                <Tooltip $show={hoveredItem === 'logout'}>
+                  Logout
+                </Tooltip>
+              )}
             </LogoutButton>
           </UserSection>
         </SidebarContent>

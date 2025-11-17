@@ -6,7 +6,7 @@ const Interview = require('../models/Interview');
 const NotificationSettings = require('../models/NotificationSettings');
 const { sendEmail } = require('../config/email');
 const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
-const { authenticateToken, requireSuperAdminOrPermission, hasPermission } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, requireSuperAdminOrWritePermission, hasPermission } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -723,7 +723,7 @@ const generateCandidateNumber = async () => {
 };
 
 // Update candidate status (Super Admin only)
-router.put('/:id/status', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
+router.put('/:id/status', authenticateToken, requireSuperAdminOrWritePermission('candidates.manage'), async (req, res) => {
   try {
     const { status } = req.body;
     const candidate = await Candidate.findById(req.params.id)
@@ -769,7 +769,7 @@ router.put('/:id/status', authenticateToken, requireSuperAdminOrPermission('cand
 });
 
 // Set final decision (Super Admin only)
-router.put('/:id/final-decision', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
+router.put('/:id/final-decision', authenticateToken, requireSuperAdminOrWritePermission('candidates.manage'), async (req, res) => {
   try {
     const { decision, notes } = req.body;
     const candidate = await Candidate.findById(req.params.id);
@@ -903,7 +903,7 @@ router.get('/status/:status', authenticateToken, requireSuperAdminOrPermission('
 });
 
 // Bulk update candidate status (Super Admin only)
-router.put('/bulk/status', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
+router.put('/bulk/status', authenticateToken, requireSuperAdminOrWritePermission('candidates.manage'), async (req, res) => {
   try {
     const { candidateIds, status } = req.body;
 

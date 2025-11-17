@@ -9,17 +9,47 @@ const Container = styled.div`
   padding: 2rem 0;
   min-height: 100vh;
   background: linear-gradient(135deg, #fef7ed 0%, #fed7aa 100%);
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0.75rem 0;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.5rem 0;
+  }
 `;
 
 const Wrapper = styled.div`
   max-width: 900px;
   margin: 0 auto;
   padding: 0 1rem;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0 0.5rem;
+    max-width: 100%;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0 0.5rem;
+    max-width: 100%;
+  }
 `;
 
 const Header = styled.div`
   text-align: center;
   margin-bottom: 3rem;
+
+  @media (max-width: 768px) {
+    margin-bottom: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    margin-bottom: 1rem;
+  }
 `;
 
 const Title = styled.h1`
@@ -31,6 +61,16 @@ const Title = styled.h1`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+
+  @media (max-width: 768px) {
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
 `;
 
 const Subtitle = styled.p`
@@ -38,6 +78,16 @@ const Subtitle = styled.p`
   color: #64748b;
   max-width: 600px;
   margin: 0 auto;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    padding: 0 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.8rem;
+    padding: 0;
+  }
 `;
 
 const ProfileCard = styled.div`
@@ -47,6 +97,18 @@ const ProfileCard = styled.div`
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
   margin-bottom: 2rem;
+
+  @media (max-width: 768px) {
+    padding: 2rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
 `;
 
 const Section = styled.div`
@@ -67,6 +129,18 @@ const SectionTitle = styled.h3`
   gap: 0.5rem;
   padding-bottom: 0.75rem;
   border-bottom: 2px solid #e2e8f0;
+
+  @media (max-width: 768px) {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+  }
 `;
 
 const FormGroup = styled.div`
@@ -86,6 +160,16 @@ const Label = styled.label`
   display: flex;
   align-items: center;
   gap: 0.5rem;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+  }
 `;
 
 const Input = styled.input`
@@ -138,6 +222,18 @@ const Button = styled.button`
     cursor: not-allowed;
     transform: none;
   }
+
+  @media (max-width: 768px) {
+    padding: 0.65rem 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.6rem 1.25rem;
+    font-size: 0.85rem;
+    width: 100%;
+    justify-content: center;
+  }
 `;
 
 const InfoRow = styled.div`
@@ -145,6 +241,15 @@ const InfoRow = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1.5rem;
   margin-top: 1rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 480px) {
+    gap: 0.75rem;
+  }
 `;
 
 const InfoItem = styled.div`
@@ -167,6 +272,14 @@ const InfoValue = styled.div`
   font-size: 1.1rem;
   color: #1e293b;
   font-weight: 600;
+
+  @media (max-width: 768px) {
+    font-size: 1rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.9rem;
+  }
 `;
 
 const Alert = styled.div`

@@ -195,12 +195,8 @@ router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, asyn
   try {
     console.log('📅 [PANEL MEMBER UPCOMING] Fetching upcoming interviews for panel member:', req.user.email);
     
-    const now = new Date();
-    
-    // Get interviews where this panel member is assigned
-    const interviews = await Interview.find({
-      'panelMembers.panelMember': req.user._id
-    })
+    // Get all interviews (we'll filter by candidate-specific assignments)
+    const interviews = await Interview.find({})
       .populate('form', 'title position department formCategory')
       .populate({
         path: 'candidates.candidate',
@@ -218,52 +214,114 @@ router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, asyn
         ]
       })
       .populate('panelMembers.panelMember', 'name email')
+      .populate({
+        path: 'candidates.panelMembers.panelMember',
+        select: 'name email _id'
+      })
       .sort({ createdAt: -1 });
+    
+    console.log(`📅 [PANEL MEMBER UPCOMING] Found ${interviews.length} total interviews in database`);
 
     // Filter and format upcoming interviews
     const upcomingInterviews = [];
     
+    const panelMemberId = req.user._id.toString();
+    console.log(`📅 [PANEL MEMBER UPCOMING] Looking for panel member ID: ${panelMemberId}`);
+    
     for (const interview of interviews) {
       for (const candidateEntry of interview.candidates) {
-        if (candidateEntry.scheduledDate) {
-          const scheduledDate = new Date(candidateEntry.scheduledDate);
-          if (candidateEntry.scheduledTime) {
-            const [hours, minutes] = candidateEntry.scheduledTime.split(':');
-            scheduledDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        // Check if this panel member is assigned to this specific candidate
+        let isAssignedToCandidate = false;
+        if (candidateEntry.panelMembers && candidateEntry.panelMembers.length > 0) {
+          console.log(`📅 [PANEL MEMBER UPCOMING] Candidate ${candidateEntry.candidate?._id || candidateEntry.candidate} has ${candidateEntry.panelMembers.length} panel member(s)`);
+          isAssignedToCandidate = candidateEntry.panelMembers.some(pm => {
+            // Handle both ObjectId and populated object cases
+            let pmId = null;
+            if (pm.panelMember) {
+              if (pm.panelMember._id) {
+                pmId = pm.panelMember._id.toString();
+              } else if (typeof pm.panelMember.toString === 'function') {
+                pmId = pm.panelMember.toString();
+              } else {
+                pmId = String(pm.panelMember);
+              }
+            }
+            const matches = pmId === panelMemberId;
+            if (pmId) {
+              console.log(`📅 [PANEL MEMBER UPCOMING] Comparing panel member ID: ${pmId} with ${panelMemberId} - ${matches ? 'MATCH' : 'NO MATCH'}`);
+            }
+            return matches;
+          });
+          if (isAssignedToCandidate) {
+            console.log(`✅ [PANEL MEMBER UPCOMING] Found assignment for candidate ${candidateEntry.candidate?._id || candidateEntry.candidate}`);
+          }
+        } else {
+          console.log(`📅 [PANEL MEMBER UPCOMING] Candidate ${candidateEntry.candidate?._id || candidateEntry.candidate} has no panel members assigned`);
+        }
+        
+        // Also check legacy interview-level assignment for backward compatibility
+        let isAssignedToInterview = false;
+        if (interview.panelMembers && interview.panelMembers.length > 0) {
+          console.log(`📅 [PANEL MEMBER UPCOMING] Interview ${interview._id} has ${interview.panelMembers.length} panel member(s) at interview level`);
+          isAssignedToInterview = interview.panelMembers.some(pm => {
+            // Handle both ObjectId and populated object cases
+            let pmId = null;
+            if (pm.panelMember) {
+              if (pm.panelMember._id) {
+                pmId = pm.panelMember._id.toString();
+              } else if (typeof pm.panelMember.toString === 'function') {
+                pmId = pm.panelMember.toString();
+              } else {
+                pmId = String(pm.panelMember);
+              }
+            }
+            const matches = pmId === panelMemberId;
+            if (pmId) {
+              console.log(`📅 [PANEL MEMBER UPCOMING] Comparing interview-level panel member ID: ${pmId} with ${panelMemberId} - ${matches ? 'MATCH' : 'NO MATCH'}`);
+            }
+            return matches;
+          });
+          if (isAssignedToInterview) {
+            console.log(`✅ [PANEL MEMBER UPCOMING] Found legacy interview-level assignment for interview ${interview._id}`);
+          }
+        }
+        
+        // Only include if assigned to this candidate OR assigned at interview level (legacy)
+        if (isAssignedToCandidate || isAssignedToInterview) {
+          // Remove time restrictions - feedback form is available all the time once assigned
+          // Check if this panel member has submitted feedback for this interview
+          const candidate = candidateEntry.candidate;
+          let submittedFeedback = null;
+          
+          if (candidate && candidate.interviewFeedback) {
+            submittedFeedback = candidate.interviewFeedback.find(
+              feedback => 
+                feedback.interview && 
+                feedback.interview.toString() === interview._id.toString() &&
+                feedback.panelMember &&
+                feedback.panelMember.toString() === req.user._id.toString()
+            );
           }
           
-          // Include interviews that are scheduled or upcoming
-          if (scheduledDate >= now || candidateEntry.status !== 'completed') {
-            // Check if this panel member has submitted feedback for this interview
-            const candidate = candidateEntry.candidate;
-            let submittedFeedback = null;
-            
-            if (candidate && candidate.interviewFeedback) {
-              submittedFeedback = candidate.interviewFeedback.find(
-                feedback => 
-                  feedback.interview && 
-                  feedback.interview.toString() === interview._id.toString() &&
-                  feedback.panelMember &&
-                  feedback.panelMember.toString() === req.user._id.toString()
-              );
-            }
-            
-            upcomingInterviews.push({
-              _id: interview._id,
-              title: interview.title,
-              candidate: candidateEntry.candidate,
-              form: interview.form,
-              feedbackForm: interview.feedbackForm,
-              scheduledAt: scheduledDate,
-              scheduledDate: candidateEntry.scheduledDate,
-              scheduledTime: candidateEntry.scheduledTime,
-              status: candidateEntry.status || 'scheduled',
-              meetingLink: candidateEntry.meetingLink,
-              duration: candidateEntry.duration,
-              notes: candidateEntry.notes,
-              submittedFeedback: submittedFeedback || null
-            });
-          }
+          const scheduledDate = candidateEntry.scheduledDate 
+            ? new Date(candidateEntry.scheduledDate)
+            : new Date(); // Use current date if not scheduled
+          
+          upcomingInterviews.push({
+            _id: interview._id,
+            title: interview.title,
+            candidate: candidateEntry.candidate,
+            form: interview.form,
+            feedbackForm: interview.feedbackForm,
+            scheduledAt: scheduledDate,
+            scheduledDate: candidateEntry.scheduledDate,
+            scheduledTime: candidateEntry.scheduledTime,
+            status: candidateEntry.status || 'scheduled',
+            meetingLink: candidateEntry.meetingLink,
+            duration: candidateEntry.duration,
+            notes: candidateEntry.notes,
+            submittedFeedback: submittedFeedback || null
+          });
         }
       }
     }
@@ -271,7 +329,13 @@ router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, asyn
     // Sort by scheduled date
     upcomingInterviews.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
 
-    console.log('✅ [PANEL MEMBER UPCOMING] Found', upcomingInterviews.length, 'upcoming interviews');
+    console.log('✅ [PANEL MEMBER UPCOMING] Found', upcomingInterviews.length, 'upcoming interviews for panel member', req.user.email);
+    if (upcomingInterviews.length === 0) {
+      console.log('⚠️ [PANEL MEMBER UPCOMING] No interviews found. This could mean:');
+      console.log('   1. Panel member is not assigned to any candidates');
+      console.log('   2. Panel member assignments are not saved correctly');
+      console.log('   3. Interview data structure issue');
+    }
 
     res.json({ interviews: upcomingInterviews });
   } catch (error) {
@@ -731,16 +795,22 @@ router.get('/feedback/:token', async (req, res) => {
       return res.status(404).json({ message: 'Panel member not found' });
     }
 
-    // Get candidates for this interview
-    const candidates = interview.candidates.map(candidateEntry => ({
-      _id: candidateEntry.candidate._id,
-      name: candidateEntry.candidate.user?.name || 'Unknown',
-      email: candidateEntry.candidate.user?.email || '',
-      candidateNumber: candidateEntry.candidate.candidateNumber || '',
-      scheduledDate: candidateEntry.scheduledDate,
-      scheduledTime: candidateEntry.scheduledTime,
-      status: candidateEntry.status
-    }));
+    // Get candidates for this interview - feedback form is available all the time once assigned
+    const candidates = interview.candidates.map(candidateEntry => {
+      // Feedback form is always available once panel member is assigned (no time restrictions)
+      const isAvailable = candidateEntry.status !== 'completed';
+      
+      return {
+        _id: candidateEntry.candidate._id,
+        name: candidateEntry.candidate.user?.name || 'Unknown',
+        email: candidateEntry.candidate.user?.email || '',
+        candidateNumber: candidateEntry.candidate.candidateNumber || '',
+        scheduledDate: candidateEntry.scheduledDate,
+        scheduledTime: candidateEntry.scheduledTime,
+        status: candidateEntry.status,
+        isAvailable // Indicate if feedback can still be submitted
+      };
+    });
 
     res.json({
       interview: {
@@ -772,13 +842,33 @@ router.post('/:id/feedback', authenticateToken, requirePanelMember, async (req, 
       return res.status(404).json({ message: 'Interview not found' });
     }
 
-    // Check if panel member is assigned to this interview
-    const isAssigned = interview.panelMembers.some(
+    // Check if panel member is assigned to this interview or to this specific candidate
+    const isAssignedToInterview = interview.panelMembers.some(
       pm => pm.panelMember.toString() === req.user._id.toString()
     );
+    
+    const candidateEntry = interview.candidates.find(
+      c => c.candidate.toString() === candidateId
+    );
+    
+    const isAssignedToCandidate = candidateEntry && candidateEntry.panelMembers && candidateEntry.panelMembers.some(
+      pm => pm.panelMember && pm.panelMember.toString() === req.user._id.toString()
+    );
 
-    if (!isAssigned) {
-      return res.status(403).json({ message: 'You are not assigned to this interview' });
+    if (!isAssignedToInterview && !isAssignedToCandidate) {
+      return res.status(403).json({ message: 'You are not assigned to this interview or candidate' });
+    }
+
+    if (!candidateEntry) {
+      return res.status(404).json({ message: 'Candidate not assigned to this interview' });
+    }
+
+    // Check if feedback is still available - only block if status is completed
+    // No time restrictions - feedback form is available all the time once assigned
+    if (candidateEntry.status === 'completed') {
+      return res.status(400).json({ 
+        message: 'Feedback submission is no longer available. The interview has been marked as completed.' 
+      });
     }
 
     // Find candidate
@@ -831,15 +921,23 @@ router.post('/:id/feedback', authenticateToken, requirePanelMember, async (req, 
     );
 
     if (interviewCandidateIndex >= 0) {
+      const candidateEntry = interview.candidates[interviewCandidateIndex];
+      
+      // Get panel members assigned to this candidate (preferred) or interview-level (legacy)
+      const panelMembersToCheck = candidateEntry.panelMembers && candidateEntry.panelMembers.length > 0
+        ? candidateEntry.panelMembers
+        : interview.panelMembers;
+      
       // Check if all panel members have submitted feedback for this candidate
-      const allFeedbackSubmitted = interview.panelMembers.every(panelMember => {
+      const allFeedbackSubmitted = panelMembersToCheck.every(panelMember => {
+        const panelMemberId = panelMember.panelMember ? panelMember.panelMember.toString() : panelMember.panelMember;
         return candidate.interviewFeedback.some(
           f => f.interview.toString() === req.params.id &&
-               f.panelMember.toString() === panelMember.panelMember.toString()
+               f.panelMember.toString() === panelMemberId
         );
       });
 
-      if (allFeedbackSubmitted) {
+      if (allFeedbackSubmitted && panelMembersToCheck.length > 0) {
         interview.candidates[interviewCandidateIndex].status = 'completed';
         await interview.save();
       }
@@ -873,6 +971,23 @@ router.post('/feedback/:token', async (req, res) => {
     const panelMember = interview.panelMembers.find(pm => pm.feedbackToken === token);
     if (!panelMember) {
       return res.status(404).json({ message: 'Panel member not found' });
+    }
+
+    // Find candidate entry in interview
+    const candidateEntry = interview.candidates.find(
+      c => c.candidate.toString() === candidateId
+    );
+
+    if (!candidateEntry) {
+      return res.status(404).json({ message: 'Candidate not assigned to this interview' });
+    }
+
+    // Check if feedback is still available - only block if status is completed
+    // No time restrictions - feedback form is available all the time once assigned
+    if (candidateEntry.status === 'completed') {
+      return res.status(400).json({ 
+        message: 'Feedback submission is no longer available. The interview has been marked as completed.' 
+      });
     }
 
     // Find candidate
@@ -926,15 +1041,23 @@ router.post('/feedback/:token', async (req, res) => {
     );
 
     if (interviewCandidateIndex >= 0) {
+      const candidateEntry = interview.candidates[interviewCandidateIndex];
+      
+      // Get panel members assigned to this candidate (preferred) or interview-level (legacy)
+      const panelMembersToCheck = candidateEntry.panelMembers && candidateEntry.panelMembers.length > 0
+        ? candidateEntry.panelMembers
+        : interview.panelMembers;
+      
       // Check if all panel members have submitted feedback for this candidate
-      const allFeedbackSubmitted = interview.panelMembers.every(pm => {
+      const allFeedbackSubmitted = panelMembersToCheck.every(pm => {
+        const panelMemberId = pm.panelMember ? pm.panelMember.toString() : pm.panelMember;
         return candidate.interviewFeedback.some(
           f => f.interview.toString() === interview._id.toString() &&
-               f.panelMember.toString() === pm.panelMember.toString()
+               f.panelMember.toString() === panelMemberId
         );
       });
 
-      if (allFeedbackSubmitted) {
+      if (allFeedbackSubmitted && panelMembersToCheck.length > 0) {
         interview.candidates[interviewCandidateIndex].status = 'completed';
         await interview.save();
       }
@@ -952,6 +1075,7 @@ router.post('/feedback/:token', async (req, res) => {
 // Get interview feedback summary (Super Admin and assigned Panel Members)
 router.get('/:id/feedback-summary', authenticateToken, async (req, res) => {
   try {
+    const { candidateId } = req.query; // Get candidateId from query parameters
     const interview = await Interview.findById(req.params.id)
       .populate('panelMembers.panelMember', 'name email')
       .populate('candidates.candidate', 'name email');
@@ -973,6 +1097,15 @@ router.get('/:id/feedback-summary', authenticateToken, async (req, res) => {
     }
 
     const feedbackSummary = await interview.getFeedbackSummary();
+    
+    // If candidateId is provided, filter to show only that candidate's feedback
+    let filteredFeedbackSummary = feedbackSummary;
+    if (candidateId) {
+      filteredFeedbackSummary = feedbackSummary.filter(
+        candidateData => candidateData.candidate._id.toString() === candidateId
+      );
+      console.log(`📋 [FEEDBACK SUMMARY] Filtered feedback for candidate ${candidateId}: ${filteredFeedbackSummary.length} candidate(s) found`);
+    }
 
     res.json({
       interview: {
@@ -980,7 +1113,7 @@ router.get('/:id/feedback-summary', authenticateToken, async (req, res) => {
         title: interview.title,
         panelMembers: interview.panelMembers
       },
-      feedbackSummary
+      feedbackSummary: filteredFeedbackSummary
     });
   } catch (error) {
     console.error('Feedback summary error:', error);
@@ -1079,7 +1212,7 @@ router.delete('/:id/candidate/:candidateId', authenticateToken, requireSuperAdmi
 // Assign panel members to interview with email notification (Super Admin only)
 router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdminOrPermission('interviews.manage'), async (req, res) => {
   try {
-    const { panelMemberIds } = req.body;
+    const { panelMemberIds, candidateId } = req.body;
     const interview = await Interview.findById(req.params.id)
       .populate('form', 'title position department')
       .populate('createdBy', 'name');
@@ -1088,53 +1221,173 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdminOrP
       return res.status(404).json({ message: 'Interview not found' });
     }
 
-    // Clear existing panel members
-    interview.panelMembers = [];
+    // If candidateId is provided, assign panel members to that specific candidate
+    if (candidateId) {
+      console.log(`📋 [ASSIGN PANEL MEMBERS] Assigning ${panelMemberIds.length} panel member(s) to candidate ${candidateId}`);
+      const candidateIndex = interview.candidates.findIndex(
+        c => c.candidate.toString() === candidateId
+      );
 
-    // Add new panel members with tokens
-    for (const panelMemberId of panelMemberIds) {
-      const panelMember = await User.findById(panelMemberId);
-      if (!panelMember || panelMember.role !== 'panel_member') {
-        continue; // Skip invalid panel members
+      if (candidateIndex < 0) {
+        return res.status(404).json({ message: 'Candidate not found in this interview' });
       }
 
-      // Generate unique feedback token
-      const feedbackToken = crypto.randomBytes(32).toString('hex');
+      // Clear existing panel members for this candidate
+      interview.candidates[candidateIndex].panelMembers = [];
+      console.log(`📋 [ASSIGN PANEL MEMBERS] Cleared existing panel members for candidate ${candidateId}`);
 
-      interview.panelMembers.push({
-        panelMember: panelMemberId,
-        feedbackToken,
-        notificationSent: false
-      });
+      // Add new panel members with tokens for this candidate
+      for (const panelMemberId of panelMemberIds) {
+        const panelMember = await User.findById(panelMemberId);
+        if (!panelMember || panelMember.role !== 'panel_member') {
+          console.log(`⚠️ [ASSIGN PANEL MEMBERS] Skipping invalid panel member: ${panelMemberId}`);
+          continue; // Skip invalid panel members
+        }
+
+        // Generate unique feedback token
+        const feedbackToken = crypto.randomBytes(32).toString('hex');
+
+        if (!interview.candidates[candidateIndex].panelMembers) {
+          interview.candidates[candidateIndex].panelMembers = [];
+        }
+
+        interview.candidates[candidateIndex].panelMembers.push({
+          panelMember: panelMemberId,
+          feedbackToken,
+          notificationSent: false
+        });
+        console.log(`✅ [ASSIGN PANEL MEMBERS] Added panel member ${panelMemberId} (${panelMember.email}) to candidate ${candidateId}`);
+      }
+      
+      console.log(`📋 [ASSIGN PANEL MEMBERS] Candidate ${candidateId} now has ${interview.candidates[candidateIndex].panelMembers.length} panel member(s)`);
+    } else {
+      // Legacy behavior: assign to interview level (for backward compatibility)
+      console.log(`📋 [ASSIGN PANEL MEMBERS] Assigning ${panelMemberIds.length} panel member(s) to interview level`);
+      // Clear existing panel members
+      interview.panelMembers = [];
+
+      // Add new panel members with tokens
+      for (const panelMemberId of panelMemberIds) {
+        const panelMember = await User.findById(panelMemberId);
+        if (!panelMember || panelMember.role !== 'panel_member') {
+          console.log(`⚠️ [ASSIGN PANEL MEMBERS] Skipping invalid panel member: ${panelMemberId}`);
+          continue; // Skip invalid panel members
+        }
+
+        // Generate unique feedback token
+        const feedbackToken = crypto.randomBytes(32).toString('hex');
+
+        interview.panelMembers.push({
+          panelMember: panelMemberId,
+          feedbackToken,
+          notificationSent: false
+        });
+        console.log(`✅ [ASSIGN PANEL MEMBERS] Added panel member ${panelMemberId} (${panelMember.email}) to interview level`);
+      }
+      console.log(`📋 [ASSIGN PANEL MEMBERS] Interview now has ${interview.panelMembers.length} panel member(s) at interview level`);
     }
 
     await interview.save();
+    console.log(`✅ [ASSIGN PANEL MEMBERS] Interview ${interview._id} saved successfully`);
+    
+    // Re-fetch the interview with all necessary population for email sending
+    const savedInterview = await Interview.findById(interview._id)
+      .populate('form', 'title position department')
+      .populate('candidates.panelMembers.panelMember', 'name email _id')
+      .populate({
+        path: 'candidates.candidate',
+        populate: [
+          { path: 'user', select: 'name email' },
+          { path: 'form', select: 'title position department' }
+        ]
+      });
+    
+    if (candidateId) {
+      const savedCandidateIndex = savedInterview.candidates.findIndex(
+        c => c.candidate.toString() === candidateId
+      );
+      if (savedCandidateIndex >= 0) {
+        const savedPanelMembers = savedInterview.candidates[savedCandidateIndex].panelMembers || [];
+        console.log(`✅ [ASSIGN PANEL MEMBERS] Verification: Candidate ${candidateId} has ${savedPanelMembers.length} panel member(s) after save`);
+        savedPanelMembers.forEach((pm, idx) => {
+          const pmId = pm.panelMember?._id || pm.panelMember;
+          console.log(`   Panel Member ${idx + 1}: ${pmId} (${pm.panelMember?.email || 'N/A'})`);
+        });
+      }
+    }
 
-    // Populate candidates with their details for email
-    await interview.populate({
-      path: 'candidates.candidate',
-      populate: [
-        { path: 'user', select: 'name email' },
-        { path: 'form', select: 'title position department' }
-      ]
-    });
-
+    // Use savedInterview for email notifications (has proper population)
     // Send email notifications to panel members
-    const emailPromises = interview.panelMembers.map(async (pm) => {
-      const panelMember = await User.findById(pm.panelMember);
-      if (!panelMember || !panelMember.email) return;
+    let panelMembersToNotify = [];
+    
+    if (candidateId) {
+      // For per-candidate assignment, get panel members from the specific candidate
+      const candidateIndex = savedInterview.candidates.findIndex(
+        c => c.candidate.toString() === candidateId
+      );
+      if (candidateIndex >= 0 && savedInterview.candidates[candidateIndex].panelMembers) {
+        panelMembersToNotify = savedInterview.candidates[candidateIndex].panelMembers;
+        console.log(`📧 [EMAIL] Found ${panelMembersToNotify.length} panel members for candidate ${candidateId}`);
+        console.log(`📧 [EMAIL] Panel members data:`, JSON.stringify(panelMembersToNotify.map(pm => ({
+          panelMemberId: pm.panelMember?._id || pm.panelMember,
+          hasToken: !!pm.feedbackToken
+        }))));
+      } else {
+        console.log(`⚠️ [EMAIL] No panel members found for candidate ${candidateId}`);
+        console.log(`⚠️ [EMAIL] Candidate index: ${candidateIndex}, Has panelMembers: ${candidateIndex >= 0 ? !!savedInterview.candidates[candidateIndex]?.panelMembers : 'N/A'}`);
+      }
+    } else {
+      // For interview-level assignment, use interview panel members
+      panelMembersToNotify = savedInterview.panelMembers || [];
+      console.log(`📧 [EMAIL] Found ${panelMembersToNotify.length} panel members for interview ${savedInterview._id}`);
+    }
+    
+    if (panelMembersToNotify.length === 0) {
+      console.warn(`⚠️ [EMAIL] No panel members to notify for ${candidateId ? 'candidate' : 'interview'}`);
+      return res.json({
+        message: 'Panel members assigned successfully',
+        assignedCount: 0,
+        emailNotifications: {
+          successful: 0,
+          failed: 0,
+          skipped: 0,
+          warning: 'No panel members found to send notifications'
+        }
+      });
+    }
+    
+    const emailPromises = panelMembersToNotify.map(async (pm) => {
+      // Handle both ObjectId and populated object cases
+      let panelMemberId = pm.panelMember;
+      if (panelMemberId && typeof panelMemberId === 'object' && panelMemberId._id) {
+        panelMemberId = panelMemberId._id;
+      }
+      
+      const panelMember = await User.findById(panelMemberId);
+      if (!panelMember || !panelMember.email) {
+        console.log(`⚠️ [EMAIL] Skipping email for panel member ${panelMemberId}: ${!panelMember ? 'not found' : 'no email address'}`);
+        return { email: panelMember?.email || 'unknown', success: false, skipped: true };
+      }
 
       const feedbackUrl = `${process.env.FRONTEND_URL}/feedback/${pm.feedbackToken}`;
+      
+      console.log(`📧 [EMAIL] Preparing to send email to ${panelMember.email} for interview ${interview.title}`);
 
       // Build candidate schedule list
       let candidateSchedulesHtml = '';
       let candidateSchedulesText = '';
       
-      if (interview.candidates && interview.candidates.length > 0) {
-        candidateSchedulesHtml = '<div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;"><h3 style="color: #1e40af; margin-top: 0;">Candidate Interview Schedules</h3>';
-        candidateSchedulesText = '\n\nCandidate Interview Schedules:\n';
+      // If assigning to specific candidate, only show that candidate
+      // Use savedInterview which has proper population
+      const candidatesToShow = candidateId 
+        ? savedInterview.candidates.filter(c => c.candidate.toString() === candidateId)
+        : savedInterview.candidates;
+      
+      if (candidatesToShow && candidatesToShow.length > 0) {
+        candidateSchedulesHtml = '<div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;"><h3 style="color: #1e40af; margin-top: 0;">Candidate Interview Schedule</h3>';
+        candidateSchedulesText = '\n\nCandidate Interview Schedule:\n';
         
-        for (const candidateEntry of interview.candidates) {
+        for (const candidateEntry of candidatesToShow) {
           const candidate = candidateEntry.candidate;
           const candidateName = candidate?.user?.name || 'Unknown Candidate';
           const candidateNumber = candidate?.candidateNumber || '';
@@ -1186,12 +1439,12 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdminOrP
           <p>Dear ${panelMember.name},</p>
           <p>You have been assigned as a panel member for the following interview:</p>
           <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin: 0 0 10px 0; color: #1e293b;">${interview.title}</h3>
-            <p style="margin: 5px 0;"><strong>Position:</strong> ${interview.form.title}</p>
-            <p style="margin: 5px 0;"><strong>Department:</strong> ${interview.form.department}</p>
-            <p style="margin: 5px 0;"><strong>Round:</strong> ${interview.round}</p>
-            <p style="margin: 5px 0;"><strong>Type:</strong> ${interview.type}</p>
-            ${interview.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${interview.description}</p>` : ''}
+            <h3 style="margin: 0 0 10px 0; color: #1e293b;">${savedInterview.title}</h3>
+            <p style="margin: 5px 0;"><strong>Position:</strong> ${savedInterview.form.title}</p>
+            <p style="margin: 5px 0;"><strong>Department:</strong> ${savedInterview.form.department}</p>
+            <p style="margin: 5px 0;"><strong>Round:</strong> ${savedInterview.round}</p>
+            <p style="margin: 5px 0;"><strong>Type:</strong> ${savedInterview.type}</p>
+            ${savedInterview.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${savedInterview.description}</p>` : ''}
           </div>
           ${candidateSchedulesHtml}
           <p>Please review the candidates and provide your feedback by clicking the button below:</p>
@@ -1216,12 +1469,12 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdminOrP
 
         You have been assigned as a panel member for the following interview:
 
-        ${interview.title}
-        Position: ${interview.form.title}
-        Department: ${interview.form.department}
-        Round: ${interview.round}
-        Type: ${interview.type}
-        ${interview.description ? `Description: ${interview.description}` : ''}
+        ${savedInterview.title}
+        Position: ${savedInterview.form.title}
+        Department: ${savedInterview.form.department}
+        Round: ${savedInterview.round}
+        Type: ${savedInterview.type}
+        ${savedInterview.description ? `Description: ${savedInterview.description}` : ''}
         ${candidateSchedulesText}
 
         Please provide your feedback using this link: ${feedbackUrl}
@@ -1230,35 +1483,83 @@ router.post('/:id/assign-panel-members', authenticateToken, requireSuperAdminOrP
       `;
 
       try {
-        await sendEmail(panelMember.email, `Interview Assignment: ${interview.title}`, emailHtml, emailText);
+        console.log(`📧 [EMAIL] Sending email to ${panelMember.email}...`);
+        await sendEmail(panelMember.email, `Interview Assignment: ${savedInterview.title}`, emailHtml, emailText);
+        console.log(`✅ [EMAIL] Email sent successfully to ${panelMember.email}`);
 
         // Mark notification as sent
         pm.notificationSent = true;
-        await interview.save();
+        if (candidateId) {
+          const candidateIndex = savedInterview.candidates.findIndex(
+            c => c.candidate.toString() === candidateId
+          );
+          if (candidateIndex >= 0) {
+            const pmIndex = savedInterview.candidates[candidateIndex].panelMembers.findIndex(
+              p => {
+                const pId = p.panelMember?._id || p.panelMember;
+                const pmId = pm.panelMember?._id || pm.panelMember;
+                return pId && pmId && pId.toString() === pmId.toString();
+              }
+            );
+            if (pmIndex >= 0) {
+              savedInterview.candidates[candidateIndex].panelMembers[pmIndex].notificationSent = true;
+            }
+          }
+        }
+        await savedInterview.save();
 
         return { email: panelMember.email, success: true };
       } catch (emailError) {
-        console.error(`Failed to send email to ${panelMember.email}:`, emailError);
-        return { email: panelMember.email, success: false, error: emailError.message };
+        console.error(`❌ [EMAIL] Failed to send email to ${panelMember.email}:`, emailError);
+        console.error(`❌ [EMAIL] Error details:`, emailError.message || emailError);
+        return { email: panelMember.email, success: false, error: emailError.message || 'Unknown error' };
       }
     });
 
+    console.log(`📧 [EMAIL] Processing ${panelMembersToNotify.length} email notifications...`);
     const emailResults = await Promise.allSettled(emailPromises);
 
     const successfulEmails = emailResults.filter(result =>
-      result.status === 'fulfilled' && result.value?.success
+      result.status === 'fulfilled' && result.value?.success && !result.value?.skipped
     ).length;
 
     const failedEmails = emailResults.filter(result =>
-      result.status === 'rejected' || (result.status === 'fulfilled' && !result.value?.success)
+      result.status === 'rejected' || (result.status === 'fulfilled' && result.value && !result.value.success && !result.value.skipped)
+    ).length;
+    
+    const skippedEmails = emailResults.filter(result =>
+      result.status === 'fulfilled' && result.value?.skipped
     ).length;
 
+    console.log(`📧 [EMAIL] Email results: ${successfulEmails} successful, ${failedEmails} failed, ${skippedEmails} skipped`);
+    
+    // Log detailed results for debugging
+    emailResults.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value) {
+        if (result.value.skipped) {
+          console.log(`⚠️ [EMAIL] Skipped: ${result.value.email}`);
+        } else if (result.value.success) {
+          console.log(`✅ [EMAIL] Success: ${result.value.email}`);
+        } else {
+          console.log(`❌ [EMAIL] Failed: ${result.value.email} - ${result.value.error || 'Unknown error'}`);
+        }
+      } else if (result.status === 'rejected') {
+        console.log(`❌ [EMAIL] Promise rejected: ${result.reason?.message || 'Unknown error'}`);
+      }
+    });
+
+    const assignedCount = candidateId 
+      ? (savedInterview.candidates.find(c => c.candidate.toString() === candidateId)?.panelMembers?.length || 0)
+      : savedInterview.panelMembers.length;
+    
     res.json({
       message: 'Panel members assigned successfully',
-      assignedCount: interview.panelMembers.length,
+      assignedCount: assignedCount,
       emailNotifications: {
         successful: successfulEmails,
-        failed: failedEmails
+        failed: failedEmails,
+        skipped: skippedEmails,
+        total: panelMembersToNotify.length
       }
     });
   } catch (error) {

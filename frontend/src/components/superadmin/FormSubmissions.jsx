@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes } from 'react-icons/fa';
+import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes, FaSearch } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
@@ -16,7 +16,8 @@ const FormSubmissions = () => {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('teaching');
   const [selectedJobRole, setSelectedJobRole] = useState('all');
-  const [quickSearch, setQuickSearch] = useState('');
+  const [quickSearch, setQuickSearch] = useState(''); // Applied search
+  const [searchInput, setSearchInput] = useState(''); // Input value (not applied until button click)
 
   const navigate = useNavigate();
 
@@ -62,11 +63,13 @@ const FormSubmissions = () => {
         const email = candidate.user?.email?.toLowerCase() || '';
         const position = candidate.form?.position?.toLowerCase() || '';
         const department = candidate.form?.department?.toLowerCase() || '';
+        const candidateId = candidate.candidateNumber?.toLowerCase() || '';
         return (
           name.includes(term) ||
           email.includes(term) ||
           position.includes(term) ||
-          department.includes(term)
+          department.includes(term) ||
+          candidateId.includes(term)
         );
       });
     }
@@ -405,13 +408,38 @@ const FormSubmissions = () => {
         <Col xs={12} md={4} className="mt-2 mt-md-0">
           <InputGroup size="sm">
             <Form.Control
-              placeholder="Search by name, email, position, or department"
-              value={quickSearch}
-              onChange={(e) => setQuickSearch(e.target.value)}
+              placeholder="Search by name, candidate ID, email, position, or department"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  setQuickSearch(searchInput);
+                }
+              }}
             />
-            {quickSearch && (
-              <Button variant="outline-secondary" onClick={() => setQuickSearch('')}>
-                Clear
+            <Button
+              variant="primary"
+              onClick={() => {
+                setQuickSearch(searchInput);
+              }}
+              style={{ 
+                borderRadius: '0 8px 8px 0',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: 'none'
+              }}
+            >
+              <FaSearch />
+            </Button>
+            {(quickSearch || searchInput) && (
+              <Button 
+                variant="outline-secondary" 
+                onClick={() => {
+                  setSearchInput('');
+                  setQuickSearch('');
+                }}
+                style={{ borderRadius: '8px', marginLeft: '0.5rem' }}
+              >
+                Reset
               </Button>
             )}
           </InputGroup>

@@ -24,8 +24,8 @@ const userSchema = new mongoose.Schema({
     required: true
   },
   permissions: {
-    type: [String],
-    default: []
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   isActive: {
     type: Boolean,

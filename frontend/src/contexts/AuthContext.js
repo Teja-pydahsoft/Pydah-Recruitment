@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const hasPermission = (permission) => {
+  const hasPermission = (permission, requireWrite = false) => {
     if (!permission || !user) {
       return false;
     }
@@ -104,11 +104,42 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (user.role === 'sub_admin') {
-      const userPermissions = Array.isArray(user.permissions) ? user.permissions : [];
-      return userPermissions.includes(permission) || userPermissions.includes('*');
+      // Handle both old format (array) and new format (object with access levels)
+      if (Array.isArray(user.permissions)) {
+        // Old format: array of permission keys (all are full_access)
+        return user.permissions.includes(permission) || user.permissions.includes('*');
+      }
+
+      // New format: object with access levels
+      if (typeof user.permissions === 'object' && user.permissions !== null) {
+        const accessLevel = user.permissions[permission];
+        
+        if (accessLevel === 'full_access') {
+          return true; // Full access allows both read and write
+        }
+        
+        // Support both 'view_only' (new) and 'read_only' (legacy)
+        if (accessLevel === 'view_only' || accessLevel === 'read_only') {
+          return !requireWrite; // View-only only allows read/view operations
+        }
+        
+        // Check for wildcard
+        if (user.permissions['*'] === 'full_access') {
+          return true;
+        }
+        
+        if (user.permissions['*'] === 'view_only' || user.permissions['*'] === 'read_only') {
+          return !requireWrite;
+        }
+      }
     }
 
     return false;
+  };
+
+  // Check if user has write permission (full access only)
+  const hasWritePermission = (permission) => {
+    return hasPermission(permission, true);
   };
 
   const value = {
@@ -124,7 +155,8 @@ export const AuthProvider = ({ children }) => {
     isPanelMember: user?.role === 'panel_member',
     isCandidate: user?.role === 'candidate',
     permissions: user?.permissions || [],
-    hasPermission
+    hasPermission,
+    hasWritePermission
   };
 
   return (

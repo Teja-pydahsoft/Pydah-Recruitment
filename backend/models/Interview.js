@@ -27,7 +27,32 @@ const interviewSchema = new mongoose.Schema({
     scheduledTime: String,
     duration: Number, // in minutes
     meetingLink: String,
-    notes: String
+    notes: String,
+    panelMembers: [{
+      panelMember: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      role: {
+        type: String,
+        enum: ['interviewer', 'observer'],
+        default: 'interviewer'
+      },
+      assignedAt: {
+        type: Date,
+        default: Date.now
+      },
+      feedbackToken: {
+        type: String,
+        unique: true,
+        sparse: true
+      },
+      notificationSent: {
+        type: Boolean,
+        default: false
+      }
+    }]
   }],
   panelMembers: [{
     panelMember: {

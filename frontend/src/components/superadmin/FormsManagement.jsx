@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Button, Modal, Form, Alert, Badge, Spinner, Tabs, Tab } from 'react-bootstrap';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import { useAuth } from '../../contexts/AuthContext';
 
 const FormsManagement = () => {
+  const { hasWritePermission } = useAuth();
+  const canWrite = hasWritePermission('forms.manage');
+  
   const [forms, setForms] = useState([]);
   const [teachingForms, setTeachingForms] = useState([]);
   const [nonTeachingForms, setNonTeachingForms] = useState([]);
@@ -379,9 +383,11 @@ const FormsManagement = () => {
               <h2>Form Creation & Management</h2>
               <p>Step 1: Create recruitment forms and generate submission links for candidates.</p>
             </div>
-            <Button variant="primary" onClick={() => setShowCreateModal(true)}>
-              Create New Form
-            </Button>
+            {canWrite && (
+              <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+                Create New Form
+              </Button>
+            )}
           </div>
         </Col>
       </Row>
@@ -454,14 +460,16 @@ const FormsManagement = () => {
                       <td>{new Date(form.createdAt).toLocaleDateString()}</td>
                       <td>
                         <div className="d-flex flex-wrap gap-1">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            className="me-1"
-                            onClick={() => handleEditForm(form)}
-                          >
-                            Edit
-                          </Button>
+                          {canWrite && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              className="me-1"
+                              onClick={() => handleEditForm(form)}
+                            >
+                              Edit
+                            </Button>
+                          )}
                           <Button
                             variant="info"
                             size="sm"
@@ -478,21 +486,25 @@ const FormsManagement = () => {
                           >
                             Copy Link
                           </Button>
-                          <Button
-                            variant={form.isActive ? "warning" : "success"}
-                            size="sm"
-                            className="me-1"
-                            onClick={() => handleToggleStatus(form._id, form.isActive)}
-                          >
-                            {form.isActive ? 'Deactivate' : 'Activate'}
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleDeleteForm(form._id)}
-                          >
-                            Delete
-                          </Button>
+                          {canWrite && (
+                            <>
+                              <Button
+                                variant={form.isActive ? "warning" : "success"}
+                                size="sm"
+                                className="me-1"
+                                onClick={() => handleToggleStatus(form._id, form.isActive)}
+                              >
+                                {form.isActive ? 'Deactivate' : 'Activate'}
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => handleDeleteForm(form._id)}
+                              >
+                                Delete
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

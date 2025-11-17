@@ -35,7 +35,7 @@ const SubAdminDashboard = () => {
       <Route path="test-results/*" element={guard('tests.manage', <TestResults />)} />
       <Route path="interviews/*" element={guard('interviews.manage', <InterviewsManagement />)} />
       <Route path="interview-feedback/*" element={guard('interviews.manage', <InterviewFeedback />)} />
-      <Route path="users/*" element={guard('users.manage', <UsersManagement />)} />
+      <Route path="users/*" element={guard('panel_members.manage', <UsersManagement />)} />
       <Route path="*" element={<Navigate to="/sub-admin" replace />} />
     </Routes>
   );

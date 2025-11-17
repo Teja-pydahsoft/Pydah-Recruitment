@@ -181,6 +181,68 @@
   100% { transform: rotate(360deg); }
 }
 
+/* Test Results Modal - Wide Layout */
+.test-results-modal .modal-dialog {
+  max-width: 98vw !important;
+  width: 98vw !important;
+  margin: 1vh auto !important;
+}
+
+.test-results-modal .modal-content {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Candidate Test Overview Modal - Wide Layout */
+.candidate-test-overview-modal .modal-dialog {
+  max-width: 98vw !important;
+  width: 98vw !important;
+  margin: 1vh auto !important;
+}
+
+.candidate-test-overview-modal .modal-content {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Assessment Builder Modal - Scrollbar Alignment */
+.assessment-builder-modal .modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.assessment-builder-modal .modal-body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+}
+
+.assessment-builder-modal .modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.assessment-builder-modal .modal-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.assessment-builder-modal .modal-body::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 4px;
+}
+
+.assessment-builder-modal .modal-body::-webkit-scrollbar-thumb:hover {
+  background: #764ba2;
+}
+
+/* Main Content Area - Responsive */
+.main-content {
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .dashboard-card .card-body {
@@ -198,5 +260,49 @@
   .login-card .card-header,
   .login-card .card-body {
     padding: 1.5rem 1rem;
+  }
+
+  .main-content {
+    margin-left: 60px !important;
+    width: calc(100% - 60px) !important;
+    padding: 0.75rem !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .main-content .navbar {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0.5rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    margin-left: 60px !important;
+    width: calc(100% - 60px) !important;
+  }
+
+  .main-content .navbar {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .modal-body-content {
+    padding: 1rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-body-content {
+    padding: 1.25rem !important;
   }
 }

@@ -90,7 +90,11 @@ const moduleConfig = [
   },
   {
     permission: 'users.manage',
-    label: 'Panel & Access'
+    label: 'User Management'
+  },
+  {
+    permission: 'panel_members.manage',
+    label: 'Panel Members'
   }
 ];
 

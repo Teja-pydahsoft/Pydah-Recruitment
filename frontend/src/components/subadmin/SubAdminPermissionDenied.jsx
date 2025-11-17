@@ -51,7 +51,8 @@ const permissionLabels = {
   'candidates.manage': 'Candidate Lifecycle',
   'tests.manage': 'Tests & Assessments',
   'interviews.manage': 'Interviews & Feedback',
-  'users.manage': 'Panel & Access Management'
+  'users.manage': 'User Management',
+  'panel_members.manage': 'Panel Members Management'
 };
 
 const SubAdminPermissionDenied = ({ requiredPermission }) => {

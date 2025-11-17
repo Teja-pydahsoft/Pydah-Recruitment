@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser } from 'react-icons/fa';
+import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar, InputGroup } from 'react-bootstrap';
+import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaSearch } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import { useAuth } from '../../contexts/AuthContext';
 
 const WORKFLOW_STAGE_META = {
   application_review: { label: 'Application Review', variant: 'secondary' },
@@ -146,6 +147,9 @@ const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignm
 };
 
 const CandidateManagement = () => {
+  const { hasWritePermission } = useAuth();
+  const canWrite = hasWritePermission('candidates.manage');
+  
   const [candidates, setCandidates] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -153,7 +157,8 @@ const CandidateManagement = () => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(''); // Applied search
+  const [searchInput, setSearchInput] = useState(''); // Input value (not applied until button click)
   const [statusFilter, setStatusFilter] = useState('all');
   const [stageFilter, setStageFilter] = useState('all');
   const [stageDrawerStage, setStageDrawerStage] = useState(null);
@@ -301,12 +306,14 @@ const CandidateManagement = () => {
       const email = candidate.user?.email?.toLowerCase() || '';
       const position = candidate.form?.position?.toLowerCase() || '';
       const department = candidate.form?.department?.toLowerCase() || '';
+      const candidateId = candidate.candidateNumber?.toLowerCase() || '';
 
       const matchesTerm = !term ||
         name.includes(term) ||
         email.includes(term) ||
         position.includes(term) ||
-        department.includes(term);
+        department.includes(term) ||
+        candidateId.includes(term);
 
       return matchesStatus && matchesStage && matchesTerm;
     });
@@ -1029,11 +1036,43 @@ const CandidateManagement = () => {
 
       <Row className="mb-3 g-3">
         <Col md={4}>
-          <Form.Control
-            placeholder="Search by name, email, position..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <InputGroup size="sm">
+            <Form.Control
+              placeholder="Search by name, candidate ID, email, position..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  setSearchTerm(searchInput);
+                }
+              }}
+            />
+            <Button
+              variant="primary"
+              onClick={() => {
+                setSearchTerm(searchInput);
+              }}
+              style={{ 
+                borderRadius: '0 8px 8px 0',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: 'none'
+              }}
+            >
+              <FaSearch />
+            </Button>
+            {(searchTerm || searchInput) && (
+              <Button 
+                variant="outline-secondary" 
+                onClick={() => {
+                  setSearchInput('');
+                  setSearchTerm('');
+                }}
+                style={{ borderRadius: '8px', marginLeft: '0.5rem' }}
+              >
+                Reset
+              </Button>
+            )}
+          </InputGroup>
         </Col>
         <Col md={4}>
           <Form.Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -1163,42 +1202,46 @@ const CandidateManagement = () => {
                           >
                             {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View Profile'}
                           </Button>
-                          <Button
-                            variant="success"
-                            size="sm"
-                            className="me-2"
-                            disabled={candidate.status === 'selected' || candidate.finalDecision?.decision === 'selected'}
-                            onClick={() => openDecisionModal(candidate, 'selected')}
-                          >
-                            Finalize
-                          </Button>
-                          <Button
-                            variant="outline-warning"
-                            size="sm"
-                            className="me-2"
-                            disabled={
-                              candidate.status === 'on_hold' || 
-                              candidate.finalDecision?.decision === 'on_hold' ||
-                              candidate.status === 'selected' ||
-                              candidate.finalDecision?.decision === 'selected'
-                            }
-                            onClick={() => openDecisionModal(candidate, 'on_hold')}
-                          >
-                            Put On Hold
-                          </Button>
-                          <Button
-                            variant="outline-danger"
-                            size="sm"
-                            disabled={
-                              candidate.status === 'rejected' || 
-                              candidate.finalDecision?.decision === 'rejected' ||
-                              candidate.status === 'selected' ||
-                              candidate.finalDecision?.decision === 'selected'
-                            }
-                            onClick={() => openDecisionModal(candidate, 'rejected')}
-                          >
-                            Reject
-                          </Button>
+                          {canWrite && (
+                            <>
+                              <Button
+                                variant="success"
+                                size="sm"
+                                className="me-2"
+                                disabled={candidate.status === 'selected' || candidate.finalDecision?.decision === 'selected'}
+                                onClick={() => openDecisionModal(candidate, 'selected')}
+                              >
+                                Finalize
+                              </Button>
+                              <Button
+                                variant="outline-warning"
+                                size="sm"
+                                className="me-2"
+                                disabled={
+                                  candidate.status === 'on_hold' || 
+                                  candidate.finalDecision?.decision === 'on_hold' ||
+                                  candidate.status === 'selected' ||
+                                  candidate.finalDecision?.decision === 'selected'
+                                }
+                                onClick={() => openDecisionModal(candidate, 'on_hold')}
+                              >
+                                Put On Hold
+                              </Button>
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                disabled={
+                                  candidate.status === 'rejected' || 
+                                  candidate.finalDecision?.decision === 'rejected' ||
+                                  candidate.status === 'selected' ||
+                                  candidate.finalDecision?.decision === 'selected'
+                                }
+                                onClick={() => openDecisionModal(candidate, 'rejected')}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1253,49 +1296,53 @@ const CandidateManagement = () => {
                         >
                           View Profile
                         </Button>
-                        <Button
-                          variant="success"
-                          size="sm"
-                          disabled={candidate.status === 'selected' || candidate.finalDecision?.decision === 'selected'}
-                          onClick={() => {
-                            openDecisionModal(candidate, 'selected');
-                            closeStageDrawer();
-                          }}
-                        >
-                          Finalize
-                        </Button>
-                        <Button
-                          variant="outline-warning"
-                          size="sm"
-                          disabled={
-                            candidate.status === 'on_hold' || 
-                            candidate.finalDecision?.decision === 'on_hold' ||
-                            candidate.status === 'selected' ||
-                            candidate.finalDecision?.decision === 'selected'
-                          }
-                          onClick={() => {
-                            openDecisionModal(candidate, 'on_hold');
-                            closeStageDrawer();
-                          }}
-                        >
-                          Put On Hold
-                        </Button>
-                        <Button
-                          variant="outline-danger"
-                          size="sm"
-                          disabled={
-                            candidate.status === 'rejected' || 
-                            candidate.finalDecision?.decision === 'rejected' ||
-                            candidate.status === 'selected' ||
-                            candidate.finalDecision?.decision === 'selected'
-                          }
-                          onClick={() => {
-                            openDecisionModal(candidate, 'rejected');
-                            closeStageDrawer();
-                          }}
-                        >
-                          Reject
-                        </Button>
+                        {canWrite && (
+                          <>
+                            <Button
+                              variant="success"
+                              size="sm"
+                              disabled={candidate.status === 'selected' || candidate.finalDecision?.decision === 'selected'}
+                              onClick={() => {
+                                openDecisionModal(candidate, 'selected');
+                                closeStageDrawer();
+                              }}
+                            >
+                              Finalize
+                            </Button>
+                            <Button
+                              variant="outline-warning"
+                              size="sm"
+                              disabled={
+                                candidate.status === 'on_hold' || 
+                                candidate.finalDecision?.decision === 'on_hold' ||
+                                candidate.status === 'selected' ||
+                                candidate.finalDecision?.decision === 'selected'
+                              }
+                              onClick={() => {
+                                openDecisionModal(candidate, 'on_hold');
+                                closeStageDrawer();
+                              }}
+                            >
+                              Put On Hold
+                            </Button>
+                            <Button
+                              variant="outline-danger"
+                              size="sm"
+                              disabled={
+                                candidate.status === 'rejected' || 
+                                candidate.finalDecision?.decision === 'rejected' ||
+                                candidate.status === 'selected' ||
+                                candidate.finalDecision?.decision === 'selected'
+                              }
+                              onClick={() => {
+                                openDecisionModal(candidate, 'rejected');
+                                closeStageDrawer();
+                              }}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </Card.Body>
                   </Card>
@@ -1361,7 +1408,7 @@ const CandidateManagement = () => {
           )}
         </Modal.Body>
         <Modal.Footer style={{ backgroundColor: '#f8f9fa', borderTop: '2px solid #dee2e6' }}>
-          {selectedCandidate && (
+          {selectedCandidate && canWrite && (
             <>
               <Button
                 variant="success"

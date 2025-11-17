@@ -9,17 +9,47 @@ const Container = styled.div`
   padding: 2rem 0;
   min-height: 100vh;
   background: linear-gradient(135deg, #fef7ed 0%, #fed7aa 100%);
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0.75rem 0;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.5rem 0;
+  }
 `;
 
 const Wrapper = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 1rem;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0 0.5rem;
+    max-width: 100%;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0 0.5rem;
+    max-width: 100%;
+  }
 `;
 
 const Header = styled.div`
   text-align: center;
   margin-bottom: 3rem;
+
+  @media (max-width: 768px) {
+    margin-bottom: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    margin-bottom: 1rem;
+  }
 `;
 
 const Title = styled.h1`
@@ -31,6 +61,16 @@ const Title = styled.h1`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+
+  @media (max-width: 768px) {
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
 `;
 
 const Subtitle = styled.p`
@@ -38,6 +78,16 @@ const Subtitle = styled.p`
   color: #64748b;
   max-width: 600px;
   margin: 0 auto;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    padding: 0 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.8rem;
+    padding: 0;
+  }
 `;
 
 const ErrorState = styled.div`
@@ -83,6 +133,16 @@ const FeedbackList = styled.div`
   flex-direction: column;
   gap: 1.5rem;
   margin-top: 2rem;
+
+  @media (max-width: 768px) {
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
 `;
 
 const FeedbackCard = styled.div`
@@ -113,6 +173,16 @@ const FeedbackCard = styled.div`
     transform: translateY(-2px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   }
+
+  @media (max-width: 768px) {
+    padding: 1.5rem;
+    border-radius: 12px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1rem;
+    border-radius: 8px;
+  }
 `;
 
 const FeedbackHeader = styled.div`
@@ -120,6 +190,14 @@ const FeedbackHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+  }
 `;
 
 const FeedbackTitle = styled.h3`
@@ -127,6 +205,14 @@ const FeedbackTitle = styled.h3`
   font-weight: 700;
   color: #1e293b;
   margin: 0;
+
+  @media (max-width: 768px) {
+    font-size: 1.1rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1rem;
+  }
 `;
 
 const StatusBadge = styled.span`
@@ -154,6 +240,15 @@ const FeedbackDetails = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   margin-top: 1rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    gap: 0.5rem;
+  }
 `;
 
 const DetailItem = styled.div`
@@ -162,6 +257,17 @@ const DetailItem = styled.div`
   gap: 0.75rem;
   color: #64748b;
   font-size: 0.95rem;
+
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.8rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
 `;
 
 const DetailIcon = styled.span`
@@ -216,6 +322,18 @@ const ModalContent = styled.div`
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+
+  @media (max-width: 768px) {
+    max-width: 95%;
+    max-height: 95vh;
+    border-radius: 8px;
+  }
+
+  @media (max-width: 480px) {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
 `;
 
 const ModalHeader = styled.div`
@@ -224,6 +342,14 @@ const ModalHeader = styled.div`
   align-items: center;
   padding: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.75rem;
+  }
 `;
 
 const ModalTitle = styled.h3`
@@ -231,6 +357,14 @@ const ModalTitle = styled.h3`
   color: #1e293b;
   font-size: 1.5rem;
   font-weight: 600;
+
+  @media (max-width: 768px) {
+    font-size: 1.25rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.1rem;
+  }
 `;
 
 const CloseButton = styled.button`
@@ -251,6 +385,14 @@ const CloseButton = styled.button`
 
 const FormGroup = styled.div`
   margin-bottom: 1.5rem;
+
+  @media (max-width: 768px) {
+    margin-bottom: 1.25rem;
+  }
+
+  @media (max-width: 480px) {
+    margin-bottom: 1rem;
+  }
 `;
 
 const Label = styled.label`
@@ -259,6 +401,16 @@ const Label = styled.label`
   font-weight: 600;
   color: #374151;
   font-size: 0.95rem;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+  }
 `;
 
 const TextArea = styled.textarea`
@@ -270,11 +422,24 @@ const TextArea = styled.textarea`
   font-family: inherit;
   resize: vertical;
   min-height: 100px;
+  box-sizing: border-box;
 
   &:focus {
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    padding: 0.65rem;
+    min-height: 90px;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+    padding: 0.6rem;
+    min-height: 80px;
   }
 `;
 
@@ -285,11 +450,22 @@ const Select = styled.select`
   border-radius: 6px;
   font-size: 0.95rem;
   background: white;
+  box-sizing: border-box;
 
   &:focus {
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    padding: 0.65rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+    padding: 0.6rem;
   }
 `;
 
@@ -310,6 +486,14 @@ const StarButton = styled.button`
 
   &:hover {
     transform: scale(1.1);
+  }
+
+  @media (max-width: 768px) {
+    font-size: 1.75rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.5rem;
   }
 `;
 
@@ -378,6 +562,18 @@ const SubmitButton = styled.button`
     cursor: not-allowed;
     transform: none;
   }
+
+  @media (max-width: 768px) {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    width: 100%;
+    justify-content: center;
+  }
 `;
 
 const CancelButton = styled.button`
@@ -394,6 +590,20 @@ const CancelButton = styled.button`
   &:hover {
     background: #4b5563;
   }
+
+  @media (max-width: 768px) {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9rem;
+    margin-right: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    margin-right: 0;
+    width: 100%;
+    justify-content: center;
+  }
 `;
 
 const ModalActions = styled.div`
@@ -401,6 +611,18 @@ const ModalActions = styled.div`
   justify-content: flex-end;
   padding: 1.5rem;
   border-top: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.75rem;
+    flex-direction: column-reverse;
+    width: 100%;
+  }
 `;
 
 const FeedbackButton = styled.button`
@@ -416,11 +638,23 @@ const FeedbackButton = styled.button`
   align-items: center;
   gap: 0.5rem;
   margin-top: 1rem;
+  width: 100%;
+  justify-content: center;
 
   &:hover {
     background: #dc2626;
     transform: translateY(-2px);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
   }
 `;
 
@@ -816,7 +1050,7 @@ const FeedbackEvaluations = () => {
                 </CloseButton>
               </ModalHeader>
 
-              <div style={{ padding: '1.5rem' }}>
+              <div style={{ padding: '1.5rem' }} className="modal-body-content">
                 {error && (
                   <div style={{ 
                     background: '#fee2e2', 
@@ -826,7 +1060,8 @@ const FeedbackEvaluations = () => {
                     marginBottom: '1rem',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem'
+                    gap: '0.5rem',
+                    fontSize: '0.9rem'
                   }}>
                     <FaExclamationTriangle />
                     {error}
@@ -834,10 +1069,10 @@ const FeedbackEvaluations = () => {
                 )}
 
                 <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f9fafb', borderRadius: '8px' }}>
-                  <p style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#374151' }}>
+                  <p style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#374151', fontSize: '0.95rem' }}>
                     Interview: {selectedInterview.title}
                   </p>
-                  <p style={{ margin: '0', color: '#6b7280' }}>
+                  <p style={{ margin: '0', color: '#6b7280', fontSize: '0.9rem' }}>
                     Candidate: {selectedCandidate.user?.name || selectedCandidate.name || 'Unknown'}
                   </p>
                 </div>
