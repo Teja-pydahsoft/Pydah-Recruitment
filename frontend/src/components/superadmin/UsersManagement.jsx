@@ -242,6 +242,7 @@ const UsersManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [formData, setFormData] = useState({
+    campus: '',
     name: '',
     email: '',
     password: '',
@@ -294,6 +295,7 @@ const UsersManagement = () => {
       );
 
       const submitData = {
+        campus: formData.campus,
         name: formData.name,
         email: formData.email,
         password: formData.password,
@@ -325,6 +327,7 @@ const UsersManagement = () => {
   const handleEdit = (member) => {
     setEditingMember(member);
     setFormData({
+      campus: member.campus || '',
       name: member.name,
       email: member.email,
       password: '',
@@ -358,6 +361,7 @@ const UsersManagement = () => {
 
   const resetForm = () => {
     setFormData({
+      campus: '',
       name: '',
       email: '',
       password: '',
@@ -453,6 +457,30 @@ const UsersManagement = () => {
             </ModalHeader>
 
             <Form onSubmit={handleSubmit}>
+              <FormGroup>
+                <Label htmlFor="campus">Campus *</Label>
+                <select
+                  id="campus"
+                  name="campus"
+                  value={formData.campus}
+                  onChange={handleInputChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px',
+                    fontSize: '1rem'
+                  }}
+                >
+                  <option value="">Select Campus</option>
+                  <option value="Btech">Btech</option>
+                  <option value="Degree">Degree</option>
+                  <option value="Pharmacy">Pharmacy</option>
+                  <option value="Diploma">Diploma</option>
+                </select>
+              </FormGroup>
+
               <FormGroup>
                 <Label htmlFor="name">Name</Label>
                 <Input

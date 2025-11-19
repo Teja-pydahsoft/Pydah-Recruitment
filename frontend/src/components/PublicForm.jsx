@@ -12,7 +12,10 @@ import {
   FaCloudUploadAlt,
   FaBriefcase,
   FaInfoCircle,
-  FaClock
+  FaClock,
+  FaPlus,
+  FaEdit,
+  FaTrash
 } from 'react-icons/fa';
 import api, { uploadWithProgress } from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
@@ -39,6 +42,14 @@ const PublicForm = () => {
   const [submissionState, setSubmissionState] = useState('idle'); // 'idle', 'pending', 'processing', 'uploading', 'complete'
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fileUploads, setFileUploads] = useState({});
+  const [educationEntries, setEducationEntries] = useState([{ type: 'Graduation', college: '', percentage: '' }]);
+  const [experienceEntries, setExperienceEntries] = useState([]);
+  const [showEducationModal, setShowEducationModal] = useState(false);
+  const [showExperienceModal, setShowExperienceModal] = useState(false);
+  const [editingEducationIndex, setEditingEducationIndex] = useState(null);
+  const [editingExperienceIndex, setEditingExperienceIndex] = useState(null);
+  const [tempEducationEntry, setTempEducationEntry] = useState({ type: 'Graduation', college: '', percentage: '' });
+  const [tempExperienceEntry, setTempExperienceEntry] = useState({ organization: '', designation: '', duration: '', responsibilities: '' });
 
   const fetchForm = useCallback(async () => {
     try {
@@ -92,19 +103,262 @@ const PublicForm = () => {
     return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${sizes[i]}`;
   };
 
+  // Education field handlers
+  const handleAddEducation = () => {
+    setTempEducationEntry({ type: 'Graduation', college: '', percentage: '' });
+    setEditingEducationIndex(null);
+    setShowEducationModal(true);
+  };
+
+  const handleEditEducation = (index) => {
+    setTempEducationEntry(educationEntries[index]);
+    setEditingEducationIndex(index);
+    setShowEducationModal(true);
+  };
+
+  const handleDeleteEducation = (index) => {
+    const newEntries = educationEntries.filter((_, i) => i !== index);
+    setEducationEntries(newEntries);
+    // Update form data
+    const educationField = form?.formFields?.find(f => f.fieldName.toLowerCase().includes('education'));
+    if (educationField) {
+      handleFormDataChange(educationField.fieldName, JSON.stringify(newEntries));
+    }
+  };
+
+  const handleSaveEducation = () => {
+    if (!tempEducationEntry.college.trim() || !tempEducationEntry.percentage.trim()) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    
+    let newEntries;
+    if (editingEducationIndex !== null) {
+      newEntries = [...educationEntries];
+      newEntries[editingEducationIndex] = { ...tempEducationEntry };
+    } else {
+      newEntries = [...educationEntries, { ...tempEducationEntry }];
+    }
+    
+    setEducationEntries(newEntries);
+    setShowEducationModal(false);
+    setTempEducationEntry({ type: 'Graduation', college: '', percentage: '' });
+    setEditingEducationIndex(null);
+    
+    // Update form data
+    const educationField = form?.formFields?.find(f => f.fieldName.toLowerCase().includes('education'));
+    if (educationField) {
+      handleFormDataChange(educationField.fieldName, JSON.stringify(newEntries));
+    }
+  };
+
+  // Experience field handlers
+  const handleAddExperience = () => {
+    setTempExperienceEntry({ organization: '', designation: '', duration: '', responsibilities: '' });
+    setEditingExperienceIndex(null);
+    setShowExperienceModal(true);
+  };
+
+  const handleEditExperience = (index) => {
+    setTempExperienceEntry(experienceEntries[index]);
+    setEditingExperienceIndex(index);
+    setShowExperienceModal(true);
+  };
+
+  const handleDeleteExperience = (index) => {
+    const newEntries = experienceEntries.filter((_, i) => i !== index);
+    setExperienceEntries(newEntries);
+    // Update form data
+    const experienceField = form?.formFields?.find(f => f.fieldName.toLowerCase().includes('experience') && !f.fieldName.toLowerCase().includes('teaching'));
+    if (experienceField) {
+      handleFormDataChange(experienceField.fieldName, JSON.stringify(newEntries));
+    }
+  };
+
+  const handleSaveExperience = () => {
+    if (!tempExperienceEntry.organization.trim() || !tempExperienceEntry.designation.trim() || !tempExperienceEntry.duration.trim()) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    
+    let newEntries;
+    if (editingExperienceIndex !== null) {
+      newEntries = [...experienceEntries];
+      newEntries[editingExperienceIndex] = { ...tempExperienceEntry };
+    } else {
+      newEntries = [...experienceEntries, { ...tempExperienceEntry }];
+    }
+    
+    setExperienceEntries(newEntries);
+    setShowExperienceModal(false);
+    setTempExperienceEntry({ organization: '', designation: '', duration: '', responsibilities: '' });
+    setEditingExperienceIndex(null);
+    
+    // Update form data
+    const experienceField = form?.formFields?.find(f => f.fieldName.toLowerCase().includes('experience') && !f.fieldName.toLowerCase().includes('teaching'));
+    if (experienceField) {
+      handleFormDataChange(experienceField.fieldName, JSON.stringify(newEntries));
+    }
+  };
+
+  // Load education entries from formData
+  useEffect(() => {
+    const educationField = form?.formFields?.find(f => f.fieldName.toLowerCase().includes('education'));
+    if (educationField) {
+      const data = formData[educationField.fieldName];
+      if (data && typeof data === 'string') {
+        try {
+          const parsed = JSON.parse(data);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setEducationEntries(parsed);
+          }
+        } catch (e) {
+          // Not JSON, ignore
+        }
+      }
+    }
+  }, [form, formData]);
+
+  // Load experience entries from formData
+  useEffect(() => {
+    const experienceField = form?.formFields?.find(f => f.fieldName.toLowerCase().includes('experience') && !f.fieldName.toLowerCase().includes('teaching'));
+    if (experienceField) {
+      const data = formData[experienceField.fieldName];
+      if (data && typeof data === 'string') {
+        try {
+          const parsed = JSON.parse(data);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setExperienceEntries(parsed);
+          }
+        } catch (e) {
+          // Not JSON, ignore
+        }
+      }
+    }
+  }, [form, formData]);
+
+  // Render education field with Add button system
+  const renderEducationField = (field) => {
+
+    return (
+      <div className={styles.entryContainer}>
+        {educationEntries.map((entry, index) => (
+          <div key={index} className={styles.entryCard}>
+            <div className={styles.entryContent}>
+              <div className={styles.entryHeader}>
+                <span className={styles.entryType}>{entry.type}</span>
+                <div className={styles.entryActions}>
+                  <button
+                    type="button"
+                    className={styles.entryEditButton}
+                    onClick={() => handleEditEducation(index)}
+                  >
+                    <FaEdit />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.entryDeleteButton}
+                    onClick={() => handleDeleteEducation(index)}
+                  >
+                    <FaTrash />
+                  </button>
+                </div>
+              </div>
+              <div className={styles.entryDetails}>
+                <span><strong>College:</strong> {entry.college || 'Not specified'}</span>
+                <span><strong>Percentage:</strong> {entry.percentage || 'Not specified'}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          className={styles.addEntryButton}
+          onClick={handleAddEducation}
+        >
+          <FaPlus /> Add Education Entry
+        </button>
+      </div>
+    );
+  };
+
+  // Render experience field with Add button system
+  const renderExperienceField = (field) => {
+
+    return (
+      <div className={styles.entryContainer}>
+        {experienceEntries.map((entry, index) => (
+          <div key={index} className={styles.entryCard}>
+            <div className={styles.entryContent}>
+              <div className={styles.entryHeader}>
+                <span className={styles.entryType}>{entry.organization || 'Organization'}</span>
+                <div className={styles.entryActions}>
+                  <button
+                    type="button"
+                    className={styles.entryEditButton}
+                    onClick={() => handleEditExperience(index)}
+                  >
+                    <FaEdit />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.entryDeleteButton}
+                    onClick={() => handleDeleteExperience(index)}
+                  >
+                    <FaTrash />
+                  </button>
+                </div>
+              </div>
+              <div className={styles.entryDetails}>
+                <span><strong>Designation:</strong> {entry.designation || 'Not specified'}</span>
+                <span><strong>Duration:</strong> {entry.duration || 'Not specified'}</span>
+                {entry.responsibilities && (
+                  <span><strong>Responsibilities:</strong> {entry.responsibilities}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          className={styles.addEntryButton}
+          onClick={handleAddExperience}
+        >
+          <FaPlus /> Add Experience Entry
+        </button>
+      </div>
+    );
+  };
+
   const renderFormField = (field) => {
     const value = formData[field.fieldName] || '';
+    const fieldNameLower = field.fieldName.toLowerCase();
 
     switch (field.fieldType) {
       case 'text':
       case 'email':
       case 'number':
       case 'date':
+        // Enhanced placeholders for specific fields
+        let enhancedTextPlaceholder = field.placeholder;
+        if (!enhancedTextPlaceholder) {
+          if (fieldNameLower.includes('religion')) {
+            enhancedTextPlaceholder = 'Enter your religion';
+          } else if (fieldNameLower.includes('caste')) {
+            enhancedTextPlaceholder = 'Enter your caste';
+          } else if (fieldNameLower.includes('salary') || fieldNameLower.includes('ctc')) {
+            enhancedTextPlaceholder = 'Enter amount (e.g., 500000)';
+          } else if (fieldNameLower.includes('mobile') || fieldNameLower.includes('phone')) {
+            enhancedTextPlaceholder = 'Enter 10-digit mobile number';
+          } else if (fieldNameLower.includes('aadhaar')) {
+            enhancedTextPlaceholder = 'Enter 12-digit Aadhaar number';
+          }
+        }
         return (
           <input
             className={styles.input}
             type={field.fieldType === 'text' ? 'text' : field.fieldType === 'email' ? 'email' : field.fieldType}
-            placeholder={field.placeholder}
+            placeholder={enhancedTextPlaceholder}
             value={value}
             onChange={(e) => handleFormDataChange(field.fieldName, e.target.value)}
             required={field.required}
@@ -112,6 +366,13 @@ const PublicForm = () => {
         );
 
       case 'textarea':
+        // Handle education and experience fields specially with Add button system
+        if (fieldNameLower.includes('education')) {
+          return renderEducationField(field);
+        } else if (fieldNameLower.includes('experience') && !fieldNameLower.includes('teaching')) {
+          return renderExperienceField(field);
+        }
+        // Regular textarea for other fields
         return (
           <textarea
             className={styles.textarea}
@@ -119,10 +380,21 @@ const PublicForm = () => {
             value={value}
             onChange={(e) => handleFormDataChange(field.fieldName, e.target.value)}
             required={field.required}
+            rows={4}
           />
         );
 
       case 'select':
+        // Enhanced default option text based on field name
+        let defaultOptionText = 'Select an option';
+        if (fieldNameLower.includes('experience') || fieldNameLower.includes('year')) {
+          defaultOptionText = 'Select experience range';
+        } else if (fieldNameLower.includes('designation')) {
+          defaultOptionText = 'Select designation';
+        } else {
+          defaultOptionText = 'Please select';
+        }
+        
         return (
           <select
             className={styles.select}
@@ -130,7 +402,7 @@ const PublicForm = () => {
             onChange={(e) => handleFormDataChange(field.fieldName, e.target.value)}
             required={field.required}
           >
-            <option value="">Select an option</option>
+            <option value="">{defaultOptionText}</option>
             {field.options?.map((option, index) => (
               <option key={index} value={option}>{option}</option>
             ))}
@@ -165,8 +437,17 @@ const PublicForm = () => {
             />
             <div className={styles.fileInputVisual}>
               <FaUpload />
-              <span className={styles.fileInputPrimary}>Choose file{field.fieldType === 'file_multiple' ? 's' : ''}</span>
-              <span className={styles.fileInputMeta}>{selectedLabel}</span>
+              <span className={styles.fileInputPrimary}>
+                {field.fieldName.toLowerCase().includes('resume') ? 'Upload Resume/CV' :
+                 field.fieldName.toLowerCase().includes('photo') ? 'Upload Passport Photo' :
+                 field.fieldName.toLowerCase().includes('certificate') ? 'Upload Certificate(s)' :
+                 `Choose file${field.fieldType === 'file_multiple' ? 's' : ''}`}
+              </span>
+              <span className={styles.fileInputMeta}>
+                {selectedLabel === 'No file selected' ? 
+                  (field.fieldType === 'file_multiple' ? 'PDF, DOC, DOCX, JPG, PNG (Multiple files allowed)' : 'PDF, DOC, DOCX, JPG, PNG') :
+                  selectedLabel}
+              </span>
             </div>
           </label>
         );
@@ -185,7 +466,7 @@ const PublicForm = () => {
                   onChange={(e) => handleFormDataChange(field.fieldName, e.target.value)}
                   required={field.required}
                 />
-                {opt}
+                <span className={styles.radioLabel}>{opt}</span>
               </label>
             ))}
           </div>
@@ -672,13 +953,45 @@ const PublicForm = () => {
                   const fullWidthTypes = ['textarea', 'radio', 'checkbox'];
                   const isFullWidth = fullWidthTypes.includes(field.fieldType);
 
+                  // Format field name for display
+                  const formatFieldName = (name) => {
+                    if (!name) return '';
+                    // Handle special cases
+                    const specialCases = {
+                      'ratifiedByUniversity': 'Ratified by University',
+                      'nbaNccExperience': 'NBA/NCC Experience',
+                      'nssExperience': 'NSS Experience',
+                      'dateOfBirth': 'Date of Birth',
+                      'mobileNumber': 'Mobile Number',
+                      'aadhaarNumber': 'Aadhaar Number',
+                      'totalExperienceYears': 'Total Experience (Years)',
+                      'teachingExperience': 'Teaching Experience (Years)',
+                      'salaryInCTC': 'Salary in CTC',
+                      'currentSalary': 'Current Salary',
+                      'expectedSalary': 'Expected Salary',
+                      'passportPhoto': 'Passport Size Photo'
+                    };
+                    
+                    if (specialCases[name]) {
+                      return specialCases[name];
+                    }
+                    
+                    // Convert camelCase to Title Case
+                    return name
+                      .replace(/([A-Z])/g, ' $1')
+                      .replace(/^./, str => str.toUpperCase())
+                      .trim();
+                  };
+
+                  const displayName = formatFieldName(field.fieldName);
+
                   return (
                     <div
                       key={index}
                       className={cx(styles.fieldGroup, isFullWidth && styles.fieldGroupFull)}
                     >
                       <label className={styles.fieldLabel}>
-                        {field.fieldName}
+                        {displayName}
                         {field.required && <span>*</span>}
                       </label>
                       {renderFormField(field)}
@@ -870,6 +1183,169 @@ const PublicForm = () => {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Education Entry Modal */}
+      {showEducationModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowEducationModal(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>
+                {editingEducationIndex !== null ? 'Edit Education Entry' : 'Add Education Entry'}
+              </h3>
+              <button className={styles.closeButton} onClick={() => setShowEducationModal(false)}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>
+                  Qualification Type *
+                </label>
+                <select
+                  className={styles.select}
+                  value={tempEducationEntry.type}
+                  onChange={(e) => setTempEducationEntry({ ...tempEducationEntry, type: e.target.value })}
+                  required
+                >
+                  <option value="Graduation">Graduation</option>
+                  <option value="Post Graduation">Post Graduation</option>
+                  <option value="Ph.D">Ph.D</option>
+                  <option value="Diploma">Diploma</option>
+                  <option value="Certificate">Certificate</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>
+                  College/University *
+                </label>
+                <input
+                  className={styles.input}
+                  type="text"
+                  value={tempEducationEntry.college}
+                  onChange={(e) => setTempEducationEntry({ ...tempEducationEntry, college: e.target.value })}
+                  placeholder="Enter college or university name"
+                  required
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>
+                  Percentage/CGPA *
+                </label>
+                <input
+                  className={styles.input}
+                  type="text"
+                  value={tempEducationEntry.percentage}
+                  onChange={(e) => setTempEducationEntry({ ...tempEducationEntry, percentage: e.target.value })}
+                  placeholder="Enter percentage or CGPA"
+                  required
+                />
+              </div>
+              <div className={styles.modalFooter}>
+                <button
+                  type="button"
+                  className={styles.modalCancelButton}
+                  onClick={() => setShowEducationModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.modalSaveButton}
+                  onClick={handleSaveEducation}
+                >
+                  {editingEducationIndex !== null ? 'Update' : 'Add'} Entry
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Experience Entry Modal */}
+      {showExperienceModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowExperienceModal(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>
+                {editingExperienceIndex !== null ? 'Edit Experience Entry' : 'Add Experience Entry'}
+              </h3>
+              <button className={styles.closeButton} onClick={() => setShowExperienceModal(false)}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>
+                  Organization/Company *
+                </label>
+                <input
+                  className={styles.input}
+                  type="text"
+                  value={tempExperienceEntry.organization}
+                  onChange={(e) => setTempExperienceEntry({ ...tempExperienceEntry, organization: e.target.value })}
+                  placeholder="Enter organization or company name"
+                  required
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>
+                  Designation *
+                </label>
+                <input
+                  className={styles.input}
+                  type="text"
+                  value={tempExperienceEntry.designation}
+                  onChange={(e) => setTempExperienceEntry({ ...tempExperienceEntry, designation: e.target.value })}
+                  placeholder="Enter your designation"
+                  required
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>
+                  Duration *
+                </label>
+                <input
+                  className={styles.input}
+                  type="text"
+                  value={tempExperienceEntry.duration}
+                  onChange={(e) => setTempExperienceEntry({ ...tempExperienceEntry, duration: e.target.value })}
+                  placeholder="e.g., Jan 2020 - Dec 2023 or 3 years"
+                  required
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>
+                  Key Responsibilities
+                </label>
+                <textarea
+                  className={styles.textarea}
+                  value={tempExperienceEntry.responsibilities}
+                  onChange={(e) => setTempExperienceEntry({ ...tempExperienceEntry, responsibilities: e.target.value })}
+                  placeholder="Describe your key responsibilities (optional)"
+                  rows={3}
+                />
+              </div>
+              <div className={styles.modalFooter}>
+                <button
+                  type="button"
+                  className={styles.modalCancelButton}
+                  onClick={() => setShowExperienceModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.modalSaveButton}
+                  onClick={handleSaveExperience}
+                >
+                  {editingExperienceIndex !== null ? 'Update' : 'Add'} Entry
+                </button>
+              </div>
             </div>
           </div>
         </div>

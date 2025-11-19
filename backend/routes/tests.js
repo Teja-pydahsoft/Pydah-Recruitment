@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const readline = require('readline');
 const XLSX = require('xlsx');
+const mammoth = require('mammoth');
 const Test = require('../models/Test');
 const Candidate = require('../models/Candidate');
 const User = require('../models/User');
@@ -430,6 +431,49 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
       return res.status(400).json({ message: 'Excel file is required' });
     }
 
+    // Extract form data
+    const { campus, department, category, topicId, newTopicName } = req.body;
+
+    // Validate required fields
+    if (!campus || !department || !category) {
+      return res.status(400).json({ message: 'Campus, department, and category are required' });
+    }
+
+    // Handle topic creation or selection (topic is optional)
+    let effectiveTopic = null;
+    if (newTopicName && newTopicName.trim()) {
+      // Create new topic
+      const existingTopic = await QuestionTopic.findOne({
+        name: { $regex: `^${newTopicName.trim()}$`, $options: 'i' },
+        category
+      });
+
+      if (existingTopic) {
+        effectiveTopic = existingTopic;
+      } else {
+        const newTopic = new QuestionTopic({
+          name: newTopicName.trim(),
+          category,
+          createdBy: req.user._id
+        });
+        await newTopic.save();
+        effectiveTopic = newTopic;
+      }
+    } else if (topicId) {
+      // Use existing topic
+      effectiveTopic = await QuestionTopic.findById(topicId);
+      if (!effectiveTopic) {
+        return res.status(400).json({ message: 'Selected topic not found' });
+      }
+      if (!effectiveTopic.isActive) {
+        return res.status(400).json({ message: 'Selected topic is not active' });
+      }
+      if (effectiveTopic.category !== category) {
+        return res.status(400).json({ message: 'Selected topic category does not match the provided category' });
+      }
+    }
+    // If no topic provided, effectiveTopic remains null (topic is optional)
+
     uploadedFilePath = req.file.path;
 
     const workbook = XLSX.readFile(req.file.path);
@@ -493,30 +537,29 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
       return null;
     };
 
-    const allTopics = await QuestionTopic.find({ isActive: true }).lean();
-    if (!allTopics.length) {
-      return res.status(400).json({ message: 'No active topics found. Please create a topic before uploading questions.' });
+    // If no topic provided, create or find a default topic based on category and department
+    if (!effectiveTopic) {
+      const defaultTopicName = `${category} - ${department}`;
+      effectiveTopic = await QuestionTopic.findOne({
+        name: { $regex: `^${defaultTopicName}$`, $options: 'i' },
+        category
+      });
+      
+      if (!effectiveTopic) {
+        effectiveTopic = new QuestionTopic({
+          name: defaultTopicName,
+          category,
+          createdBy: req.user._id
+        });
+        await effectiveTopic.save();
+      }
     }
-    const fallbackTopic = allTopics[0];
-    const topicsByName = new Map(allTopics.map(topic => [topic.name.trim().toLowerCase(), topic]));
 
     const questionsToInsert = [];
     const errors = [];
 
     rows.forEach((row, index) => {
       const rowNumber = index + 2; // considering header row
-      let effectiveTopic = fallbackTopic;
-
-        const topicNameFromRow = getCell(row, ['Topic', 'topic', 'Topic Name', 'TopicName']).toString().trim();
-      if (topicNameFromRow) {
-        const topicLookup = topicsByName.get(topicNameFromRow.toLowerCase());
-        if (topicLookup) {
-          effectiveTopic = topicLookup;
-        } else {
-          errors.push(`Row ${rowNumber}: Topic "${topicNameFromRow}" not found`);
-          return;
-        }
-      }
 
       const questionText = getCell(row, ['Question', 'question', 'Question Text']).toString().trim();
       if (!questionText) {
@@ -555,6 +598,8 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
         topic: effectiveTopic._id,
         topicName: effectiveTopic.name,
         category: effectiveTopic.category,
+        campus: campus.trim(),
+        department: department.trim(),
         questionText,
         options,
         correctAnswer: correctAnswerIndex,
@@ -589,6 +634,697 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
         fs.unlinkSync(uploadedFilePath);
       } catch (cleanupError) {
         console.warn('Failed to remove uploaded file:', cleanupError.message);
+      }
+    }
+  }
+});
+
+// Helper function to parse questions from text content
+const parseQuestionsFromText = (textContent, questionNumber = 0) => {
+  console.log('\n📝 [QUESTION PARSER] Starting to parse questions from text...');
+  console.log(`📝 [QUESTION PARSER] Text length: ${textContent.length} characters`);
+  
+  // Normalize line breaks - handle different line break formats
+  let normalizedText = textContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  // First, ensure question numbers are on separate lines
+  // Pattern: number followed by colon (e.g., "51:", "52:")
+  normalizedText = normalizedText.replace(/(\d+):\s*/g, '\n$1: ');
+  
+  // For inline options within question lines, we'll handle them in the parsing logic
+  // But ensure standalone option lines are properly separated
+  // Pattern: text followed by space, then A-D with space (but not if it's part of a word)
+  normalizedText = normalizedText.replace(/([^\n])\s+([A-D])\s+(?=[A-Z])/g, '$1\n$2 ');
+  
+  // Ensure "Ans:" or "answer:" is on its own line when it appears after text
+  normalizedText = normalizedText.replace(/([^\n])(\s+)(Ans|answer):/gi, '$1\n$3:');
+  
+  // Split into lines and clean up
+  let lines = normalizedText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  console.log(`📝 [QUESTION PARSER] Total non-empty lines after normalization: ${lines.length}`);
+  
+  // If still only 1 line, try splitting by common patterns
+  if (lines.length === 1 && lines[0].length > 100) {
+    console.log('⚠️ [QUESTION PARSER] Single long line detected, attempting alternative parsing...');
+    const singleLine = lines[0];
+    
+    // Try to split by question numbers (e.g., "51:", "52:", etc.)
+    // Match pattern: number followed by colon, then everything until next number: or end
+    // Use [\s\S] to match any character including newlines
+    const questionMatches = [...singleLine.matchAll(/(\d+):\s*([\s\S]*?)(?=\d+:\s*|$)/g)];
+    if (questionMatches.length > 0) {
+      console.log(`📝 [QUESTION PARSER] Found ${questionMatches.length} question blocks in single line`);
+      lines = [];
+      questionMatches.forEach((match, idx) => {
+        const questionNum = match[1];
+        let questionContent = match[2].trim();
+        
+        console.log(`   📋 Processing question #${questionNum}, content length: ${questionContent.length}`);
+        
+        // Add question number and text line
+        // First, find where the question text ends (before first option A, B, C, or D)
+        const optionMatch = questionContent.match(/\s([A-D])\s+/);
+        if (optionMatch) {
+          const questionText = questionContent.substring(0, optionMatch.index).trim();
+          if (questionText) {
+            lines.push(`${questionNum}: ${questionText}`);
+          } else {
+            lines.push(`${questionNum}:`);
+          }
+          
+          // Process the remaining content (options and answer)
+          const remaining = questionContent.substring(optionMatch.index).trim();
+          
+          // Split by option patterns: "A ", "B ", "C ", "D " followed by text until next option or "Ans:"
+          // Pattern: Option letter, space, then text until next option letter+space or Ans:
+          const optionPattern = /\b([A-D])\s+([^]*?)(?=\s+[A-D]\s+|Ans:|$)/gi;
+          const answerPattern = /Ans:\s*(\d+|[A-D])/gi;
+          
+          // Extract all options - match each A, B, C, D with its content
+          let lastIndex = 0;
+          const optionLetters = ['A', 'B', 'C', 'D'];
+          
+          for (const letter of optionLetters) {
+            // Match letter followed by space, then capture text until next option or Ans:
+            const letterPattern = new RegExp(`\\b${letter}\\s+([\\s\\S]*?)(?=\\s+[A-D]\\s+|Ans:|$)`, 'i');
+            const letterMatch = remaining.substring(lastIndex).match(letterPattern);
+            if (letterMatch) {
+              const optionText = letterMatch[1].trim();
+              if (optionText) {
+                lines.push(`${letter} ${optionText}`);
+                const matchIndex = remaining.indexOf(letterMatch[0], lastIndex);
+                if (matchIndex !== -1) {
+                  lastIndex = matchIndex + letterMatch[0].length;
+                } else {
+                  break; // No more matches
+                }
+              }
+            }
+          }
+          
+          // Extract answer
+          const answerMatch = remaining.match(answerPattern);
+          if (answerMatch) {
+            lines.push(`Ans: ${answerMatch[1]}`);
+          }
+        } else {
+          // No clear option pattern, try simpler approach
+          lines.push(`${questionNum}: ${questionContent}`);
+        }
+      });
+      console.log(`📝 [QUESTION PARSER] Re-parsed into ${lines.length} lines`);
+    } else {
+      // Alternative: try splitting by patterns like "A ", "B ", "C ", "D ", "Ans:"
+      console.log('⚠️ [QUESTION PARSER] Trying pattern-based splitting...');
+      const patternSplit = singleLine
+        .replace(/(\d+):\s*/g, '\n$1: ')  // Put question numbers on new lines
+        .replace(/([A-D])\s+/g, '\n$1 ')  // Put options on new lines
+        .replace(/(Ans:)/gi, '\n$1')      // Put answer on new line
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0);
+      
+      if (patternSplit.length > lines.length) {
+        lines = patternSplit;
+        console.log(`📝 [QUESTION PARSER] Pattern split into ${lines.length} lines`);
+      }
+    }
+  }
+  
+  const questions = [];
+  const errors = [];
+  let currentQuestion = null;
+  let qNum = questionNumber;
+
+  const parseAnswer = (answerText, options) => {
+    if (!answerText) {
+      console.log('⚠️ [ANSWER PARSER] Empty answer text');
+      return null;
+    }
+    
+    const answer = answerText.trim().toUpperCase();
+    console.log(`🔍 [ANSWER PARSER] Parsing answer: "${answer}" with ${options.length} options`);
+    
+    // Try to parse as number (1-4)
+    const numMatch = answer.match(/^(\d+)/);
+    if (numMatch) {
+      const num = parseInt(numMatch[1], 10);
+      if (num >= 1 && num <= options.length) {
+        const index = num - 1;
+        console.log(`✅ [ANSWER PARSER] Parsed as number: ${num} -> index ${index} (${String.fromCharCode(65 + index)})`);
+        return index;
+      }
+    }
+    
+    // Try to parse as letter (A-D)
+    const letterMatch = answer.match(/^([A-D])/);
+    if (letterMatch) {
+      const letter = letterMatch[1];
+      const index = letter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+      if (index >= 0 && index < options.length) {
+        console.log(`✅ [ANSWER PARSER] Parsed as letter: ${letter} -> index ${index}`);
+        return index;
+      }
+    }
+    
+    console.log(`❌ [ANSWER PARSER] Could not parse answer: "${answer}"`);
+    return null;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Check if line starts with a question number pattern (e.g., "51:", "52:", etc.)
+    const questionMatch = line.match(/^(\d+):\s*(.+)$/);
+    if (questionMatch) {
+      // Save previous question if exists (even if incomplete, as long as it has at least 2 options)
+      if (currentQuestion) {
+        // Only save if we have at least 2 options
+        if (currentQuestion.options.length >= 2) {
+          if (currentQuestion.correctAnswerIndex === null) {
+            const errorMsg = `Question ${qNum}: No valid answer found`;
+            console.log(`❌ [QUESTION PARSER] ${errorMsg}`);
+            errors.push(errorMsg);
+          } else {
+            console.log(`✅ [QUESTION PARSER] Saving question ${qNum}: "${currentQuestion.text.substring(0, 50)}..."`);
+            console.log(`   Options: ${currentQuestion.options.length}, Correct: ${String.fromCharCode(65 + currentQuestion.correctAnswerIndex)}`);
+            questions.push({
+              questionText: currentQuestion.text.trim(),
+              options: currentQuestion.options.slice(0, 4), // Ensure max 4 options
+              correctAnswer: currentQuestion.correctAnswerIndex
+            });
+          }
+        } else {
+          console.log(`⚠️ [QUESTION PARSER] Skipping incomplete question ${qNum} (only ${currentQuestion.options.length} options)`);
+        }
+      }
+      
+      // Start new question
+      qNum = parseInt(questionMatch[1], 10);
+      let questionText = questionMatch[2].trim();
+      console.log(`\n📋 [QUESTION PARSER] Found question #${qNum}: "${questionText.substring(0, 50)}..."`);
+      
+      // Check if this line contains inline options
+      // Options can be: "A Option1 B Option2" or "AOption1 BOption2" or "A Option1B Option2" or ": A Option1B Option2"
+      // Look for pattern: letter (A-D) optionally preceded by space/punctuation, followed by text
+      // First, try to find if there are option letters in the text
+      const hasOptions = /(?:^|[\s:,\-])([A-D])(?:\s|$|[A-Z])/i.test(questionText);
+      
+      if (hasOptions) {
+        // Find where first option starts - can be after colon, dash, space, or at start
+        const firstOptionMatch = questionText.match(/(?:^|[\s:,\-])([A-D])(?:\s|$|[A-Z])/i);
+        if (firstOptionMatch) {
+          // Find the actual position of the option letter
+          const firstOptionLetter = firstOptionMatch[1];
+          const firstOptionIndex = questionText.indexOf(firstOptionLetter);
+          const qText = questionText.substring(0, firstOptionIndex).trim();
+          const remaining = questionText.substring(firstOptionIndex).trim();
+          
+          currentQuestion = {
+            text: qText,
+            options: [],
+            correctAnswerIndex: null
+          };
+          
+          // Extract options in order (A, B, C, D)
+          // Handle various formats: "A Option", "AOption", "A OptionB Option", "A Option1B Option2", etc.
+          // Example: "A Cross breeding B Out breeding C In breeding D Close breeding Ans: 3"
+          // Or: "A Cross breedingB Out breedingC In breedingD Close breeding Ans: 3"
+          
+          const optionLetters = ['A', 'B', 'C', 'D'];
+          let searchText = remaining;
+          
+          for (let i = 0; i < optionLetters.length; i++) {
+            const letter = optionLetters[i];
+            const nextLetter = i < optionLetters.length - 1 ? optionLetters[i + 1] : null;
+            
+            // Find the option letter in the remaining text
+            // Pattern: letter can be at start, after space, or after punctuation (colon, dash, etc.)
+            // Match: (start or space or punctuation) + letter + (space or end or next char)
+            const letterStartPattern = new RegExp(`(?:^|[\\s:,\\-])${letter}(?:\\s|$|[A-Z])`, 'i');
+            const letterStartMatch = searchText.match(letterStartPattern);
+            
+            if (!letterStartMatch) {
+              console.log(`   ⚠️ [OPTION] Option ${letter} not found in: "${searchText.substring(0, 100)}..."`);
+              break;
+            }
+            
+            const letterStartIndex = letterStartMatch.index;
+            // Find the actual letter position (might be after punctuation)
+            const letterPos = searchText.indexOf(letter, letterStartIndex);
+            const afterLetterIndex = letterPos + 1; // Position after the letter itself
+            let optionText = '';
+            
+            if (nextLetter) {
+              // Find where next option starts - search for next letter in remaining text
+              // The next letter should be followed by space, end of string, or another uppercase letter
+              // We'll search for the letter and check if it's a valid option marker
+              const remainingText = searchText.substring(afterLetterIndex);
+              let nextLetterPos = -1;
+              
+              // Try to find the next letter - it can be:
+              // 1. At the start of remaining text: "^B "
+              // 2. After a space: " B "
+              // 3. After lowercase text (word boundary): "breedingB "
+              // 4. After punctuation: ": B " or "- B "
+              const patterns = [
+                new RegExp(`^${nextLetter}(?:\\s|$|[A-Z])`, 'i'),  // At start
+                new RegExp(`\\s${nextLetter}(?:\\s|$|[A-Z])`, 'i'),  // After space
+                new RegExp(`[a-z]${nextLetter}(?:\\s|$|[A-Z])`, 'i'),  // After lowercase (word boundary)
+                new RegExp(`[\\s:,\\-]${nextLetter}(?:\\s|$|[A-Z])`, 'i')  // After punctuation
+              ];
+              
+              for (const pattern of patterns) {
+                const match = remainingText.match(pattern);
+                if (match) {
+                  // Find the actual position of the letter in the match
+                  const letterIndexInMatch = match[0].indexOf(nextLetter);
+                  nextLetterPos = afterLetterIndex + match.index + letterIndexInMatch;
+                  console.log(`   🔍 [OPTION] Found next letter ${nextLetter} at position ${nextLetterPos} (pattern matched: "${match[0]}")`);
+                  break;
+                }
+              }
+              
+              if (nextLetterPos > 0) {
+                // Extract text from after current letter until next letter
+                optionText = searchText.substring(afterLetterIndex, nextLetterPos).trim();
+                console.log(`   📝 [OPTION] Extracted text for ${letter}: "${optionText.substring(0, 50)}..."`);
+                // Update search text to start from next option letter
+                searchText = searchText.substring(nextLetterPos);
+              } else {
+                console.log(`   ⚠️ [OPTION] Next letter ${nextLetter} not found in remaining text: "${remainingText.substring(0, 80)}..."`);
+                // Next letter not found, take rest until answer
+                const answerMatch = remainingText.match(/(?:Ans|answer):/i);
+                if (answerMatch) {
+                  optionText = searchText.substring(afterLetterIndex, afterLetterIndex + answerMatch.index).trim();
+                } else {
+                  optionText = searchText.substring(afterLetterIndex).trim();
+                }
+                searchText = ''; // No more options
+              }
+            } else {
+              // Last option - take until answer or end
+              const answerMatch = searchText.substring(afterLetterIndex).match(/(?:Ans|answer):/i);
+              if (answerMatch) {
+                optionText = searchText.substring(afterLetterIndex, afterLetterIndex + answerMatch.index).trim();
+              } else {
+                optionText = searchText.substring(afterLetterIndex).trim();
+              }
+            }
+            
+            // Clean up option text
+            optionText = optionText.replace(/\s*(?:Ans|answer):\s*.*$/i, '').trim();
+            optionText = optionText.replace(/\s*\d+:\s*.*$/, '').trim();
+            
+            if (optionText && optionText.length > 0) {
+              currentQuestion.options.push(optionText);
+              console.log(`   ➕ [OPTION] ${letter}: ${optionText.substring(0, 40)}...`);
+            } else {
+              console.log(`   ⚠️ [OPTION] Empty option text for ${letter}`);
+            }
+          }
+          
+          // Extract answer - look for "Ans:" or "answer:" followed by number or letter
+          const answerMatch = remaining.match(/(?:Ans|answer):\s*(\d+|[A-D])/i);
+          if (answerMatch) {
+            const answerValue = answerMatch[1].trim();
+            const answerIndex = parseAnswer(answerValue, currentQuestion.options);
+            if (answerIndex !== null) {
+              currentQuestion.correctAnswerIndex = answerIndex;
+              console.log(`   ✅ [ANSWER] Set correct answer: ${String.fromCharCode(65 + answerIndex)} (from "${answerValue}")`);
+            } else {
+              console.log(`   ⚠️ [ANSWER] Could not parse answer: "${answerValue}"`);
+            }
+          } else if (currentQuestion.options.length >= 2) {
+            // If no explicit answer found but we have options, log warning
+            console.log(`   ⚠️ [ANSWER] No answer found for question ${qNum}`);
+          }
+        } else {
+          // No clear option pattern found, treat as question text only
+          currentQuestion = {
+            text: questionText,
+            options: [],
+            correctAnswerIndex: null
+          };
+        }
+      } else {
+        // Just question text, options will come on subsequent lines
+        currentQuestion = {
+          text: questionText,
+          options: [],
+          correctAnswerIndex: null
+        };
+      }
+    } else if (line.match(/^[A-D]\s+/)) {
+      // Option line (A, B, C, or D) - only add if we have a current question and less than 4 options
+      if (currentQuestion) {
+        if (currentQuestion.options.length < 4) {
+          const optionMatch = line.match(/^([A-D])\s+(.+)$/);
+          if (optionMatch) {
+            const optionLetter = optionMatch[1];
+            const optionText = optionMatch[2].trim();
+            
+            // Check if this option letter matches expected sequence (A, B, C, D)
+            const expectedIndex = currentQuestion.options.length;
+            const expectedLetter = String.fromCharCode(65 + expectedIndex); // A=0, B=1, C=2, D=3
+            
+            if (optionLetter === expectedLetter) {
+              currentQuestion.options.push(optionText);
+              console.log(`   ➕ [OPTION] ${optionLetter}: ${optionText.substring(0, 40)}...`);
+            } else {
+              // Option letter doesn't match expected sequence - might be start of new question
+              console.log(`   ⚠️ [OPTION] Unexpected option letter ${optionLetter} (expected ${expectedLetter}), might be new question`);
+              // If we already have 4 options, this might be a new question starting
+              if (currentQuestion.options.length >= 4) {
+                // Save current question and start new one
+                if (currentQuestion.correctAnswerIndex !== null) {
+                  questions.push({
+                    questionText: currentQuestion.text.trim(),
+                    options: currentQuestion.options,
+                    correctAnswer: currentQuestion.correctAnswerIndex
+                  });
+                  console.log(`✅ [QUESTION PARSER] Saved question ${qNum} before new option`);
+                }
+                // Don't start new question here, wait for question number
+                currentQuestion = null;
+              }
+            }
+          }
+        } else {
+          // Already have 4 options - this might be from next question
+          console.log(`   ⚠️ [OPTION] Already have 4 options, ignoring: ${line.substring(0, 30)}...`);
+        }
+      } else {
+        // Option found without a question
+        console.log(`   ⚠️ [OPTION] Found option without question: ${line.substring(0, 30)}...`);
+      }
+    } else if (line.match(/^(?:Ans|answer):/i)) {
+      // Answer line - handle various formats: "Ans:", "answer:", "Ans ", etc.
+      if (currentQuestion) {
+        const answerMatch = line.match(/(?:Ans|answer):\s*(.+)$/i);
+        if (answerMatch) {
+          const answerIndex = parseAnswer(answerMatch[1], currentQuestion.options);
+          if (answerIndex !== null) {
+            currentQuestion.correctAnswerIndex = answerIndex;
+            console.log(`   ✅ [ANSWER] Set correct answer: ${String.fromCharCode(65 + answerIndex)}`);
+          } else {
+            const errorMsg = `Question ${qNum || 'unknown'}: Invalid answer format - "${answerMatch[1]}"`;
+            console.log(`   ❌ [ANSWER] ${errorMsg}`);
+            errors.push(errorMsg);
+          }
+        }
+      }
+    } else if (currentQuestion) {
+      // Check if this line might be continuation of question text or contains answer
+      // Only continue if we don't have 4 options yet and line doesn't look like an option or question number
+      if (currentQuestion.options.length < 4 && !line.match(/^[A-D]\s+/) && !line.match(/^\d+:\s*/)) {
+        // Check if line contains answer
+        const answerMatch = line.match(/(?:Ans|answer):\s*(\d+|[A-D])/i);
+        if (answerMatch) {
+          const answerIndex = parseAnswer(answerMatch[1], currentQuestion.options);
+          if (answerIndex !== null) {
+            currentQuestion.correctAnswerIndex = answerIndex;
+            console.log(`   ✅ [ANSWER] Set correct answer: ${String.fromCharCode(65 + answerIndex)}`);
+          }
+        } else if (currentQuestion.text && currentQuestion.text.length < 300 && !line.match(/^\d+/)) {
+          // Only extend question text if:
+          // - Not too long (to avoid capturing next question)
+          // - Line doesn't start with a number (might be next question)
+          currentQuestion.text += ' ' + line;
+          console.log(`   📝 [CONTINUATION] Question text extended`);
+        }
+      } else if (currentQuestion.options.length >= 4 && !currentQuestion.correctAnswerIndex) {
+        // We have 4 options but no answer yet - check if this line has answer
+        const answerMatch = line.match(/(?:Ans|answer):\s*(\d+|[A-D])/i);
+        if (answerMatch) {
+          const answerIndex = parseAnswer(answerMatch[1], currentQuestion.options);
+          if (answerIndex !== null) {
+            currentQuestion.correctAnswerIndex = answerIndex;
+            console.log(`   ✅ [ANSWER] Set correct answer: ${String.fromCharCode(65 + answerIndex)}`);
+          }
+        }
+      }
+    } else if (!currentQuestion && line.trim().length > 10 && !line.match(/^\d+:\s*/)) {
+      // Question without number prefix - only if line is substantial and doesn't start with number
+      qNum++;
+      console.log(`\n📋 [QUESTION PARSER] Found question #${qNum} (no number): "${line.substring(0, 50)}..."`);
+      currentQuestion = {
+        text: line,
+        options: [],
+        correctAnswerIndex: null
+      };
+    }
+  }
+
+  // Save last question
+  if (currentQuestion && currentQuestion.options.length >= 2) {
+    if (currentQuestion.correctAnswerIndex === null) {
+      const errorMsg = `Question ${qNum}: No valid answer found`;
+      console.log(`❌ [QUESTION PARSER] ${errorMsg}`);
+      errors.push(errorMsg);
+    } else {
+      console.log(`✅ [QUESTION PARSER] Saving final question ${qNum}: "${currentQuestion.text.substring(0, 50)}..."`);
+      questions.push({
+        questionText: currentQuestion.text.trim(),
+        options: currentQuestion.options.slice(0, 4), // Ensure max 4 options
+        correctAnswer: currentQuestion.correctAnswerIndex
+      });
+    }
+  }
+
+  console.log(`\n📊 [QUESTION PARSER] Parsing complete:`);
+  console.log(`   ✅ Valid questions: ${questions.length}`);
+  console.log(`   ❌ Errors: ${errors.length}`);
+  if (errors.length > 0) {
+    console.log(`   Error details:`, errors);
+  }
+
+  return { questions, errors };
+};
+
+// Preview questions from Word document (without saving)
+router.post('/questions/preview-word', authenticateToken, requireSuperAdminOrPermission('tests.manage'), upload.single('file'), async (req, res) => {
+  let uploadedFilePath;
+
+  try {
+    console.log('\n🔍 [PREVIEW] Word document preview request received');
+    
+    if (!req.file) {
+      return res.status(400).json({ message: 'Word file is required' });
+    }
+
+    // Check file extension
+    const fileExt = path.extname(req.file.originalname).toLowerCase();
+    console.log(`📄 [PREVIEW] File: ${req.file.originalname}, Extension: ${fileExt}`);
+    
+    if (fileExt !== '.docx' && fileExt !== '.doc') {
+      return res.status(400).json({ message: 'Only .docx and .doc files are supported' });
+    }
+
+    uploadedFilePath = req.file.path;
+
+    // Extract text from Word document
+    let textContent;
+    try {
+      if (fileExt === '.docx') {
+        console.log('📖 [PREVIEW] Extracting text from .docx file...');
+        const result = await mammoth.extractRawText({ path: uploadedFilePath });
+        textContent = result.value;
+        console.log(`✅ [PREVIEW] Text extracted successfully (${textContent.length} characters)`);
+      } else {
+        return res.status(400).json({ message: '.doc files are not supported. Please convert to .docx format.' });
+      }
+    } catch (parseError) {
+      console.error('❌ [PREVIEW] Word file parsing error:', parseError);
+      return res.status(400).json({ message: 'Failed to parse Word document. Please ensure it is a valid .docx file.' });
+    }
+
+    if (!textContent || !textContent.trim()) {
+      return res.status(400).json({ message: 'Word document appears to be empty' });
+    }
+
+    // Parse questions
+    const { questions, errors } = parseQuestionsFromText(textContent);
+
+    res.json({
+      questions,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Preview: ${questions.length} question(s) parsed${errors.length > 0 ? ` with ${errors.length} error(s)` : ''}`
+    });
+  } catch (error) {
+    console.error('❌ [PREVIEW] Preview error:', error);
+    res.status(500).json({ message: 'Server error processing preview' });
+  } finally {
+    if (uploadedFilePath) {
+      try {
+        fs.unlinkSync(uploadedFilePath);
+        console.log('🧹 [PREVIEW] Cleaned up uploaded file');
+      } catch (cleanupError) {
+        console.warn('⚠️ [PREVIEW] Failed to remove uploaded file:', cleanupError.message);
+      }
+    }
+  }
+});
+
+// Bulk upload questions from Word document
+router.post('/questions/bulk-upload-word', authenticateToken, requireSuperAdminOrPermission('tests.manage'), upload.single('file'), async (req, res) => {
+  let uploadedFilePath;
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Word file is required' });
+    }
+
+    // Extract form data
+    const { campus, department, category, topicId, newTopicName } = req.body;
+
+    // Validate required fields
+    if (!campus || !department || !category) {
+      return res.status(400).json({ message: 'Campus, department, and category are required' });
+    }
+
+    // Check file extension
+    const fileExt = path.extname(req.file.originalname).toLowerCase();
+    if (fileExt !== '.docx' && fileExt !== '.doc') {
+      return res.status(400).json({ message: 'Only .docx and .doc files are supported' });
+    }
+
+    uploadedFilePath = req.file.path;
+    console.log('\n📤 [UPLOAD] Word document upload request received');
+    console.log(`📄 [UPLOAD] File: ${req.file.originalname}, Size: ${req.file.size} bytes`);
+    console.log(`📋 [UPLOAD] Campus: ${campus}, Department: ${department}, Category: ${category}`);
+
+    // Extract text from Word document
+    let textContent;
+    try {
+      if (fileExt === '.docx') {
+        console.log('📖 [UPLOAD] Extracting text from .docx file...');
+        const result = await mammoth.extractRawText({ path: uploadedFilePath });
+        textContent = result.value;
+        console.log(`✅ [UPLOAD] Text extracted successfully (${textContent.length} characters)`);
+      } else {
+        return res.status(400).json({ message: '.doc files are not supported. Please convert to .docx format.' });
+      }
+    } catch (parseError) {
+      console.error('❌ [UPLOAD] Word file parsing error:', parseError);
+      return res.status(400).json({ message: 'Failed to parse Word document. Please ensure it is a valid .docx file.' });
+    }
+
+    if (!textContent || !textContent.trim()) {
+      return res.status(400).json({ message: 'Word document appears to be empty' });
+    }
+
+    // Handle topic creation or selection (topic is optional)
+    let effectiveTopic = null;
+    console.log('🏷️ [UPLOAD] Processing topic...');
+    if (newTopicName && newTopicName.trim()) {
+      console.log(`   📝 [TOPIC] Creating/finding topic: "${newTopicName}"`);
+      // Create new topic
+      const existingTopic = await QuestionTopic.findOne({
+        name: { $regex: `^${newTopicName.trim()}$`, $options: 'i' },
+        category
+      });
+
+      if (existingTopic) {
+        effectiveTopic = existingTopic;
+        console.log(`   ✅ [TOPIC] Found existing topic: ${existingTopic._id}`);
+      } else {
+        const newTopic = new QuestionTopic({
+          name: newTopicName.trim(),
+          category,
+          createdBy: req.user._id
+        });
+        await newTopic.save();
+        effectiveTopic = newTopic;
+        console.log(`   ✅ [TOPIC] Created new topic: ${newTopic._id}`);
+      }
+    } else if (topicId) {
+      console.log(`   📝 [TOPIC] Using existing topic ID: ${topicId}`);
+      // Use existing topic
+      effectiveTopic = await QuestionTopic.findById(topicId);
+      if (!effectiveTopic) {
+        return res.status(400).json({ message: 'Selected topic not found' });
+      }
+      if (!effectiveTopic.isActive) {
+        return res.status(400).json({ message: 'Selected topic is not active' });
+      }
+      if (effectiveTopic.category !== category) {
+        return res.status(400).json({ message: 'Selected topic category does not match the provided category' });
+      }
+      console.log(`   ✅ [TOPIC] Using topic: ${effectiveTopic.name}`);
+    }
+
+    // If no topic provided, create or find a default topic based on category and department
+    if (!effectiveTopic) {
+      const defaultTopicName = `${category} - ${department}`;
+      console.log(`   📝 [TOPIC] Creating/finding default topic: "${defaultTopicName}"`);
+      effectiveTopic = await QuestionTopic.findOne({
+        name: { $regex: `^${defaultTopicName}$`, $options: 'i' },
+        category
+      });
+      
+      if (!effectiveTopic) {
+        effectiveTopic = new QuestionTopic({
+          name: defaultTopicName,
+          category,
+          createdBy: req.user._id
+        });
+        await effectiveTopic.save();
+        console.log(`   ✅ [TOPIC] Created default topic: ${effectiveTopic._id}`);
+      } else {
+        console.log(`   ✅ [TOPIC] Found existing default topic: ${effectiveTopic._id}`);
+      }
+    }
+
+    // Parse text content
+    console.log('\n📝 [UPLOAD] Starting question parsing...');
+    const { questions: parsedQuestions, errors } = parseQuestionsFromText(textContent);
+    
+    // Prepare questions for insertion
+    const questionsToInsert = parsedQuestions.map(q => ({
+      topic: effectiveTopic._id,
+      topicName: effectiveTopic.name,
+      category: effectiveTopic.category,
+      campus: campus.trim(),
+      department: department.trim(),
+      questionText: q.questionText,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      difficulty: 'medium',
+      createdBy: req.user._id
+    }));
+    
+    console.log(`\n💾 [UPLOAD] Prepared ${questionsToInsert.length} questions for database insertion`);
+
+    if (questionsToInsert.length === 0) {
+      console.log('❌ [UPLOAD] No questions to insert');
+      return res.status(400).json({
+        message: 'No questions were parsed. Please check the format.',
+        errors: errors.length > 0 ? errors : ['No valid questions found in the text']
+      });
+    }
+
+    console.log(`💾 [UPLOAD] Inserting ${questionsToInsert.length} questions into database...`);
+    const inserted = await QuestionBank.insertMany(questionsToInsert, { ordered: false });
+    console.log(`✅ [UPLOAD] Successfully inserted ${inserted.length} questions`);
+    console.log(`📊 [UPLOAD] Summary: ${inserted.length} inserted, ${errors.length} errors`);
+
+    res.status(201).json({
+      message: `Bulk Word upload completed. Imported ${inserted.length} question(s).`,
+      insertedCount: inserted.length,
+      skippedCount: errors.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('❌ [UPLOAD] Bulk Word upload error:', error);
+    res.status(500).json({ message: 'Server error processing bulk Word upload' });
+  } finally {
+    if (uploadedFilePath) {
+      try {
+        fs.unlinkSync(uploadedFilePath);
+        console.log('🧹 [UPLOAD] Cleaned up uploaded file');
+      } catch (cleanupError) {
+        console.warn('⚠️ [UPLOAD] Failed to remove uploaded file:', cleanupError.message);
       }
     }
   }
@@ -712,10 +1448,58 @@ router.put('/questions/:id', authenticateToken, requireSuperAdminOrPermission('t
         (Array.isArray(correctAnswer) && correctAnswer.every(a => typeof a === 'string'));
 
       if (isIndex) {
+        // Handle both 0-indexed (0, 1, 2, 3) and 1-indexed (1, 2, 3, 4) numbers
+        // Mapping: 1-indexed -> 0-indexed
+        //   1 -> A (index 0)
+        //   2 -> B (index 1)
+        //   3 -> C (index 2)
+        //   4 -> D (index 3)
+        // Note: Frontend sends 0-indexed (0, 1, 2, 3), so we only convert when clearly 1-indexed
         const indices = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
-        if (indices.some(index => index < 0 || index >= options.length)) {
-          return res.status(400).json({ message: 'Correct answer index out of bounds' });
+        const normalizedIndices = indices.map(index => {
+          // If index equals options.length, it's definitely 1-indexed (last option)
+          // Example: index 4 with 4 options means D (1-indexed), convert to 3 (0-indexed)
+          if (index === options.length) {
+            return index - 1; // Convert 1-indexed to 0-indexed
+          }
+          
+          // If index is in valid 0-indexed range [0, options.length-1], use as-is
+          // This handles frontend sends (0, 1, 2, 3) and also 1-indexed values that
+          // are in the ambiguous range (1, 2, 3) - we'll assume they're 0-indexed
+          // to maintain compatibility with frontend
+          if (index >= 0 && index < options.length) {
+            return index;
+          }
+          
+          // If index is > options.length, it might be 1-indexed
+          // Example: index 5 with 4 options - invalid, but could be user error
+          // We'll try to convert if it's in reasonable range
+          if (index > options.length && index <= options.length + 1) {
+            // Might be 1-indexed value that's slightly out of range
+            return index - 1;
+          }
+          
+          // Invalid index - return as-is (will be caught by validation)
+          return index;
+        });
+        
+        // Validate normalized indices
+        if (normalizedIndices.some(index => index < 0 || index >= options.length)) {
+          return res.status(400).json({ 
+            message: `Correct answer index out of bounds. Valid range: 0-${options.length - 1} (0-indexed) or 1-${options.length} (1-indexed). Received: ${Array.isArray(correctAnswer) ? correctAnswer.join(', ') : correctAnswer}` 
+          });
         }
+        
+        // Update with normalized indices
+        if (Array.isArray(correctAnswer)) {
+          updates.correctAnswer = normalizedIndices;
+        } else {
+          updates.correctAnswer = normalizedIndices[0];
+        }
+        
+        const answerLetter = String.fromCharCode(65 + updates.correctAnswer);
+        const originalValue = Array.isArray(correctAnswer) ? correctAnswer.join(', ') : correctAnswer;
+        console.log(`✅ [QUESTION UPDATE] Correct answer: ${originalValue} -> ${updates.correctAnswer} (${answerLetter})`);
       } else if (isValue) {
         const values = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
         if (values.some(value => !options.includes(value))) {
@@ -753,6 +1537,46 @@ router.delete('/questions/:id', authenticateToken, requireSuperAdminOrPermission
   } catch (error) {
     console.error('Question bank delete error:', error);
     res.status(500).json({ message: 'Server error archiving question' });
+  }
+});
+
+// Bulk delete questions
+router.post('/questions/bulk-delete', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const { questionIds } = req.body;
+
+    if (!questionIds || !Array.isArray(questionIds) || questionIds.length === 0) {
+      return res.status(400).json({ message: 'Please provide an array of question IDs to delete' });
+    }
+
+    // Validate all IDs are valid MongoDB ObjectIds
+    const validIds = questionIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+    
+    if (validIds.length === 0) {
+      return res.status(400).json({ message: 'No valid question IDs provided' });
+    }
+
+    if (validIds.length !== questionIds.length) {
+      console.warn(`⚠️ [BULK DELETE] Some invalid IDs were filtered out: ${questionIds.length - validIds.length} invalid IDs`);
+    }
+
+    // Update all questions to set isActive to false (soft delete)
+    const result = await QuestionBank.updateMany(
+      { _id: { $in: validIds } },
+      { $set: { isActive: false } }
+    );
+
+    console.log(`✅ [BULK DELETE] Archived ${result.modifiedCount} question(s) out of ${validIds.length} requested`);
+
+    res.json({ 
+      message: `${result.modifiedCount} question(s) archived successfully`,
+      deletedCount: result.modifiedCount,
+      requestedCount: questionIds.length,
+      validCount: validIds.length
+    });
+  } catch (error) {
+    console.error('Bulk delete questions error:', error);
+    res.status(500).json({ message: 'Server error archiving questions' });
   }
 });
 

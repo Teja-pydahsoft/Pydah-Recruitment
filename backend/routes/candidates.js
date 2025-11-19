@@ -203,6 +203,119 @@ router.get('/', authenticateToken, requireSuperAdminOrPermission('candidates.man
   }
 });
 
+// Generate PDF for single candidate (must be before /:id route)
+router.get('/:id/pdf', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.params.id)
+      .populate('user', 'name email profile')
+      .populate('form', 'title position department campus')
+      .populate('testResults.test', 'title')
+      .populate('interviewFeedback.interview', 'title round type')
+      .populate('interviewFeedback.panelMember', 'name email');
+
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    // Use pdfkit for PDF generation
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ margin: 50 });
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=candidate_${candidate.user?.name || candidate._id}.pdf`);
+    
+    doc.pipe(res);
+    
+    // Header
+    doc.fontSize(20).text('Candidate Profile', { align: 'center' });
+    doc.moveDown();
+    
+    // Personal Information
+    doc.fontSize(16).text('Personal Information', { underline: true });
+    doc.fontSize(12);
+    doc.text(`Name: ${candidate.personalDetails?.name || candidate.user?.name || 'N/A'}`);
+    doc.text(`Email: ${candidate.personalDetails?.email || candidate.user?.email || 'N/A'}`);
+    doc.text(`Phone: ${candidate.personalDetails?.phone || candidate.user?.profile?.phone || 'N/A'}`);
+    doc.moveDown();
+    
+    // Application Details
+    doc.fontSize(16).text('Application Details', { underline: true });
+    doc.fontSize(12);
+    doc.text(`Position: ${candidate.form?.position || candidate.form?.title || 'N/A'}`);
+    doc.text(`Department: ${candidate.form?.department || 'N/A'}`);
+    doc.text(`Campus: ${candidate.form?.campus || 'N/A'}`);
+    doc.text(`Status: ${candidate.status || 'N/A'}`);
+    doc.moveDown();
+    
+    // Application Data
+    const appData = candidate.applicationData instanceof Map 
+      ? Object.fromEntries(candidate.applicationData)
+      : candidate.applicationData || {};
+    
+    if (Object.keys(appData).length > 0) {
+      doc.fontSize(16).text('Application Form Data', { underline: true });
+      doc.fontSize(12);
+      Object.entries(appData).forEach(([key, value]) => {
+        if (key !== 'passportPhoto' && typeof value !== 'object' && value !== null && value !== '') {
+          const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+          const displayValue = String(value).substring(0, 100); // Limit length
+          doc.text(`${displayKey}: ${displayValue}`);
+        }
+      });
+      doc.moveDown();
+    }
+    
+    // Test Results
+    if (candidate.testResults && candidate.testResults.length > 0) {
+      doc.fontSize(16).text('Test Results', { underline: true });
+      doc.fontSize(12);
+      candidate.testResults.forEach((test, index) => {
+        doc.text(`${index + 1}. ${test.test?.title || 'Test'}: ${test.percentage || 0}% (${test.status || 'N/A'})`);
+      });
+      doc.moveDown();
+    }
+    
+    // Interview Feedback
+    if (candidate.interviewFeedback && candidate.interviewFeedback.length > 0) {
+      doc.fontSize(16).text('Interview Feedback', { underline: true });
+      doc.fontSize(12);
+      candidate.interviewFeedback.forEach((feedback, index) => {
+        doc.text(`${index + 1}. ${feedback.interview?.title || 'Interview'}`);
+        doc.text(`   Round: ${feedback.interview?.round || 'N/A'}, Type: ${feedback.interview?.type || 'N/A'}`);
+        if (feedback.ratings?.overallRating) {
+          doc.text(`   Overall Rating: ${feedback.ratings.overallRating}`);
+        }
+        if (feedback.recommendation) {
+          doc.text(`   Recommendation: ${feedback.recommendation}`);
+        }
+        doc.moveDown(0.5);
+      });
+      doc.moveDown();
+    }
+    
+    // Final Decision
+    if (candidate.finalDecision) {
+      doc.fontSize(16).text('Final Decision', { underline: true });
+      doc.fontSize(12);
+      doc.text(`Decision: ${candidate.finalDecision.decision || 'N/A'}`);
+      doc.text(`Notes: ${candidate.finalDecision.notes || 'N/A'}`);
+      if (candidate.finalDecision.bond) {
+        doc.text(`Bond: ${candidate.finalDecision.bond}`);
+        doc.text(`Conditions: ${candidate.finalDecision.conditions}`);
+        doc.text(`Salary: ${candidate.finalDecision.salary}`);
+        doc.text(`Designation: ${candidate.finalDecision.designation}`);
+      }
+      doc.text(`Decided At: ${candidate.finalDecision.decidedAt ? new Date(candidate.finalDecision.decidedAt).toLocaleString() : 'N/A'}`);
+      doc.moveDown();
+    }
+    
+    doc.end();
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    res.status(500).json({ message: 'Failed to generate PDF' });
+  }
+});
+
 // Get candidate by ID with full profile (Super Admin and the candidate themselves)
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
@@ -771,7 +884,24 @@ router.put('/:id/status', authenticateToken, requireSuperAdminOrWritePermission(
 // Set final decision (Super Admin only)
 router.put('/:id/final-decision', authenticateToken, requireSuperAdminOrWritePermission('candidates.manage'), async (req, res) => {
   try {
-    const { decision, notes } = req.body;
+    const { decision, notes, finalizationData } = req.body;
+    
+    // Validate notes for non-finalization decisions
+    if (decision !== 'selected' && !notes?.trim()) {
+      return res.status(400).json({ message: 'Note is mandatory when promoting candidate to next step' });
+    }
+    
+    // Validate finalization data for selected decision
+    if (decision === 'selected') {
+      if (!finalizationData || !finalizationData.bond?.trim() || !finalizationData.conditions?.trim() || 
+          !finalizationData.salary?.trim() || !finalizationData.designation?.trim()) {
+        return res.status(400).json({ message: 'All finalization fields (Bond, Conditions, Salary, Designation) are required' });
+      }
+      if (!notes?.trim()) {
+        return res.status(400).json({ message: 'Notes are required for finalization' });
+      }
+    }
+    
     const candidate = await Candidate.findById(req.params.id);
 
     if (!candidate) {
@@ -780,9 +910,15 @@ router.put('/:id/final-decision', authenticateToken, requireSuperAdminOrWritePer
 
     candidate.finalDecision = {
       decision,
-      notes,
+      notes: notes || '',
       decidedBy: req.user._id,
-      decidedAt: new Date()
+      decidedAt: new Date(),
+      ...(decision === 'selected' && finalizationData ? {
+        bond: finalizationData.bond,
+        conditions: finalizationData.conditions,
+        salary: finalizationData.salary,
+        designation: finalizationData.designation
+      } : {})
     };
 
     // Update candidate status based on final decision

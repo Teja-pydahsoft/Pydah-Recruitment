@@ -28,6 +28,7 @@ app.use('/api/forms', require('./routes/forms'));
 app.use('/api/tests', require('./routes/tests'));
 app.use('/api/interviews', require('./routes/interviews'));
 app.use('/api/candidates', require('./routes/candidates'));
+app.use('/api/courses', require('./routes/courses'));
 app.use('/api/settings', require('./routes/settings'));
 
 // Health check endpoint

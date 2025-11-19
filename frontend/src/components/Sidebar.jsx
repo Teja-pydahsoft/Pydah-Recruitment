@@ -555,11 +555,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const navigationItems = {
     super_admin: [
       { path: '/super-admin', icon: FaUserTie, label: 'Dashboard' },
-      { path: '/super-admin/creation', icon: FaFileAlt, label: 'Form Creation' },
-      { path: '/super-admin/submissions', icon: FaFileAlt, label: 'Form Submissions' },
+      { path: '/super-admin/creation', icon: FaFileAlt, label: 'Candidate Application' },
+      { path: '/super-admin/submissions', icon: FaFileAlt, label: 'Application Submissions' },
       { path: '/super-admin/tests', icon: FaClipboardList, label: 'Test Management' },
       { path: '/super-admin/users', icon: FaUserTie, label: 'Panel Members' },
       { path: '/super-admin/sub-admins', icon: FaUserShield, label: 'User Management' },
+      { path: '/super-admin/courses', icon: FaCog, label: 'Departments' },
       { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management' },
       { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
       { path: '/super-admin/settings', icon: FaCog, label: 'Notifications' },

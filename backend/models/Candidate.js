@@ -118,6 +118,10 @@ const candidateSchema = new mongoose.Schema({
       enum: ['selected', 'rejected', 'on_hold']
     },
     notes: String,
+    bond: String,
+    conditions: String,
+    salary: String,
+    designation: String,
     decidedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'

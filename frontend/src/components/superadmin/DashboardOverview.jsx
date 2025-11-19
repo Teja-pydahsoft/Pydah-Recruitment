@@ -44,18 +44,7 @@ const STAGE_META = {
   rejected: { label: 'Rejected', color: '#dc2626' }
 };
 
-const STAGE_ORDER = [
-  'application_review',
-  'awaiting_test_assignment',
-  'test_assigned',
-  'test_in_progress',
-  'awaiting_interview',
-  'interview_scheduled',
-  'awaiting_decision',
-  'on_hold',
-  'selected',
-  'rejected'
-];
+// STAGE_ORDER removed - no longer used after dashboard redesign
 
 const STATUS_VARIANTS = {
   selected: 'success',
@@ -324,34 +313,6 @@ const SectionSubtitle = styled.p`
   color: #64748b;
 `;
 
-const StageRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-`;
-
-const StageInfo = styled.div`
-  min-width: 160px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-`;
-
-const StageLabel = styled.span`
-  font-weight: 600;
-  color: #1e293b;
-`;
-
-const StageCount = styled.span`
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #0f172a;
-`;
-
-const StageProgress = styled.div`
-  flex: 1;
-`;
-
 const ProgressTrack = styled.div`
   height: 8px;
   background: #e2e8f0;
@@ -365,13 +326,6 @@ const ProgressFill = styled.div`
   background: ${({ $color }) => $color || '#2563eb'};
   border-radius: inherit;
   transition: width 0.4s ease;
-`;
-
-const StageFooter = styled.div`
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: #94a3b8;
-  font-weight: 500;
 `;
 
 const VacancySummary = styled.div`
@@ -594,6 +548,24 @@ const DashboardOverview = () => {
       const activeForms = candidateForms.filter((form) => form.isActive !== false).length;
       const totalForms = candidateForms.length;
 
+      // Group by campus and department for dashboard
+      const campusDeptStats = {};
+      candidateForms.forEach(form => {
+        const campus = form.campus || 'Not Set';
+        const dept = form.department || 'Not Set';
+        const key = `${campus}::${dept}`;
+        if (!campusDeptStats[key]) {
+          campusDeptStats[key] = {
+            campus,
+            department: dept,
+            posted: 0,
+            finalized: 0
+          };
+        }
+        campusDeptStats[key].posted += toNumber(form.vacancies);
+        campusDeptStats[key].finalized += toNumber(form.filledVacancies);
+      });
+
       const totalVacancies = candidateForms.reduce((sum, form) => sum + toNumber(form.vacancies), 0);
       const filledVacancies = candidateForms.reduce((sum, form) => sum + toNumber(form.filledVacancies), 0);
       const remainingVacancies = Math.max(totalVacancies - filledVacancies, 0);
@@ -605,11 +577,7 @@ const DashboardOverview = () => {
         return acc;
       }, {});
 
-      const pipelineStages = candidates.reduce((acc, candidate) => {
-        const stage = candidate.workflow?.stage || 'application_review';
-        acc[stage] = (acc[stage] || 0) + 1;
-        return acc;
-      }, {});
+      // pipelineStages removed - no longer used after dashboard redesign
 
       const totalCandidates = candidates.length;
       const selectedCount = statusCounts.selected || 0;
@@ -741,7 +709,6 @@ const DashboardOverview = () => {
 
       setDashboardData({
         stats,
-        pipelineStages,
         statusCounts,
         recentCandidates,
         upcomingInterviews,
@@ -754,7 +721,8 @@ const DashboardOverview = () => {
           topOpenRoles
         },
         lastUpdated: new Date(),
-        totalCandidates
+        totalCandidates,
+        candidateForms
       });
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -806,7 +774,7 @@ const DashboardOverview = () => {
     );
   }
 
-  const { stats, pipelineStages, statusCounts, recentCandidates, upcomingInterviews, formsClosingSoon, vacancyOverview, lastUpdated, totalCandidates } =
+  const { stats, recentCandidates, upcomingInterviews, formsClosingSoon, vacancyOverview, lastUpdated, totalCandidates, candidateForms } =
     dashboardData;
 
   const selectedPercent =
@@ -855,16 +823,7 @@ const DashboardOverview = () => {
     }
   ];
 
-  const pipelineEntries = STAGE_ORDER
-    .map((stage) => ({
-      stage,
-      label: getStageMeta(stage).label,
-      color: getStageMeta(stage).color,
-      count: pipelineStages[stage] || 0
-    }))
-    .filter((entry) => entry.count > 0);
-
-  const pipelineTotal = pipelineEntries.reduce((sum, entry) => sum + entry.count, 0) || totalCandidates;
+  // Pipeline entries removed - no longer used after dashboard redesign
 
   return (
     <OverviewContainer>
@@ -900,67 +859,76 @@ const DashboardOverview = () => {
 
         <InsightGrid>
           <SectionCard>
-            <SectionTitle>Pipeline Health</SectionTitle>
-            <SectionSubtitle>Where candidates are right now.</SectionSubtitle>
-            {pipelineEntries.length === 0 ? (
-              <EmptyState>No candidates in pipeline yet.</EmptyState>
-            ) : (
-              pipelineEntries.map((entry) => (
-                <StageRow key={entry.stage}>
-                  <StageInfo>
-                    <StageLabel>{entry.label}</StageLabel>
-                    <StageCount>{formatCount(entry.count)}</StageCount>
-                  </StageInfo>
-                  <StageProgress>
-                    <ProgressTrack>
-                      <ProgressFill
-                        $value={pipelineTotal ? (entry.count / pipelineTotal) * 100 : 0}
-                        $color={entry.color}
-                      />
-                    </ProgressTrack>
-                  </StageProgress>
-                </StageRow>
-              ))
-            )}
-            <StageFooter>
-              {`${formatCount(totalCandidates)} total candidates • ${formatCount(statusCounts.on_hold || 0)} on hold • ${formatCount(
-                statusCounts.rejected || 0
-              )} rejected • ${formatCount(stats.testsCount)} assessments live`}
-            </StageFooter>
+            <SectionTitle>Job Applications by Campus & Department</SectionTitle>
+            <SectionSubtitle>Active positions and finalized candidates.</SectionSubtitle>
+            {(() => {
+              // Group forms by campus and department
+              const campusDeptMap = {};
+              candidateForms.forEach(form => {
+                const campus = form.campus || 'Not Set';
+                const dept = form.department || 'Not Set';
+                const key = `${campus}::${dept}`;
+                if (!campusDeptMap[key]) {
+                  campusDeptMap[key] = {
+                    campus,
+                    department: dept,
+                    posted: 0,
+                    finalized: 0,
+                    forms: []
+                  };
+                }
+                campusDeptMap[key].posted += toNumber(form.vacancies);
+                campusDeptMap[key].finalized += toNumber(form.filledVacancies);
+                campusDeptMap[key].forms.push(form);
+              });
+
+              const campusDeptList = Object.values(campusDeptMap).sort((a, b) => {
+                if (a.campus !== b.campus) return a.campus.localeCompare(b.campus);
+                return a.department.localeCompare(b.department);
+              });
+
+              if (campusDeptList.length === 0) {
+                return <EmptyState>No job applications posted yet.</EmptyState>;
+              }
+
+              return (
+                <List>
+                  {campusDeptList.map((item, idx) => (
+                    <ListItem key={idx}>
+                      <ListItemContent>
+                        <ListItemTitle>{item.campus} - {item.department}</ListItemTitle>
+                        <ListItemSub>
+                          {formatCount(item.posted)} vacancies posted • {formatCount(item.finalized)} finalized
+                        </ListItemSub>
+                      </ListItemContent>
+                      <ListItemAside>
+                        <Chip $variant="success">{formatCount(item.finalized)}</Chip>
+                        <SmallText>of {formatCount(item.posted)}</SmallText>
+                      </ListItemAside>
+                    </ListItem>
+                  ))}
+                </List>
+              );
+            })()}
           </SectionCard>
 
           <SectionCard>
-            <SectionTitle>Vacancy Tracker</SectionTitle>
-            <SectionSubtitle>Progress against approved headcount.</SectionSubtitle>
+            <SectionTitle>Vacancy Summary</SectionTitle>
+            <SectionSubtitle>Overall recruitment progress.</SectionSubtitle>
             <VacancySummary>
-              <VacancyNumber>{formatCount(vacancyOverview.remainingVacancies)}</VacancyNumber>
+              <VacancyNumber>{formatCount(vacancyOverview.filledVacancies)}</VacancyNumber>
               <VacancyMeta>
-                remaining of {formatCount(vacancyOverview.totalVacancies)} planned openings
+                finalized of {formatCount(vacancyOverview.totalVacancies)} posted
               </VacancyMeta>
             </VacancySummary>
             <ProgressTrack>
               <ProgressFill $value={vacancyOverview.fillRate} $color="#10b981" />
             </ProgressTrack>
-            <SmallText>{vacancyOverview.fillRate}% of planned hires completed</SmallText>
-            <VacancyListTitle>Top Open Roles</VacancyListTitle>
-            {vacancyOverview.topOpenRoles.length === 0 ? (
-              <EmptyState>All vacancies filled for active forms.</EmptyState>
-            ) : (
-              <List>
-                {vacancyOverview.topOpenRoles.map((role) => (
-                  <ListItem key={role.id}>
-                    <ListItemContent>
-                      <ListItemTitle>{role.title}</ListItemTitle>
-                      <ListItemSub>{role.department || 'Department not set'}</ListItemSub>
-                    </ListItemContent>
-                    <ListItemAside>
-                      <Chip $variant="warning">{formatCount(role.remaining)} open</Chip>
-                      {role.daysLeft !== null && <SmallText>{formatDaysRemaining(role.daysLeft)}</SmallText>}
-                    </ListItemAside>
-                  </ListItem>
-                ))}
-              </List>
-            )}
+            <SmallText>{vacancyOverview.fillRate}% completion rate</SmallText>
+            <VacancyListTitle>Remaining Vacancies</VacancyListTitle>
+            <VacancyNumber style={{ fontSize: '2rem', color: '#b45309' }}>
+              {formatCount(vacancyOverview.remainingVacancies)}
+            </VacancyNumber>
           </SectionCard>
         </InsightGrid>
 

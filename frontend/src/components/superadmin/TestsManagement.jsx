@@ -80,10 +80,39 @@ const TestsManagement = () => {
   const [questionForm, setQuestionForm] = useState(defaultQuestionForm);
   const [questionSaving, setQuestionSaving] = useState(false);
   const [questionModalVisible, setQuestionModalVisible] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
+  const [selectedQuestions, setSelectedQuestions] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkModalVisible, setBulkModalVisible] = useState(false);
-  const [bulkUploadState, setBulkUploadState] = useState({ file: null });
+  const [bulkTextModalVisible, setBulkTextModalVisible] = useState(false);
+  const [bulkUploadState, setBulkUploadState] = useState({ 
+    file: null,
+    campus: '',
+    department: '',
+    topicOption: 'none', // 'none', 'existing', or 'new'
+    topicId: '',
+    newTopicName: '',
+    category: 'teaching'
+  });
+  const [bulkTextUploadState, setBulkTextUploadState] = useState({
+    file: null,
+    campus: '',
+    department: '',
+    topicOption: 'none',
+    topicId: '',
+    newTopicName: '',
+    category: 'teaching'
+  });
   const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkTextUploading, setBulkTextUploading] = useState(false);
   const [templateDownloading, setTemplateDownloading] = useState(false);
+  const [bulkDepartments, setBulkDepartments] = useState([]);
+  const [bulkDepartmentsLoading, setBulkDepartmentsLoading] = useState(false);
+  const [bulkTextDepartments, setBulkTextDepartments] = useState([]);
+  const [bulkTextDepartmentsLoading, setBulkTextDepartmentsLoading] = useState(false);
+  const [previewQuestions, setPreviewQuestions] = useState([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const [candidates, setCandidates] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
@@ -519,6 +548,74 @@ const TestsManagement = () => {
     }
   };
 
+  const fetchBulkDepartments = async (campus) => {
+    if (!campus) {
+      setBulkDepartments([]);
+      return;
+    }
+    setBulkDepartmentsLoading(true);
+    try {
+      const response = await api.get(`/courses/departments/${campus}`);
+      // API returns array of department strings, convert to array format
+      const deptArray = response.data.departments || [];
+      setBulkDepartments(deptArray);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setBulkDepartments([]);
+    } finally {
+      setBulkDepartmentsLoading(false);
+    }
+  };
+
+  const fetchBulkTextDepartments = async (campus) => {
+    if (!campus) {
+      setBulkTextDepartments([]);
+      return;
+    }
+    setBulkTextDepartmentsLoading(true);
+    try {
+      const response = await api.get(`/courses/departments/${campus}`);
+      const deptArray = response.data.departments || [];
+      setBulkTextDepartments(deptArray);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setBulkTextDepartments([]);
+    } finally {
+      setBulkTextDepartmentsLoading(false);
+    }
+  };
+
+  const handlePreviewQuestions = async () => {
+    if (!bulkTextUploadState.file) {
+      setToast({ type: 'danger', message: 'Please select a Word file first.' });
+      return;
+    }
+    setPreviewLoading(true);
+    setShowPreview(false);
+    try {
+      const formData = new FormData();
+      formData.append('file', bulkTextUploadState.file);
+      const response = await api.post('/tests/questions/preview-word', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setPreviewQuestions(response.data.questions || []);
+      setShowPreview(true);
+      if (response.data.errors && response.data.errors.length > 0) {
+        setToast({ type: 'warning', message: `Preview generated with ${response.data.errors.length} error(s). Check preview below.` });
+      } else {
+        setToast({ type: 'success', message: `Preview: ${response.data.questions?.length || 0} question(s) parsed successfully.` });
+      }
+    } catch (error) {
+      console.error('Preview error:', error);
+      const message = error.response?.data?.message || 'Failed to preview questions.';
+      setToast({ type: 'danger', message });
+      setPreviewQuestions([]);
+      setShowPreview(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const fetchQuestions = useCallback(async () => {
     setQuestionLoading(true);
     try {
@@ -546,6 +643,8 @@ const TestsManagement = () => {
   useEffect(() => {
     if (activeTab === 'questionBank') {
       fetchQuestions();
+      // Clear selections when filters change
+      setSelectedQuestions([]);
     }
   }, [activeTab, fetchQuestions]);
 
@@ -684,6 +783,23 @@ const TestsManagement = () => {
     });
   };
 
+  const handleEditQuestion = (question) => {
+    setEditingQuestionId(question._id);
+    setQuestionForm({
+      topicId: question.topic?._id || question.topic || '',
+      subTopic: question.subTopic || '',
+      questionText: question.questionText || '',
+      options: question.options && question.options.length > 0 
+        ? question.options 
+        : ['', ''],
+      correctAnswer: question.correctAnswer !== undefined && question.correctAnswer !== null 
+        ? question.correctAnswer 
+        : 0,
+      difficulty: question.difficulty || 'medium'
+    });
+    setQuestionModalVisible(true);
+  };
+
   const handleQuestionSave = async (event) => {
     event.preventDefault();
 
@@ -719,9 +835,18 @@ const TestsManagement = () => {
         return;
       }
 
-      await api.post('/tests/questions', payload);
-      setToast({ type: 'success', message: 'Question added to the bank.' });
+      if (editingQuestionId) {
+        // Update existing question
+        await api.put(`/tests/questions/${editingQuestionId}`, payload);
+        setToast({ type: 'success', message: 'Question updated successfully.' });
+      } else {
+        // Create new question
+        await api.post('/tests/questions', payload);
+        setToast({ type: 'success', message: 'Question added to the bank.' });
+      }
+      
       setQuestionForm(defaultQuestionForm);
+      setEditingQuestionId(null);
       fetchQuestions();
       fetchTopics();
       setQuestionModalVisible(false);
@@ -743,9 +868,56 @@ const TestsManagement = () => {
       fetchQuestions();
       fetchTopics();
       setToast({ type: 'success', message: 'Question removed from the bank.' });
+      // Remove from selected if it was selected
+      setSelectedQuestions(prev => prev.filter(id => id !== questionId));
     } catch (error) {
       console.error('Question delete error:', error);
       setToast({ type: 'danger', message: 'Unable to remove question.' });
+    }
+  };
+
+  const handleBulkDeleteQuestions = async () => {
+    if (selectedQuestions.length === 0) {
+      setToast({ type: 'warning', message: 'Please select at least one question to delete.' });
+      return;
+    }
+
+    const confirmMessage = `Are you sure you want to delete ${selectedQuestions.length} question(s)? This action cannot be undone.`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      await api.post('/tests/questions/bulk-delete', { questionIds: selectedQuestions });
+      setToast({ type: 'success', message: `${selectedQuestions.length} question(s) deleted successfully.` });
+      setSelectedQuestions([]);
+      fetchQuestions();
+      fetchTopics();
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      const message = error.response?.data?.message || 'Unable to delete questions. Please try again.';
+      setToast({ type: 'danger', message });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleSelectQuestion = (questionId) => {
+    setSelectedQuestions(prev => {
+      if (prev.includes(questionId)) {
+        return prev.filter(id => id !== questionId);
+      } else {
+        return [...prev, questionId];
+      }
+    });
+  };
+
+  const handleSelectAllQuestions = () => {
+    if (selectedQuestions.length === questions.length) {
+      setSelectedQuestions([]);
+    } else {
+      setSelectedQuestions(questions.map(q => q._id));
     }
   };
 
@@ -1650,11 +1822,38 @@ const TestsManagement = () => {
                 variant="outline-primary"
                 size="sm"
                 onClick={() => {
-                  setBulkUploadState({ file: null });
+                  setBulkUploadState({ 
+                    file: null,
+                    campus: '',
+                    department: '',
+                    topicOption: 'none',
+                    topicId: '',
+                    newTopicName: '',
+                    category: 'teaching'
+                  });
                   setBulkModalVisible(true);
                 }}
               >
                 <FaUpload className="me-2" />Bulk Upload (Excel)
+              </Button>
+              <Button
+                variant="outline-success"
+                size="sm"
+                className="ms-2"
+                onClick={() => {
+                  setBulkTextUploadState({
+                    file: null,
+                    campus: '',
+                    department: '',
+                    topicOption: 'none',
+                    topicId: '',
+                    newTopicName: '',
+                    category: 'teaching'
+                  });
+                  setBulkTextModalVisible(true);
+                }}
+              >
+                <FaUpload className="me-2" />Bulk Upload (Word)
               </Button>
               <Button
                 variant="primary"
@@ -1688,28 +1887,58 @@ const TestsManagement = () => {
                     </h5>
                     <small style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem' }}>
                       Curated MCQs grouped by topics
+                      {selectedQuestions.length > 0 && (
+                        <span className="ms-2">({selectedQuestions.length} selected)</span>
+                      )}
                     </small>
                   </div>
-                  <Button 
-                    variant="light" 
-                    size="sm" 
-                    onClick={fetchQuestions}
-                    style={{ 
-                      borderRadius: '6px',
-                      fontWeight: '500',
-                      transition: 'all 0.3s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <FaSync className="me-2" />Refresh
-                  </Button>
+                  <div className="d-flex gap-2">
+                    {selectedQuestions.length > 0 && (
+                      <Button 
+                        variant="danger" 
+                        size="sm" 
+                        onClick={handleBulkDeleteQuestions}
+                        disabled={bulkDeleting}
+                        style={{ 
+                          borderRadius: '6px',
+                          fontWeight: '500',
+                          transition: 'all 0.3s'
+                        }}
+                      >
+                        {bulkDeleting ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="me-2" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <FaTrash className="me-2" />
+                            Delete Selected ({selectedQuestions.length})
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    <Button 
+                      variant="light" 
+                      size="sm" 
+                      onClick={fetchQuestions}
+                      style={{ 
+                        borderRadius: '6px',
+                        fontWeight: '500',
+                        transition: 'all 0.3s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <FaSync className="me-2" />Refresh
+                    </Button>
+                  </div>
                 </Card.Header>
                 <Card.Body style={{ maxHeight: '500px', overflowY: 'auto', padding: '1.25rem', background: '#ffffff' }}>
                   {questionLoading ? (
@@ -1722,32 +1951,92 @@ const TestsManagement = () => {
                     <Table responsive bordered hover size="sm" className="align-middle">
                       <thead>
                         <tr>
+                          <th style={{ width: '40px' }}>
+                            <Form.Check
+                              type="checkbox"
+                              checked={questions.length > 0 && selectedQuestions.length === questions.length}
+                              onChange={handleSelectAllQuestions}
+                              title="Select All"
+                            />
+                          </th>
                           <th>Question</th>
                           <th>Topic</th>
+                          <th>Correct Answer</th>
                           <th className="text-end">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {questions.map(question => (
-                          <tr key={question._id}>
-                            <td style={{ maxWidth: '320px' }}>
-                              <div style={{ whiteSpace: 'pre-wrap' }}>{question.questionText}</div>
-                              <small className="text-muted">
-                                {question.options?.map((option, index) => (
-                                  <div key={index}>
-                                    <strong>{String.fromCharCode(65 + index)}.</strong> {option}
+                        {questions.map(question => {
+                          const correctAnswerIndex = question.correctAnswer !== undefined && question.correctAnswer !== null 
+                            ? question.correctAnswer 
+                            : null;
+                          const correctAnswerLetter = correctAnswerIndex !== null 
+                            ? String.fromCharCode(65 + correctAnswerIndex) 
+                            : '—';
+                          const correctAnswerText = correctAnswerIndex !== null && question.options?.[correctAnswerIndex]
+                            ? question.options[correctAnswerIndex]
+                            : '';
+                          const isSelected = selectedQuestions.includes(question._id);
+                          
+                          return (
+                            <tr key={question._id} className={isSelected ? 'table-active' : ''}>
+                              <td>
+                                <Form.Check
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleSelectQuestion(question._id)}
+                                  title="Select Question"
+                                />
+                              </td>
+                              <td style={{ maxWidth: '320px' }}>
+                                <div style={{ whiteSpace: 'pre-wrap' }}>{question.questionText}</div>
+                                <small className="text-muted">
+                                  {question.options?.map((option, index) => (
+                                    <div key={index}>
+                                      <strong>{String.fromCharCode(65 + index)}.</strong> {option}
+                                    </div>
+                                  ))}
+                                </small>
+                              </td>
+                              <td>{question.topicName || getTopicById(question.topic)?.name || '—'}</td>
+                              <td>
+                                {correctAnswerIndex !== null ? (
+                                  <div>
+                                    <Badge bg="success" className="me-1">
+                                      {correctAnswerLetter}
+                                    </Badge>
+                                    <small className="text-muted">
+                                      {correctAnswerText.length > 30 
+                                        ? `${correctAnswerText.substring(0, 30)}...` 
+                                        : correctAnswerText}
+                                    </small>
                                   </div>
-                                ))}
-                              </small>
-                            </td>
-                            <td>{question.topicName || getTopicById(question.topic)?.name || '—'}</td>
-                            <td className="text-end">
-                              <Button variant="outline-danger" size="sm" onClick={() => handleDeleteQuestion(question._id)}>
-                                <FaTrash />
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
+                                ) : (
+                                  <Badge bg="secondary">Not Set</Badge>
+                                )}
+                              </td>
+                              <td className="text-end">
+                                <Button 
+                                  variant="outline-primary" 
+                                  size="sm" 
+                                  className="me-2"
+                                  onClick={() => handleEditQuestion(question)}
+                                  title="Edit Question"
+                                >
+                                  <FaEdit />
+                                </Button>
+                                <Button 
+                                  variant="outline-danger" 
+                                  size="sm" 
+                                  onClick={() => handleDeleteQuestion(question._id)}
+                                  title="Delete Question"
+                                >
+                                  <FaTrash />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </Table>
                   )}
@@ -2326,12 +2615,13 @@ const TestsManagement = () => {
           if (!questionSaving) {
             setQuestionModalVisible(false);
             setQuestionForm(defaultQuestionForm);
+            setEditingQuestionId(null);
           }
         }}
         centered
       >
         <Modal.Header closeButton>
-          <Modal.Title>Add MCQ</Modal.Title>
+          <Modal.Title>{editingQuestionId ? 'Edit MCQ' : 'Add MCQ'}</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleQuestionSave}>
           <Modal.Body>
@@ -2426,14 +2716,15 @@ const TestsManagement = () => {
               onClick={() => {
                 setQuestionModalVisible(false);
                 setQuestionForm(defaultQuestionForm);
+                setEditingQuestionId(null);
               }}
               disabled={questionSaving}
             >
               Cancel
             </Button>
             <Button type="submit" disabled={questionSaving}>
-              {questionSaving ? <Spinner animation="border" size="sm" className="me-2" /> : <FaPlus className="me-2" />}
-              {questionSaving ? 'Saving...' : 'Add Question'}
+              {questionSaving ? <Spinner animation="border" size="sm" className="me-2" /> : <FaCheckCircle className="me-2" />}
+              {questionSaving ? 'Saving...' : editingQuestionId ? 'Update Question' : 'Add Question'}
             </Button>
           </Modal.Footer>
         </Form>
@@ -2445,10 +2736,20 @@ const TestsManagement = () => {
         onHide={() => {
           if (!bulkUploading) {
             setBulkModalVisible(false);
-            setBulkUploadState({ file: null });
+            setBulkUploadState({ 
+              file: null,
+              campus: '',
+              department: '',
+              topicOption: 'existing',
+              topicId: '',
+              newTopicName: '',
+              category: 'teaching'
+            });
+            setBulkDepartments([]);
           }
         }}
         centered
+        size="lg"
       >
         <Modal.Header closeButton>
           <Modal.Title>Bulk Upload MCQs</Modal.Title>
@@ -2460,16 +2761,51 @@ const TestsManagement = () => {
               setToast({ type: 'danger', message: 'Please select an Excel file to upload.' });
               return;
             }
+            if (!bulkUploadState.campus) {
+              setToast({ type: 'danger', message: 'Please select a campus.' });
+              return;
+            }
+            if (!bulkUploadState.department) {
+              setToast({ type: 'danger', message: 'Please select a department.' });
+              return;
+            }
+            // Topic is optional - validate only if user selected to use a topic
+            if (bulkUploadState.topicOption === 'existing' && !bulkUploadState.topicId) {
+              setToast({ type: 'danger', message: 'Please select a topic or choose a different option.' });
+              return;
+            }
+            if (bulkUploadState.topicOption === 'new' && !bulkUploadState.newTopicName.trim()) {
+              setToast({ type: 'danger', message: 'Please enter a topic name.' });
+              return;
+            }
             setBulkUploading(true);
             try {
               const formData = new FormData();
               formData.append('file', bulkUploadState.file);
+              formData.append('campus', bulkUploadState.campus);
+              formData.append('department', bulkUploadState.department);
+              formData.append('category', bulkUploadState.category);
+              // Topic is optional
+              if (bulkUploadState.topicOption === 'existing' && bulkUploadState.topicId) {
+                formData.append('topicId', bulkUploadState.topicId);
+              } else if (bulkUploadState.topicOption === 'new' && bulkUploadState.newTopicName.trim()) {
+                formData.append('newTopicName', bulkUploadState.newTopicName.trim());
+              }
               const response = await api.post('/tests/questions/bulk-upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
               });
               const { message } = response.data || {};
               setToast({ type: 'success', message: message || 'Questions uploaded successfully.' });
-              setBulkUploadState({ file: null });
+              setBulkUploadState({ 
+                file: null,
+                campus: '',
+                department: '',
+                topicOption: 'none',
+                topicId: '',
+                newTopicName: '',
+                category: 'teaching'
+              });
+              setBulkDepartments([]);
               setBulkModalVisible(false);
               fetchQuestions();
               fetchTopics();
@@ -2508,6 +2844,121 @@ const TestsManagement = () => {
                 )}
               </Button>
             </div>
+            
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Campus<span className="text-danger">*</span></Form.Label>
+                  <Form.Select
+                    value={bulkUploadState.campus}
+                    onChange={(e) => {
+                      const campus = e.target.value;
+                      setBulkUploadState(prev => ({ ...prev, campus, department: '' }));
+                      fetchBulkDepartments(campus);
+                    }}
+                    required
+                  >
+                    <option value="">Select Campus</option>
+                    <option value="Btech">Btech</option>
+                    <option value="Degree">Degree</option>
+                    <option value="Pharmacy">Pharmacy</option>
+                    <option value="Diploma">Diploma</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Department<span className="text-danger">*</span></Form.Label>
+                  <Form.Select
+                    value={bulkUploadState.department}
+                    onChange={(e) => setBulkUploadState(prev => ({ ...prev, department: e.target.value }))}
+                    required
+                    disabled={!bulkUploadState.campus || bulkDepartmentsLoading}
+                  >
+                    <option value="">
+                      {bulkDepartmentsLoading ? 'Loading...' : bulkUploadState.campus ? 'Select Department' : 'Select Campus first'}
+                    </option>
+                    {bulkDepartments.map((dept, index) => (
+                      <option key={index} value={typeof dept === 'string' ? dept : dept.department}>
+                        {typeof dept === 'string' ? dept : dept.department}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Category<span className="text-danger">*</span></Form.Label>
+              <Form.Select
+                value={bulkUploadState.category}
+                onChange={(e) => setBulkUploadState(prev => ({ ...prev, category: e.target.value, topicId: '' }))}
+                required
+              >
+                <option value="teaching">Teaching</option>
+                <option value="non_teaching">Non-Teaching</option>
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Topic (Optional)</Form.Label>
+              <Form.Check
+                type="radio"
+                name="topicOption"
+                id="topicNone"
+                label="Upload without topic"
+                checked={bulkUploadState.topicOption === 'none'}
+                onChange={() => setBulkUploadState(prev => ({ ...prev, topicOption: 'none', topicId: '', newTopicName: '' }))}
+                className="mb-2"
+              />
+              <Form.Check
+                type="radio"
+                name="topicOption"
+                id="topicExisting"
+                label="Select Existing Topic"
+                checked={bulkUploadState.topicOption === 'existing'}
+                onChange={() => setBulkUploadState(prev => ({ ...prev, topicOption: 'existing', newTopicName: '' }))}
+                className="mb-2"
+              />
+              <Form.Check
+                type="radio"
+                name="topicOption"
+                id="topicNew"
+                label="Create New Topic"
+                checked={bulkUploadState.topicOption === 'new'}
+                onChange={() => setBulkUploadState(prev => ({ ...prev, topicOption: 'new', topicId: '' }))}
+                className="mb-2"
+              />
+            </Form.Group>
+
+            {bulkUploadState.topicOption === 'existing' && (
+              <Form.Group className="mb-3">
+                <Form.Label>Select Topic</Form.Label>
+                <Form.Select
+                  value={bulkUploadState.topicId}
+                  onChange={(e) => setBulkUploadState(prev => ({ ...prev, topicId: e.target.value }))}
+                >
+                  <option value="">Select a topic</option>
+                  {topics
+                    .filter(topic => topic.category === bulkUploadState.category && topic.isActive)
+                    .map(topic => (
+                      <option key={topic._id} value={topic._id}>{topic.name}</option>
+                    ))}
+                </Form.Select>
+              </Form.Group>
+            )}
+            {bulkUploadState.topicOption === 'new' && (
+              <Form.Group className="mb-3">
+                <Form.Label>New Topic Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={bulkUploadState.newTopicName}
+                  onChange={(e) => setBulkUploadState(prev => ({ ...prev, newTopicName: e.target.value }))}
+                  placeholder="Enter topic name"
+                />
+              </Form.Group>
+            )}
+
             <Form.Group>
               <Form.Label>Excel File<span className="text-danger">*</span></Form.Label>
               <Form.Control
@@ -2523,7 +2974,16 @@ const TestsManagement = () => {
               variant="secondary"
               onClick={() => {
                 setBulkModalVisible(false);
-                setBulkUploadState({ file: null });
+                setBulkUploadState({ 
+                  file: null,
+                  campus: '',
+                  department: '',
+                  topicOption: 'existing',
+                  topicId: '',
+                  newTopicName: '',
+                  category: 'teaching'
+                });
+                setBulkDepartments([]);
               }}
               disabled={bulkUploading}
             >
@@ -2532,6 +2992,327 @@ const TestsManagement = () => {
             <Button type="submit" disabled={bulkUploading}>
               {bulkUploading ? <Spinner animation="border" size="sm" className="me-2" /> : <FaUpload className="me-2" />}
               {bulkUploading ? 'Uploading...' : 'Upload Questions'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Bulk Text Upload Modal */}
+      <Modal
+        show={bulkTextModalVisible}
+        onHide={() => {
+          setBulkTextModalVisible(false);
+          setBulkTextUploadState({
+            file: null,
+            campus: '',
+            department: '',
+            topicOption: 'none',
+            topicId: '',
+            newTopicName: '',
+            category: 'teaching'
+          });
+          setBulkTextDepartments([]);
+          setShowPreview(false);
+          setPreviewQuestions([]);
+        }}
+        centered
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Bulk Upload MCQs (Word Document)</Modal.Title>
+        </Modal.Header>
+        <Form
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (!bulkTextUploadState.file) {
+              setToast({ type: 'danger', message: 'Please select a Word file.' });
+              return;
+            }
+            if (!bulkTextUploadState.campus) {
+              setToast({ type: 'danger', message: 'Please select a campus.' });
+              return;
+            }
+            if (!bulkTextUploadState.department) {
+              setToast({ type: 'danger', message: 'Please select a department.' });
+              return;
+            }
+            // Topic is optional - validate only if user selected to use a topic
+            if (bulkTextUploadState.topicOption === 'existing' && !bulkTextUploadState.topicId) {
+              setToast({ type: 'danger', message: 'Please select a topic or choose a different option.' });
+              return;
+            }
+            if (bulkTextUploadState.topicOption === 'new' && !bulkTextUploadState.newTopicName.trim()) {
+              setToast({ type: 'danger', message: 'Please enter a topic name.' });
+              return;
+            }
+            setBulkTextUploading(true);
+            try {
+              const formData = new FormData();
+              formData.append('file', bulkTextUploadState.file);
+              formData.append('campus', bulkTextUploadState.campus);
+              formData.append('department', bulkTextUploadState.department);
+              formData.append('category', bulkTextUploadState.category);
+              // Topic is optional
+              if (bulkTextUploadState.topicOption === 'existing' && bulkTextUploadState.topicId) {
+                formData.append('topicId', bulkTextUploadState.topicId);
+              } else if (bulkTextUploadState.topicOption === 'new' && bulkTextUploadState.newTopicName.trim()) {
+                formData.append('newTopicName', bulkTextUploadState.newTopicName.trim());
+              }
+              const response = await api.post('/tests/questions/bulk-upload-word', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+              });
+              const { message } = response.data || {};
+              setToast({ type: 'success', message: message || 'Questions uploaded successfully.' });
+              setBulkTextUploadState({
+                file: null,
+                campus: '',
+                department: '',
+                topicOption: 'none',
+                topicId: '',
+                newTopicName: '',
+                category: 'teaching'
+              });
+              setBulkTextDepartments([]);
+              setShowPreview(false);
+              setPreviewQuestions([]);
+              setBulkTextModalVisible(false);
+              fetchQuestions();
+              fetchTopics();
+            } catch (error) {
+              console.error('Bulk Word upload error:', error);
+              const message = error.response?.data?.message || 'Unable to upload questions. Please check the Word file format.';
+              setToast({ type: 'danger', message });
+            } finally {
+              setBulkTextUploading(false);
+            }
+          }}
+        >
+          <Modal.Body>
+            <Alert variant="light">
+              <strong>Format:</strong> Your Word document should contain questions in the following format:
+              <pre style={{ marginTop: '10px', fontSize: '12px', backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '4px' }}>
+{`51: The mating of individuals related by common ancestry is known as:
+
+A Cross breeding
+B Out breeding
+C In breeding
+D Close breeding
+
+Ans: 3`}
+              </pre>
+              <small className="text-muted">
+                Question number is optional. Answer should be the option number (1-4) or letter (A-D). Only .docx files are supported.
+              </small>
+            </Alert>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Campus<span className="text-danger">*</span></Form.Label>
+                  <Form.Select
+                    value={bulkTextUploadState.campus}
+                    onChange={(e) => {
+                      const campus = e.target.value;
+                      setBulkTextUploadState(prev => ({ ...prev, campus, department: '' }));
+                      fetchBulkTextDepartments(campus);
+                    }}
+                    required
+                  >
+                    <option value="">Select Campus</option>
+                    <option value="Btech">Btech</option>
+                    <option value="Degree">Degree</option>
+                    <option value="Pharmacy">Pharmacy</option>
+                    <option value="Diploma">Diploma</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Department<span className="text-danger">*</span></Form.Label>
+                  <Form.Select
+                    value={bulkTextUploadState.department}
+                    onChange={(e) => setBulkTextUploadState(prev => ({ ...prev, department: e.target.value }))}
+                    required
+                    disabled={!bulkTextUploadState.campus || bulkTextDepartmentsLoading}
+                  >
+                    <option value="">
+                      {bulkTextDepartmentsLoading ? 'Loading...' : bulkTextUploadState.campus ? 'Select Department' : 'Select Campus first'}
+                    </option>
+                    {bulkTextDepartments.map((dept, index) => (
+                      <option key={index} value={typeof dept === 'string' ? dept : dept.department}>
+                        {typeof dept === 'string' ? dept : dept.department}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Category<span className="text-danger">*</span></Form.Label>
+              <Form.Select
+                value={bulkTextUploadState.category}
+                onChange={(e) => setBulkTextUploadState(prev => ({ ...prev, category: e.target.value, topicId: '' }))}
+                required
+              >
+                <option value="teaching">Teaching</option>
+                <option value="non_teaching">Non-Teaching</option>
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Topic (Optional)</Form.Label>
+              <Form.Check
+                type="radio"
+                name="topicOptionText"
+                id="topicNoneText"
+                label="Upload without topic"
+                checked={bulkTextUploadState.topicOption === 'none'}
+                onChange={() => setBulkTextUploadState(prev => ({ ...prev, topicOption: 'none', topicId: '', newTopicName: '' }))}
+                className="mb-2"
+              />
+              <Form.Check
+                type="radio"
+                name="topicOptionText"
+                id="topicExistingText"
+                label="Select Existing Topic"
+                checked={bulkTextUploadState.topicOption === 'existing'}
+                onChange={() => setBulkTextUploadState(prev => ({ ...prev, topicOption: 'existing', newTopicName: '' }))}
+                className="mb-2"
+              />
+              <Form.Check
+                type="radio"
+                name="topicOptionText"
+                id="topicNewText"
+                label="Create New Topic"
+                checked={bulkTextUploadState.topicOption === 'new'}
+                onChange={() => setBulkTextUploadState(prev => ({ ...prev, topicOption: 'new', topicId: '' }))}
+                className="mb-2"
+              />
+            </Form.Group>
+
+            {bulkTextUploadState.topicOption === 'existing' && (
+              <Form.Group className="mb-3">
+                <Form.Label>Select Topic</Form.Label>
+                <Form.Select
+                  value={bulkTextUploadState.topicId}
+                  onChange={(e) => setBulkTextUploadState(prev => ({ ...prev, topicId: e.target.value }))}
+                >
+                  <option value="">Select a topic</option>
+                  {topics
+                    .filter(topic => topic.category === bulkTextUploadState.category && topic.isActive)
+                    .map(topic => (
+                      <option key={topic._id} value={topic._id}>{topic.name}</option>
+                    ))}
+                </Form.Select>
+              </Form.Group>
+            )}
+            {bulkTextUploadState.topicOption === 'new' && (
+              <Form.Group className="mb-3">
+                <Form.Label>New Topic Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={bulkTextUploadState.newTopicName}
+                  onChange={(e) => setBulkTextUploadState(prev => ({ ...prev, newTopicName: e.target.value }))}
+                  placeholder="Enter topic name"
+                />
+              </Form.Group>
+            )}
+
+            <Form.Group>
+              <Form.Label>Word Document (.docx)<span className="text-danger">*</span></Form.Label>
+              <div className="d-flex gap-2 mb-2">
+                <Form.Control
+                  type="file"
+                  accept=".docx,.doc"
+                  onChange={(e) => {
+                    setBulkTextUploadState(prev => ({ ...prev, file: e.target.files?.[0] || null }));
+                    setShowPreview(false);
+                    setPreviewQuestions([]);
+                  }}
+                  required
+                />
+                <Button
+                  variant="outline-info"
+                  onClick={handlePreviewQuestions}
+                  disabled={!bulkTextUploadState.file || previewLoading}
+                >
+                  {previewLoading ? (
+                    <>
+                      <Spinner animation="border" size="sm" className="me-2" />
+                      Parsing...
+                    </>
+                  ) : (
+                    <>
+                      <FaEye className="me-2" />
+                      Preview
+                    </>
+                  )}
+                </Button>
+              </div>
+              <Form.Text className="text-muted">
+                Upload a Word document (.docx) containing questions in the format shown above. Click "Preview" to see parsed questions before uploading.
+              </Form.Text>
+            </Form.Group>
+
+            {showPreview && previewQuestions.length > 0 && (
+              <div className="mt-3">
+                <Alert variant="info">
+                  <strong>Preview: {previewQuestions.length} question(s) parsed</strong>
+                </Alert>
+                <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #dee2e6', borderRadius: '4px', padding: '15px', backgroundColor: '#f8f9fa' }}>
+                  {previewQuestions.map((q, idx) => (
+                    <div key={idx} className="mb-4 p-3" style={{ backgroundColor: '#ffffff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                      <div className="d-flex justify-content-between align-items-start mb-2">
+                        <strong style={{ color: '#495057' }}>Question {idx + 1}</strong>
+                        <Badge bg={q.correctAnswer !== null ? 'success' : 'danger'}>
+                          {q.correctAnswer !== null ? 'Valid' : 'Invalid'}
+                        </Badge>
+                      </div>
+                      <p style={{ marginBottom: '10px', fontWeight: '500' }}>{q.questionText}</p>
+                      <div className="ms-3">
+                        {q.options.map((opt, optIdx) => (
+                          <div key={optIdx} className={optIdx === q.correctAnswer ? 'text-success fw-bold' : ''}>
+                            {String.fromCharCode(65 + optIdx)}. {opt}
+                            {optIdx === q.correctAnswer && ' ✓ (Correct)'}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showPreview && previewQuestions.length === 0 && (
+              <Alert variant="warning" className="mt-3">
+                No questions were parsed from the document. Please check the format.
+              </Alert>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setBulkTextModalVisible(false);
+                setBulkTextUploadState({
+                  textContent: '',
+                  campus: '',
+                  department: '',
+                  topicOption: 'none',
+                  topicId: '',
+                  newTopicName: '',
+                  category: 'teaching'
+                });
+                setBulkTextDepartments([]);
+              }}
+              disabled={bulkTextUploading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={bulkTextUploading}>
+              {bulkTextUploading ? <Spinner animation="border" size="sm" className="me-2" /> : <FaUpload className="me-2" />}
+              {bulkTextUploading ? 'Uploading...' : 'Upload Questions'}
             </Button>
           </Modal.Footer>
         </Form>

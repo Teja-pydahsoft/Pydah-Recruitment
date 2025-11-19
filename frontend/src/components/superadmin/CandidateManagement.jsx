@@ -168,6 +168,12 @@ const CandidateManagement = () => {
   const [decisionType, setDecisionType] = useState('selected');
   const [decisionNotes, setDecisionNotes] = useState('');
   const [decisionLoading, setDecisionLoading] = useState(false);
+  const [finalizationData, setFinalizationData] = useState({
+    bond: '',
+    conditions: '',
+    salary: '',
+    designation: ''
+  });
   const [expandedTestResults, setExpandedTestResults] = useState({});
 
   useEffect(() => {
@@ -375,16 +381,46 @@ const CandidateManagement = () => {
     setDecisionCandidate(null);
     setDecisionNotes('');
     setDecisionLoading(false);
+    setFinalizationData({
+      bond: '',
+      conditions: '',
+      salary: '',
+      designation: ''
+    });
   };
 
   const handleDecisionSubmit = async () => {
     if (!decisionCandidate) return;
+    
+    // Validate: Notes are mandatory for non-finalization decisions
+    if (decisionType !== 'selected' && !decisionNotes.trim()) {
+      setError('Note is mandatory when promoting candidate to next step');
+      return;
+    }
+    
+    // Validate: Finalization form fields are required when finalizing
+    if (decisionType === 'selected') {
+      if (!finalizationData.bond.trim() || !finalizationData.conditions.trim() || 
+          !finalizationData.salary.trim() || !finalizationData.designation.trim()) {
+        setError('All finalization fields (Bond, Conditions, Salary, Designation) are required');
+        return;
+      }
+    }
+    
     setDecisionLoading(true);
+    setError('');
     try {
-      const response = await api.put(`/candidates/${decisionCandidate._id}/final-decision`, {
+      const payload = {
         decision: decisionType,
         notes: decisionNotes
-      });
+      };
+      
+      // Include finalization data when finalizing
+      if (decisionType === 'selected') {
+        payload.finalizationData = finalizationData;
+      }
+      
+      const response = await api.put(`/candidates/${decisionCandidate._id}/final-decision`, payload);
 
       let decisionLabel = 'updated';
       if (decisionType === 'selected') {
@@ -457,29 +493,28 @@ const CandidateManagement = () => {
       return !excludedFields.some(excluded => lowerKey.includes(excluded.toLowerCase()));
     });
 
+    // Extract key information
+    const currentDesignation = applicationData.designation || applicationData.lastDesignation || 'Not provided';
+    const qualification = applicationData.highestQualification || applicationData.qualification || 'Not provided';
+    const currentCTC = applicationData.currentSalary || applicationData.currentCTC || 'Not provided';
+    const expectedCTC = applicationData.expectedSalary || applicationData.expectedCTC || 'Not provided';
+    const experience = applicationData.experience || applicationData.totalExperienceYears || 'Not provided';
+    
+    // Parse experience and education (if stored as textarea)
+    const experienceEntries = typeof experience === 'string' && experience.includes('\n') 
+      ? experience.split('\n').filter(e => e.trim()) 
+      : [experience];
+
     return (
       <div>
         <Row className="mb-4">
-          <Col md={6}>
-            <Card className="shadow-sm">
+          {/* Left Column - Key Information */}
+          <Col md={4}>
+            <Card className="shadow-sm mb-3">
               <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Personal Information</h5>
+                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Key Information</h5>
               </Card.Header>
               <Card.Body style={{ backgroundColor: '#ffffff' }}>
-                {workflow && (
-                  <Alert variant="light" className="d-flex align-items-center justify-content-between">
-                    <div>
-                      <div style={{ fontWeight: 600, color: '#1f2937' }}>Workflow Stage</div>
-                      <div style={{ color: '#475569', fontSize: '0.9rem' }}>{workflow.label}</div>
-                      {workflow.nextAction && (
-                        <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>
-                          Next action: {workflow.nextAction}
-                        </div>
-                      )}
-                    </div>
-                    {getWorkflowBadge(workflow)}
-                  </Alert>
-                )}
                 {passportPhoto && (
                   <div className="text-center mb-3">
                     <Image 
@@ -499,33 +534,84 @@ const CandidateManagement = () => {
                     />
                   </div>
                 )}
+                {workflow && (
+                  <Alert variant="light" className="mb-3">
+                    <div style={{ fontWeight: 600, color: '#1f2937' }}>Workflow Stage</div>
+                    <div style={{ color: '#475569', fontSize: '0.9rem' }}>{workflow.label}</div>
+                    {workflow.nextAction && (
+                      <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>
+                        Next: {workflow.nextAction}
+                      </div>
+                    )}
+                  </Alert>
+                )}
                 <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '100px', display: 'inline-block' }}>Name:</strong> 
+                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Name:</strong> 
                   <span style={{ color: '#212529' }}> {candidate.personalDetails.name}</span>
                 </p>
                 <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '100px', display: 'inline-block' }}>Email:</strong> 
+                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Email:</strong> 
                   <span style={{ color: '#212529' }}> {candidate.personalDetails.email}</span>
                 </p>
                 <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '100px', display: 'inline-block' }}>Phone:</strong> 
+                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Phone:</strong> 
                   <span style={{ color: phone === 'Not provided' ? '#6c757d' : '#212529' }}> {phone}</span>
+                </p>
+                <p style={{ marginBottom: '0.75rem' }}>
+                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Current Designation:</strong> 
+                  <span style={{ color: '#212529' }}> {currentDesignation}</span>
+                </p>
+                <p style={{ marginBottom: '0.75rem' }}>
+                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Qualification:</strong> 
+                  <span style={{ color: '#212529' }}> {qualification}</span>
+                </p>
+                <p style={{ marginBottom: '0.75rem' }}>
+                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Current CTC:</strong> 
+                  <span style={{ color: '#212529' }}> {currentCTC}</span>
+                </p>
+                <p style={{ marginBottom: '0.75rem' }}>
+                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Expected CTC:</strong> 
+                  <span style={{ color: '#212529' }}> {expectedCTC}</span>
                 </p>
               </Card.Body>
             </Card>
+
+            {/* Experience Section */}
+            <Card className="shadow-sm mb-3">
+              <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Experience</h5>
+              </Card.Header>
+              <Card.Body style={{ backgroundColor: '#ffffff', maxHeight: '300px', overflowY: 'auto' }}>
+                {experienceEntries.length > 0 && experienceEntries[0] !== 'Not provided' ? (
+                  experienceEntries.map((exp, idx) => (
+                    <div key={idx} className="mb-3 p-2" style={{ backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
+                      <div style={{ color: '#212529', whiteSpace: 'pre-wrap' }}>{exp}</div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted">No experience details provided</p>
+                )}
+              </Card.Body>
+            </Card>
           </Col>
-          <Col md={6}>
-            <Card className="shadow-sm">
+
+          {/* Right Column - Remaining Details */}
+          <Col md={8}>
+            <Card className="shadow-sm mb-3">
               <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
                 <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Application Form Details</h5>
               </Card.Header>
-              <Card.Body style={{ maxHeight: '400px', overflowY: 'auto', backgroundColor: '#ffffff' }}>
+              <Card.Body style={{ maxHeight: '500px', overflowY: 'auto', backgroundColor: '#ffffff' }}>
                 {filteredApplicationData.length > 0 ? (
                   filteredApplicationData.map(([key, value]) => {
                     if (typeof value === 'string' && (value.startsWith('http') || value.startsWith('https'))) {
                       return null;
                     }
                     if (value === null || value === undefined || value === '') {
+                      return null;
+                    }
+                    // Skip experience and education as they're shown separately
+                    if (key.toLowerCase() === 'experience' || key.toLowerCase() === 'education') {
                       return null;
                     }
                     return (
@@ -966,7 +1052,31 @@ const CandidateManagement = () => {
     <Container fluid className="super-admin-fluid">
       <Row className="mb-4">
         <Col>
-          <h2>Candidate Management</h2>
+          <div className="d-flex justify-content-between align-items-center">
+            <h2>Candidate Management</h2>
+            <Button
+              variant="outline-primary"
+              onClick={async () => {
+                try {
+                  // Download all candidates as PDF
+                  const response = await api.get('/candidates/export/pdf', { responseType: 'blob' });
+                  const url = window.URL.createObjectURL(new Blob([response.data]));
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.setAttribute('download', `candidates_${new Date().toISOString().split('T')[0]}.pdf`);
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                } catch (error) {
+                  setError('Failed to download candidate details');
+                  console.error('PDF download error:', error);
+                }
+              }}
+            >
+              <FaDownload className="me-2" />
+              Download Candidate Details
+            </Button>
+          </div>
           <p>Manage approved candidates, monitor their progress, and review test results and interview feedback.</p>
         </Col>
       </Row>
@@ -1465,7 +1575,7 @@ const CandidateManagement = () => {
         </Modal.Footer>
       </Modal>
 
-      <Modal show={decisionModalOpen} onHide={closeDecisionModal} centered>
+      <Modal show={decisionModalOpen} onHide={closeDecisionModal} centered size={decisionType === 'selected' ? 'lg' : undefined}>
         <Modal.Header closeButton>
           <Modal.Title>
             {decisionType === 'selected'
@@ -1486,16 +1596,75 @@ const CandidateManagement = () => {
             <strong>{decisionCandidate?.user?.name}</strong> for the role of{' '}
             <strong>{decisionCandidate?.form?.position}</strong>.
           </p>
-          <Form.Group className="mt-3">
-            <Form.Label>Notes (optional)</Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={3}
-              value={decisionNotes}
-              onChange={(e) => setDecisionNotes(e.target.value)}
-              placeholder="Add any notes about this decision..."
-            />
-          </Form.Group>
+          
+          {decisionType === 'selected' ? (
+            <>
+              <Form.Group className="mt-3">
+                <Form.Label>Bond *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={finalizationData.bond}
+                  onChange={(e) => setFinalizationData(prev => ({ ...prev, bond: e.target.value }))}
+                  placeholder="Enter bond details"
+                  required
+                />
+              </Form.Group>
+              <Form.Group className="mt-3">
+                <Form.Label>Conditions *</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={finalizationData.conditions}
+                  onChange={(e) => setFinalizationData(prev => ({ ...prev, conditions: e.target.value }))}
+                  placeholder="Enter conditions"
+                  required
+                />
+              </Form.Group>
+              <Form.Group className="mt-3">
+                <Form.Label>Salary *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={finalizationData.salary}
+                  onChange={(e) => setFinalizationData(prev => ({ ...prev, salary: e.target.value }))}
+                  placeholder="Enter salary"
+                  required
+                />
+              </Form.Group>
+              <Form.Group className="mt-3">
+                <Form.Label>Designation *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={finalizationData.designation}
+                  onChange={(e) => setFinalizationData(prev => ({ ...prev, designation: e.target.value }))}
+                  placeholder="Enter designation"
+                  required
+                />
+              </Form.Group>
+              <Form.Group className="mt-3">
+                <Form.Label>Notes *</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={decisionNotes}
+                  onChange={(e) => setDecisionNotes(e.target.value)}
+                  placeholder="Add notes about finalization..."
+                  required
+                />
+              </Form.Group>
+            </>
+          ) : (
+            <Form.Group className="mt-3">
+              <Form.Label>Notes *</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={decisionNotes}
+                onChange={(e) => setDecisionNotes(e.target.value)}
+                placeholder="Note is mandatory when promoting candidate to next step..."
+                required
+              />
+            </Form.Group>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={closeDecisionModal} disabled={decisionLoading}>

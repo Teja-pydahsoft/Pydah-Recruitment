@@ -30,6 +30,14 @@ const recruitmentFormSchema = new mongoose.Schema({
     },
     trim: true
   },
+  campus: {
+    type: String,
+    required: function() {
+      return this.formType === 'candidate_profile';
+    },
+    enum: ['Btech', 'Degree', 'Pharmacy', 'Diploma'],
+    trim: true
+  },
   department: {
     type: String,
     required: function() {

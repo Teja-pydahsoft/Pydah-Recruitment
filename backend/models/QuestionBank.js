@@ -16,6 +16,15 @@ const mcqSchema = new mongoose.Schema({
     enum: ['teaching', 'non_teaching'],
     required: true
   },
+  campus: {
+    type: String,
+    enum: ['Btech', 'Degree', 'Pharmacy', 'Diploma'],
+    trim: true
+  },
+  department: {
+    type: String,
+    trim: true
+  },
   subTopic: {
     type: String,
     trim: true

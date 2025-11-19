@@ -95,18 +95,20 @@ router.post('/', authenticateToken, requireSuperAdminOrWritePermission('forms.ma
       title: req.body.title,
       formType: req.body.formType,
       formCategory: req.body.formCategory,
+      campus: req.body.campus,
       position: req.body.position,
       department: req.body.department,
       formFieldsCount: req.body.formFields?.length || 0
     });
 
-    const { title, description, formType, formCategory, position, department, closingDate, vacancies, requirements, formFields } = req.body;
+    const { title, description, formType, formCategory, campus, position, department, closingDate, vacancies, requirements, formFields } = req.body;
 
     const form = new RecruitmentForm({
       title,
       description,
       formType: formType || 'candidate_profile',
       formCategory: formType === 'candidate_profile' ? formCategory : undefined,
+      campus: formType === 'candidate_profile' ? campus : undefined,
       position: formType === 'candidate_profile' ? position : undefined,
       department: formType === 'candidate_profile' ? department : undefined,
       closingDate: formType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,
@@ -336,7 +338,7 @@ router.put('/:id', authenticateToken, requireSuperAdminOrWritePermission('forms.
 
     // Prevent formType from being changed (data integrity)
     const originalFormType = existingForm.formType;
-    const { title, description, formCategory, position, department, closingDate, vacancies, requirements, formFields, isActive } = req.body;
+    const { title, description, formCategory, campus, position, department, closingDate, vacancies, requirements, formFields, isActive } = req.body;
 
     // Use original formType, ignore any formType in request body
     const updateData = {
@@ -344,6 +346,7 @@ router.put('/:id', authenticateToken, requireSuperAdminOrWritePermission('forms.
       description,
       formType: originalFormType, // Preserve original form type
       formCategory: originalFormType === 'candidate_profile' ? formCategory : undefined,
+      campus: originalFormType === 'candidate_profile' ? campus : undefined,
       position: originalFormType === 'candidate_profile' ? position : undefined,
       department: originalFormType === 'candidate_profile' ? department : undefined,
       closingDate: originalFormType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,

@@ -23,6 +23,13 @@ const userSchema = new mongoose.Schema({
     enum: ['super_admin', 'sub_admin', 'panel_member', 'candidate'],
     required: true
   },
+  campus: {
+    type: String,
+    enum: ['Btech', 'Degree', 'Pharmacy', 'Diploma'],
+    required: function() {
+      return this.role === 'panel_member';
+    }
+  },
   permissions: {
     type: mongoose.Schema.Types.Mixed,
     default: {}

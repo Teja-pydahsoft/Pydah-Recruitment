@@ -28,6 +28,7 @@ const FormsManagement = () => {
     description: '',
     formType: 'candidate_profile',
     formCategory: 'teaching', // 'teaching' or 'non_teaching'
+    campus: '',
     position: '',
     department: '',
     closingDate: '',
@@ -41,9 +42,42 @@ const FormsManagement = () => {
     formFields: []
   });
 
+  const [departments, setDepartments] = useState([]);
+
   useEffect(() => {
       fetchForms();
     }, []);
+
+  useEffect(() => {
+    if (formData.campus) {
+      fetchDepartments(formData.campus);
+    } else {
+      setDepartments([]);
+    }
+  }, [formData.campus]);
+
+  useEffect(() => {
+    // Auto-load template when category changes (only if not editing and formFields is empty)
+    if (formData.formCategory && !editingForm && formData.formFields.length === 0) {
+      if (formData.formCategory === 'teaching') {
+        loadTeachingTemplate();
+      } else if (formData.formCategory === 'non_teaching') {
+        loadNonTeachingTemplate();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.formCategory]);
+
+
+  const fetchDepartments = async (campus) => {
+    try {
+      const response = await api.get(`/courses/departments/${campus}`);
+      setDepartments(response.data.departments || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setDepartments([]);
+    }
+  };
   
     const fetchForms = async () => {
       try {
@@ -72,15 +106,55 @@ const FormsManagement = () => {
       setError('');
 
       try {
+        // Validate required fields for candidate_profile forms
+        if (formData.formType === 'candidate_profile') {
+          if (!formData.campus || !formData.campus.trim()) {
+            setError('Campus is required for candidate profile forms');
+            setSubmitting(false);
+            return;
+          }
+          if (!formData.department || !formData.department.trim()) {
+            setError('Department is required for candidate profile forms');
+            setSubmitting(false);
+            return;
+          }
+          if (!formData.position || !formData.position.trim()) {
+            setError('Position is required for candidate profile forms');
+            setSubmitting(false);
+            return;
+          }
+        }
+
+        // Build form submission data
         const formSubmissionData = {
-          ...formData,
-          // Only include position, department, closingDate, vacancies, and formCategory for candidate profile forms
-          position: formData.formType === 'candidate_profile' ? formData.position : undefined,
-          department: formData.formType === 'candidate_profile' ? formData.department : undefined,
-          closingDate: formData.formType === 'candidate_profile' && formData.closingDate ? formData.closingDate : undefined,
-          vacancies: formData.formType === 'candidate_profile' ? formData.vacancies : undefined,
-          formCategory: formData.formType === 'candidate_profile' ? formData.formCategory : undefined
+          title: formData.title,
+          description: formData.description,
+          formType: formData.formType,
+          formFields: formData.formFields,
+          requirements: formData.requirements
         };
+
+        // Only include position, campus, department, closingDate, vacancies, and formCategory for candidate profile forms
+        if (formData.formType === 'candidate_profile') {
+          formSubmissionData.position = formData.position.trim();
+          formSubmissionData.campus = formData.campus.trim();
+          formSubmissionData.department = formData.department.trim();
+          formSubmissionData.formCategory = formData.formCategory;
+          if (formData.closingDate) {
+            formSubmissionData.closingDate = formData.closingDate;
+          }
+          formSubmissionData.vacancies = formData.vacancies;
+        }
+
+        // Debug log to verify campus is included
+        console.log('📤 [FORM SUBMISSION] Submitting form data:', {
+          title: formSubmissionData.title,
+          formType: formSubmissionData.formType,
+          campus: formSubmissionData.campus,
+          department: formSubmissionData.department,
+          position: formSubmissionData.position,
+          formCategory: formSubmissionData.formCategory
+        });
 
         if (editingForm) {
           // Update existing form
@@ -121,6 +195,7 @@ const FormsManagement = () => {
           description: fullForm.description || '',
           formType: fullForm.formType || 'candidate_profile',
           formCategory: fullForm.formCategory || 'teaching',
+          campus: fullForm.campus || '',
           position: fullForm.position || '',
           department: fullForm.department || '',
           closingDate: closingDateValue,
@@ -148,6 +223,7 @@ const FormsManagement = () => {
         description: '',
         formType: 'candidate_profile',
         formCategory: 'teaching',
+        campus: '',
         position: '',
         department: '',
         closingDate: '',
@@ -170,34 +246,33 @@ const FormsManagement = () => {
         title: prev.title || 'Teaching Staff Registration Form',
         description: prev.description || 'Registration form for teaching positions',
         formFields: [
+          // Application Details - Designation at top
+          { fieldName: 'designation', fieldType: 'select', required: true, options: ['Assistant Professor', 'Associate Professor', 'Professor'] },
+          
           // Basic Information
-          { fieldName: 'fullName', fieldType: 'text', required: true, placeholder: 'Your full name' },
           { fieldName: 'gender', fieldType: 'radio', required: true, options: ['Male', 'Female', 'Other'] },
           { fieldName: 'dateOfBirth', fieldType: 'date', required: true },
-          { fieldName: 'email', fieldType: 'email', required: true, placeholder: 'you@example.com' },
           { fieldName: 'mobileNumber', fieldType: 'text', required: true, placeholder: '10-digit mobile number' },
           { fieldName: 'address', fieldType: 'textarea', required: true, placeholder: 'Full postal address' },
           { fieldName: 'aadhaarNumber', fieldType: 'text', required: true, placeholder: 'Aadhaar Number' },
+          { fieldName: 'religion', fieldType: 'text', required: true, placeholder: 'Religion' },
+          { fieldName: 'caste', fieldType: 'text', required: true, placeholder: 'Caste' },
+          { fieldName: 'ratifiedByUniversity', fieldType: 'radio', required: true, options: ['Yes', 'No'] },
+          { fieldName: 'nbaNccExperience', fieldType: 'radio', required: true, options: ['Yes', 'No'] },
+          { fieldName: 'nssExperience', fieldType: 'radio', required: true, options: ['Yes', 'No'] },
           
-          // Application Details
-          { fieldName: 'department', fieldType: 'select', required: true, options: ['CSE', 'ECE', 'MECH', 'Civil', 'EEE'] },
-          { fieldName: 'designation', fieldType: 'select', required: true, options: ['Assistant Professor', 'Associate Professor', 'Professor'] },
-          { fieldName: 'preferredLocation', fieldType: 'text', required: false, placeholder: 'Preferred location (optional)' },
+          // Academic Qualifications (multiple entries allowed)
+          { fieldName: 'education', fieldType: 'textarea', required: true, placeholder: 'Education Details (can add multiple entries)' },
           
-          // Academic Qualifications
-          { fieldName: 'highestQualification', fieldType: 'select', required: true, options: ['Ph.D.', 'M.Tech', 'M.E.', 'M.Sc.', 'B.Tech', 'B.E.'] },
-          { fieldName: 'specialization', fieldType: 'text', required: true, placeholder: 'Subject / Field' },
-          { fieldName: 'universityCollege', fieldType: 'text', required: true, placeholder: 'University / College' },
-          { fieldName: 'yearOfPassing', fieldType: 'number', required: true, placeholder: 'Year of passing' },
-          { fieldName: 'percentageCgpa', fieldType: 'number', required: true, placeholder: 'Percentage or CGPA' },
-          
-          // Experience Details
+          // Experience Details (multiple entries allowed)
+          { fieldName: 'experience', fieldType: 'textarea', required: true, placeholder: 'Experience Details (can add multiple entries)' },
           { fieldName: 'totalExperienceYears', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
           { fieldName: 'teachingExperience', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
-          { fieldName: 'previousInstitutionCompany', fieldType: 'text', required: true, placeholder: 'Previous Institution/Company' },
-          { fieldName: 'lastDesignation', fieldType: 'text', required: true, placeholder: 'Last Designation' },
-          { fieldName: 'fromDate', fieldType: 'date', required: false },
-          { fieldName: 'toDate', fieldType: 'date', required: false },
+          { fieldName: 'salaryInCTC', fieldType: 'number', required: false, placeholder: 'Salary in CTC (if has experience)' },
+          
+          // Salary Details
+          { fieldName: 'currentSalary', fieldType: 'number', required: false, placeholder: 'Current Salary' },
+          { fieldName: 'expectedSalary', fieldType: 'number', required: false, placeholder: 'Expected Salary' },
           
           // Documents Upload
           { fieldName: 'resume', fieldType: 'file', required: true },
@@ -218,33 +293,32 @@ const FormsManagement = () => {
         title: prev.title || 'Non-Teaching Staff Registration Form',
         description: prev.description || 'Registration form for non-teaching positions',
         formFields: [
+          // Application Details
+          { fieldName: 'designation', fieldType: 'select', required: true, options: ['Clerk', 'Accountant', 'Librarian', 'Administrative Assistant', 'IT Support', 'Other'] },
+          
           // Basic Information
-          { fieldName: 'fullName', fieldType: 'text', required: true, placeholder: 'Your full name' },
           { fieldName: 'gender', fieldType: 'radio', required: true, options: ['Male', 'Female', 'Other'] },
           { fieldName: 'dateOfBirth', fieldType: 'date', required: true },
-          { fieldName: 'email', fieldType: 'email', required: true, placeholder: 'you@example.com' },
           { fieldName: 'mobileNumber', fieldType: 'text', required: true, placeholder: '10-digit mobile number' },
           { fieldName: 'address', fieldType: 'textarea', required: true, placeholder: 'Full postal address' },
           { fieldName: 'aadhaarNumber', fieldType: 'text', required: true, placeholder: 'Aadhaar Number' },
+          { fieldName: 'religion', fieldType: 'text', required: true, placeholder: 'Religion' },
+          { fieldName: 'caste', fieldType: 'text', required: true, placeholder: 'Caste' },
+          { fieldName: 'ratifiedByUniversity', fieldType: 'radio', required: true, options: ['Yes', 'No'] },
+          { fieldName: 'nbaNccExperience', fieldType: 'radio', required: true, options: ['Yes', 'No'] },
+          { fieldName: 'nssExperience', fieldType: 'radio', required: true, options: ['Yes', 'No'] },
           
-          // Application Details
-          { fieldName: 'department', fieldType: 'select', required: true, options: ['Admin', 'Accounts', 'Library', 'HR', 'IT', 'Maintenance'] },
-          { fieldName: 'designation', fieldType: 'select', required: true, options: ['Clerk', 'Accountant', 'Librarian', 'Administrative Assistant', 'IT Support', 'Other'] },
-          { fieldName: 'preferredLocation', fieldType: 'text', required: false, placeholder: 'Preferred location (optional)' },
+          // Academic Qualifications (multiple entries allowed)
+          { fieldName: 'education', fieldType: 'textarea', required: true, placeholder: 'Education Details (can add multiple entries)' },
           
-          // Academic Qualifications
-          { fieldName: 'highestQualification', fieldType: 'select', required: true, options: ['Ph.D.', 'Masters', 'Bachelors', 'Diploma', '12th', '10th'] },
-          { fieldName: 'specialization', fieldType: 'text', required: true, placeholder: 'Subject / Field' },
-          { fieldName: 'universityCollege', fieldType: 'text', required: true, placeholder: 'University / College' },
-          { fieldName: 'yearOfPassing', fieldType: 'number', required: true, placeholder: 'Year of passing' },
-          { fieldName: 'percentageCgpa', fieldType: 'number', required: true, placeholder: 'Percentage or CGPA' },
-          
-          // Experience Details
+          // Experience Details (multiple entries allowed)
+          { fieldName: 'experience', fieldType: 'textarea', required: true, placeholder: 'Experience Details (can add multiple entries)' },
           { fieldName: 'totalExperienceYears', fieldType: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'] },
-          { fieldName: 'previousInstitutionCompany', fieldType: 'text', required: true, placeholder: 'Previous Institution/Company' },
-          { fieldName: 'lastDesignation', fieldType: 'text', required: true, placeholder: 'Last Designation' },
-          { fieldName: 'fromDate', fieldType: 'date', required: false },
-          { fieldName: 'toDate', fieldType: 'date', required: false },
+          { fieldName: 'salaryInCTC', fieldType: 'number', required: false, placeholder: 'Salary in CTC (if has experience)' },
+          
+          // Salary Details
+          { fieldName: 'currentSalary', fieldType: 'number', required: false, placeholder: 'Current Salary' },
+          { fieldName: 'expectedSalary', fieldType: 'number', required: false, placeholder: 'Expected Salary' },
           
           // Documents Upload
           { fieldName: 'resume', fieldType: 'file', required: true },
@@ -539,6 +613,12 @@ const FormsManagement = () => {
         centered
         className="form-modal"
       >
+        <style>{`
+          .form-modal .modal-dialog {
+            max-width: 1400px !important;
+            width: 95% !important;
+          }
+        `}</style>
         <Modal.Header 
           closeButton 
           style={{ 
@@ -700,33 +780,74 @@ const FormsManagement = () => {
                             )}
                           </Row>
                           <Row>
-                            <Col md={6}>
+                            <Col md={4}>
                               <Form.Group className="mb-3">
-                                <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
-                                  {formData.formCategory === 'teaching' ? 'Department' : 'Position'} *
-                                </Form.Label>
-                                <Form.Control
-                                  type="text"
-                                  value={formData.position}
-                                  onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
+                                <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Campus *</Form.Label>
+                                <Form.Select
+                                  value={formData.campus}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, campus: e.target.value, department: '' }))}
                                   required={formData.formType === 'candidate_profile'}
+                                  isInvalid={formData.formType === 'candidate_profile' && !formData.campus}
                                   style={{ 
                                     border: '1px solid #ced4da',
                                     borderRadius: '6px',
                                     padding: '0.75rem'
                                   }}
-                                />
+                                >
+                                  <option value="">Select Campus</option>
+                                  <option value="Btech">Btech</option>
+                                  <option value="Degree">Degree</option>
+                                  <option value="Pharmacy">Pharmacy</option>
+                                  <option value="Diploma">Diploma</option>
+                                </Form.Select>
                               </Form.Group>
                             </Col>
-                            <Col md={6}>
+                            <Col md={4}>
                               <Form.Group className="mb-3">
                                 <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
-                                  {formData.formCategory === 'teaching' ? 'Subject' : 'Department'} *
+                                  {formData.formCategory === 'teaching' ? 'Department' : 'Position'} *
+                                </Form.Label>
+                                {formData.campus && departments.length > 0 ? (
+                                  <Form.Select
+                                    value={formData.department}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                                    required={formData.formType === 'candidate_profile'}
+                                    style={{ 
+                                      border: '1px solid #ced4da',
+                                      borderRadius: '6px',
+                                      padding: '0.75rem'
+                                    }}
+                                  >
+                                    <option value="">Select Department</option>
+                                    {departments.map((dept, idx) => (
+                                      <option key={idx} value={dept}>{dept}</option>
+                                    ))}
+                                  </Form.Select>
+                                ) : (
+                                  <Form.Control
+                                    type="text"
+                                    value={formData.department}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                                    required={formData.formType === 'candidate_profile'}
+                                    placeholder={formData.campus ? 'Select campus first' : 'Enter department'}
+                                    style={{ 
+                                      border: '1px solid #ced4da',
+                                      borderRadius: '6px',
+                                      padding: '0.75rem'
+                                    }}
+                                  />
+                                )}
+                              </Form.Group>
+                            </Col>
+                            <Col md={4}>
+                              <Form.Group className="mb-3">
+                                <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
+                                  {formData.formCategory === 'teaching' ? 'Subject/Position' : 'Designation'} *
                                 </Form.Label>
                                 <Form.Control
                                   type="text"
-                                  value={formData.department}
-                                  onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                                  value={formData.position}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
                                   required={formData.formType === 'candidate_profile'}
                                   style={{ 
                                     border: '1px solid #ced4da',
@@ -820,7 +941,8 @@ const FormsManagement = () => {
               borderRadius: '10px',
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
             }}>
-              <div className="d-flex justify-content-between align-items-center mb-3" style={{
+              <div style={{
+                marginBottom: '1.5rem',
                 paddingBottom: '1rem',
                 borderBottom: '2px solid #e9ecef'
               }}>
@@ -831,19 +953,6 @@ const FormsManagement = () => {
                 }}>
                   📝 Form Fields
                 </h5>
-                <Button 
-                  variant="primary" 
-                  size="sm" 
-                  onClick={addFormField}
-                  style={{
-                    borderRadius: '6px',
-                    fontWeight: 500,
-                    padding: '0.5rem 1rem',
-                    boxShadow: '0 2px 4px rgba(102, 126, 234, 0.3)'
-                  }}
-                >
-                  ➕ Add Field
-                </Button>
               </div>
 
               {formData.formFields.map((field, index) => (
@@ -952,6 +1061,26 @@ const FormsManagement = () => {
                                             </Card.Body>
                                           </Card>
                                         ))}
+                                        
+                                        {/* Add Field Button at Bottom */}
+                                        <div className="mt-3 mb-3" style={{ textAlign: 'center' }}>
+                                          <Button 
+                                            variant="primary" 
+                                            size="md" 
+                                            onClick={addFormField}
+                                            style={{
+                                              borderRadius: '8px',
+                                              fontWeight: 600,
+                                              padding: '0.75rem 2rem',
+                                              boxShadow: '0 2px 8px rgba(102, 126, 234, 0.4)',
+                                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                              border: 'none',
+                                              fontSize: '1rem'
+                                            }}
+                                          >
+                                            ➕ Add Field
+                                          </Button>
+                                        </div>
                                       </div>
 
             <div className="d-flex justify-content-end gap-2" style={{
