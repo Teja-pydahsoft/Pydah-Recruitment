@@ -1884,11 +1884,14 @@ const TestsManagement = () => {
 
           <Row className="mb-3">
             <Col>
-              <div className="d-flex justify-content-between align-items-center mb-3" style={{ 
+              <div className="d-flex justify-content-between align-items-center" style={{ 
                 padding: '1rem',
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 borderRadius: '12px',
-                color: 'white'
+                color: 'white',
+                position: 'sticky',
+                top: 0,
+                zIndex: 10
               }}>
                 <div>
                   <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
@@ -1933,7 +1936,13 @@ const TestsManagement = () => {
 
           <Row>
             <Col>
-              <div style={{ minHeight: '400px', padding: '0' }}>
+              <div style={{ 
+                maxHeight: 'calc(100vh - 350px)',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                padding: '0',
+                paddingTop: '1rem'
+              }}>
                 {questionLoading ? (
                   <div className="text-center py-5">
                     <Spinner animation="border" />
