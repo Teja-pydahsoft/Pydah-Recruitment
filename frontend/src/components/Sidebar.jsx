@@ -32,7 +32,7 @@ const SidebarContainer = styled.div`
   box-shadow: 6px 0 24px rgba(127, 29, 29, 0.3);
   overflow: hidden;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
 
   @media (max-width: 768px) {
     width: ${props => props.$isOpen ? '280px' : '60px'};
@@ -175,26 +175,11 @@ const SidebarContent = styled.div`
 const Navigation = styled.nav`
   flex: 1;
   padding: ${props => props.$isOpen ? '0 1rem' : '0 0.5rem'};
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
   transition: padding 0.3s ease;
   width: 100%;
   box-sizing: border-box;
-
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-  }
 
   @media (max-width: 768px) {
     padding: ${props => props.$isOpen ? '0 1rem' : '0 0.5rem'};

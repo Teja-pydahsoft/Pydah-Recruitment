@@ -34,6 +34,7 @@ import {
 } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const CATEGORY_OPTIONS = [
   { value: 'teaching', label: 'Teaching' },
@@ -1232,16 +1233,10 @@ const TestsManagement = () => {
 
   return (
     <Container fluid className="super-admin-fluid">
-
-      {toast.message && (
-        <Row className="mb-3">
-          <Col>
-            <Alert variant={toast.type} dismissible onClose={() => setToast({ type: '', message: '' })}>
-              {toast.message}
-            </Alert>
-          </Col>
-        </Row>
-      )}
+      <ToastNotificationContainer 
+        toast={toast} 
+        onClose={() => setToast({ type: '', message: '' })} 
+      />
 
       <Tabs activeKey={activeTab} onSelect={(key) => setActiveTab(key || 'assessments')} className="mb-4">
         <Tab eventKey="assessments" title="Candidate Assessments">
@@ -1817,7 +1812,7 @@ const TestsManagement = () => {
                 </Button>
               </InputGroup>
             </Col>
-            <Col md={4} sm={12} className="d-flex justify-content-md-end align-items-center gap-2">
+            <Col md={4} sm={12} className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
               <Button
                 variant="outline-primary"
                 size="sm"
@@ -1839,7 +1834,6 @@ const TestsManagement = () => {
               <Button
                 variant="outline-success"
                 size="sm"
-                className="ms-2"
                 onClick={() => {
                   setBulkTextUploadState({
                     file: null,
@@ -1855,6 +1849,26 @@ const TestsManagement = () => {
               >
                 <FaUpload className="me-2" />Bulk Upload (Word)
               </Button>
+              <Button 
+                variant="outline-secondary" 
+                size="sm" 
+                onClick={fetchQuestions}
+                style={{ 
+                  borderRadius: '6px',
+                  fontWeight: '500',
+                  transition: 'all 0.3s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <FaSync className="me-2" />Refresh
+              </Button>
               <Button
                 variant="primary"
                 size="sm"
@@ -1868,180 +1882,213 @@ const TestsManagement = () => {
             </Col>
           </Row>
 
+          <Row className="mb-3">
+            <Col>
+              <div className="d-flex justify-content-between align-items-center mb-3" style={{ 
+                padding: '1rem',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '12px',
+                color: 'white'
+              }}>
+                <div>
+                  <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+                    <FaListUl className="me-2" />
+                    Question Library
+                  </h5>
+                  <small style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem' }}>
+                    Curated MCQs grouped by topics
+                    {selectedQuestions.length > 0 && (
+                      <span className="ms-2">({selectedQuestions.length} selected)</span>
+                    )}
+                  </small>
+                </div>
+                {selectedQuestions.length > 0 && (
+                  <Button 
+                    variant="danger" 
+                    size="sm" 
+                    onClick={handleBulkDeleteQuestions}
+                    disabled={bulkDeleting}
+                    style={{ 
+                      borderRadius: '6px',
+                      fontWeight: '500',
+                      transition: 'all 0.3s'
+                    }}
+                  >
+                    {bulkDeleting ? (
+                      <>
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <FaTrash className="me-2" />
+                        Delete Selected ({selectedQuestions.length})
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </Col>
+          </Row>
+
           <Row>
             <Col>
-              <Card className="h-100 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
-                <Card.Header 
-                  className="d-flex justify-content-between align-items-center"
-                  style={{ 
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    borderBottom: 'none',
-                    padding: '1.25rem'
-                  }}
-                >
-                  <div>
-                    <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
-                      <FaListUl className="me-2" />
-                      Question Library
-                    </h5>
-                    <small style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem' }}>
-                      Curated MCQs grouped by topics
-                      {selectedQuestions.length > 0 && (
-                        <span className="ms-2">({selectedQuestions.length} selected)</span>
-                      )}
-                    </small>
+              <div style={{ minHeight: '400px', padding: '0' }}>
+                {questionLoading ? (
+                  <div className="text-center py-5">
+                    <Spinner animation="border" />
                   </div>
-                  <div className="d-flex gap-2">
-                    {selectedQuestions.length > 0 && (
-                      <Button 
-                        variant="danger" 
-                        size="sm" 
-                        onClick={handleBulkDeleteQuestions}
-                        disabled={bulkDeleting}
-                        style={{ 
-                          borderRadius: '6px',
-                          fontWeight: '500',
-                          transition: 'all 0.3s'
-                        }}
-                      >
-                        {bulkDeleting ? (
-                          <>
-                            <Spinner animation="border" size="sm" className="me-2" />
-                            Deleting...
-                          </>
-                        ) : (
-                          <>
-                            <FaTrash className="me-2" />
-                            Delete Selected ({selectedQuestions.length})
-                          </>
-                        )}
-                      </Button>
-                    )}
-                    <Button 
-                      variant="light" 
-                      size="sm" 
-                      onClick={fetchQuestions}
-                      style={{ 
-                        borderRadius: '6px',
-                        fontWeight: '500',
-                        transition: 'all 0.3s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                    >
-                      <FaSync className="me-2" />Refresh
-                    </Button>
-                  </div>
-                </Card.Header>
-                <Card.Body style={{ maxHeight: '500px', overflowY: 'auto', padding: '1.25rem', background: '#ffffff' }}>
-                  {questionLoading ? (
-                    <div className="text-center py-4">
-                      <Spinner animation="border" />
+                ) : questions.length === 0 ? (
+                  <Alert variant="light" className="text-center py-5">
+                    No questions match the selected filters.
+                  </Alert>
+                ) : (
+                  <>
+                    <div className="mb-3" style={{ padding: '0.75rem', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                      <Form.Check
+                        type="checkbox"
+                        checked={questions.length > 0 && selectedQuestions.length === questions.length}
+                        onChange={handleSelectAllQuestions}
+                        label={`Select All (${selectedQuestions.length} selected)`}
+                        style={{ fontWeight: '500' }}
+                      />
                     </div>
-                  ) : questions.length === 0 ? (
-                    <Alert variant="light">No questions match the selected filters.</Alert>
-                  ) : (
-                    <Table responsive bordered hover size="sm" className="align-middle">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '40px' }}>
-                            <Form.Check
-                              type="checkbox"
-                              checked={questions.length > 0 && selectedQuestions.length === questions.length}
-                              onChange={handleSelectAllQuestions}
-                              title="Select All"
-                            />
-                          </th>
-                          <th>Question</th>
-                          <th>Topic</th>
-                          <th>Correct Answer</th>
-                          <th className="text-end">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {questions.map(question => {
-                          const correctAnswerIndex = question.correctAnswer !== undefined && question.correctAnswer !== null 
-                            ? question.correctAnswer 
-                            : null;
-                          const correctAnswerLetter = correctAnswerIndex !== null 
-                            ? String.fromCharCode(65 + correctAnswerIndex) 
-                            : '—';
-                          const correctAnswerText = correctAnswerIndex !== null && question.options?.[correctAnswerIndex]
-                            ? question.options[correctAnswerIndex]
-                            : '';
-                          const isSelected = selectedQuestions.includes(question._id);
-                          
-                          return (
-                            <tr key={question._id} className={isSelected ? 'table-active' : ''}>
-                              <td>
-                                <Form.Check
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => handleSelectQuestion(question._id)}
-                                  title="Select Question"
-                                />
-                              </td>
-                              <td style={{ maxWidth: '320px' }}>
-                                <div style={{ whiteSpace: 'pre-wrap' }}>{question.questionText}</div>
-                                <small className="text-muted">
-                                  {question.options?.map((option, index) => (
-                                    <div key={index}>
-                                      <strong>{String.fromCharCode(65 + index)}.</strong> {option}
-                                    </div>
-                                  ))}
-                                </small>
-                              </td>
-                              <td>{question.topicName || getTopicById(question.topic)?.name || '—'}</td>
-                              <td>
-                                {correctAnswerIndex !== null ? (
-                                  <div>
-                                    <Badge bg="success" className="me-1">
-                                      {correctAnswerLetter}
-                                    </Badge>
-                                    <small className="text-muted">
-                                      {correctAnswerText.length > 30 
-                                        ? `${correctAnswerText.substring(0, 30)}...` 
-                                        : correctAnswerText}
-                                    </small>
+                    <Row className="g-3">
+                      {questions.map(question => {
+                        const correctAnswerIndex = question.correctAnswer !== undefined && question.correctAnswer !== null 
+                          ? question.correctAnswer 
+                          : null;
+                        const correctAnswerLetter = correctAnswerIndex !== null 
+                          ? String.fromCharCode(65 + correctAnswerIndex) 
+                          : '—';
+                        const correctAnswerText = correctAnswerIndex !== null && question.options?.[correctAnswerIndex]
+                          ? question.options[correctAnswerIndex]
+                          : '';
+                        const isSelected = selectedQuestions.includes(question._id);
+                        
+                        return (
+                          <Col key={question._id} xs={12} sm={6}>
+                            <Card 
+                              style={{ 
+                                height: '100%',
+                                border: isSelected ? '2px solid #0d6efd' : '1px solid #dee2e6',
+                                borderRadius: '12px',
+                                transition: 'all 0.3s ease',
+                                boxShadow: isSelected ? '0 4px 12px rgba(13, 110, 253, 0.2)' : '0 2px 4px rgba(0,0,0,0.1)'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                                  e.currentTarget.style.transform = 'translateY(-2px)';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                }
+                              }}
+                            >
+                              <Card.Body style={{ padding: '1rem', display: 'flex', flexDirection: 'column' }}>
+                                <div className="d-flex align-items-start justify-content-between mb-2">
+                                  <Form.Check
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleSelectQuestion(question._id)}
+                                    title="Select Question"
+                                    style={{ marginTop: '4px' }}
+                                  />
+                                  <Button 
+                                    variant="outline-primary" 
+                                    size="sm" 
+                                    onClick={() => handleEditQuestion(question)}
+                                    title="Edit Question"
+                                    style={{ 
+                                      borderRadius: '8px',
+                                      padding: '0.375rem 0.75rem',
+                                      fontWeight: '500'
+                                    }}
+                                  >
+                                    <FaEdit className="me-1" />
+                                    Edit
+                                  </Button>
+                                </div>
+                                <div style={{ flex: 1, marginBottom: '1rem' }}>
+                                  <div style={{ 
+                                    whiteSpace: 'pre-wrap', 
+                                    fontSize: '0.95rem',
+                                    fontWeight: '500',
+                                    color: '#212529',
+                                    marginBottom: '0.75rem',
+                                    lineHeight: '1.5'
+                                  }}>
+                                    {question.questionText}
                                   </div>
-                                ) : (
-                                  <Badge bg="secondary">Not Set</Badge>
-                                )}
-                              </td>
-                              <td className="text-end">
-                                <Button 
-                                  variant="outline-primary" 
-                                  size="sm" 
-                                  className="me-2"
-                                  onClick={() => handleEditQuestion(question)}
-                                  title="Edit Question"
-                                >
-                                  <FaEdit />
-                                </Button>
-                                <Button 
-                                  variant="outline-danger" 
-                                  size="sm" 
-                                  onClick={() => handleDeleteQuestion(question._id)}
-                                  title="Delete Question"
-                                >
-                                  <FaTrash />
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </Table>
-                  )}
-                </Card.Body>
-              </Card>
+                                  <div style={{ 
+                                    marginTop: '0.5rem',
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: '0.5rem'
+                                  }}>
+                                    {question.options?.map((option, index) => (
+                                      <div 
+                                        key={index}
+                                        style={{ 
+                                          padding: '0.5rem 0.75rem',
+                                          background: '#f8f9fa',
+                                          borderRadius: '6px',
+                                          fontSize: '0.9rem',
+                                          border: '1px solid #e9ecef',
+                                          whiteSpace: 'nowrap',
+                                          flex: '0 1 auto'
+                                        }}
+                                      >
+                                        <strong style={{ color: '#495057' }}>
+                                          {String.fromCharCode(65 + index)}.
+                                        </strong> {option}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div style={{ 
+                                  marginTop: 'auto',
+                                  padding: '0.75rem',
+                                  background: correctAnswerIndex !== null ? '#d1e7dd' : '#e9ecef',
+                                  borderRadius: '8px',
+                                  border: `1px solid ${correctAnswerIndex !== null ? '#badbcc' : '#dee2e6'}`
+                                }}>
+                                  <div style={{ 
+                                    fontSize: '0.85rem',
+                                    fontWeight: '600',
+                                    color: '#495057',
+                                    marginBottom: '0.25rem'
+                                  }}>
+                                    Correct Answer:
+                                  </div>
+                                  {correctAnswerIndex !== null ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <Badge bg="success" style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem' }}>
+                                        {correctAnswerLetter}
+                                      </Badge>
+                                      <span style={{ fontSize: '0.9rem', color: '#155724', fontWeight: '500' }}>
+                                        {correctAnswerText}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <Badge bg="secondary" style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem' }}>
+                                      Not Set
+                                    </Badge>
+                                  )}
+                                </div>
+                              </Card.Body>
+                            </Card>
+                          </Col>
+                        );
+                      })}
+                    </Row>
+                  </>
+                )}
+              </div>
             </Col>
           </Row>
         </Tab>
