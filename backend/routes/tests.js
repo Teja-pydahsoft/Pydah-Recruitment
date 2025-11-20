@@ -423,6 +423,115 @@ router.get('/questions/bulk-template', authenticateToken, requireSuperAdminOrPer
   }
 });
 
+// Helper function to normalize question text for duplicate detection
+const normalizeQuestionText = (text) => {
+  if (!text) return '';
+  return text.toString().trim().toLowerCase().replace(/\s+/g, ' ');
+};
+
+// Helper function to validate and detect duplicates in questions
+const validateAndDetectDuplicates = async (questionsToInsert, category, campus = null, department = null, set = null) => {
+  const errors = [];
+  const duplicates = [];
+  const validQuestions = [];
+  const seenInBatch = new Map(); // Track questions within the batch
+
+  // First pass: validate and check for duplicates within the batch
+  questionsToInsert.forEach((question, index) => {
+    const rowNumber = index + 1;
+    const normalizedText = normalizeQuestionText(question.questionText);
+
+    // Validation checks
+    if (!question.questionText || !question.questionText.trim()) {
+      errors.push(`Row ${rowNumber}: Question text is empty`);
+      return;
+    }
+
+    if (!Array.isArray(question.options) || question.options.length < 2) {
+      errors.push(`Row ${rowNumber}: At least two answer options are required`);
+      return;
+    }
+
+    if (question.correctAnswer === null || question.correctAnswer === undefined) {
+      errors.push(`Row ${rowNumber}: Correct answer is required`);
+      return;
+    }
+
+    // Check for duplicates within the batch
+    if (seenInBatch.has(normalizedText)) {
+      const duplicateInfo = seenInBatch.get(normalizedText);
+      duplicates.push({
+        row: rowNumber,
+        questionText: question.questionText.substring(0, 100) + (question.questionText.length > 100 ? '...' : ''),
+        duplicateOf: duplicateInfo.row,
+        reason: 'duplicate_in_batch'
+      });
+      return;
+    }
+
+    seenInBatch.set(normalizedText, { row: rowNumber, question });
+    validQuestions.push({ question, normalizedText, originalIndex: index });
+  });
+
+  // Second pass: check for duplicates in database
+  if (validQuestions.length > 0) {
+    const normalizedTexts = validQuestions.map(vq => vq.normalizedText);
+    
+    // Build query for existing questions
+    const query = {
+      questionText: { $in: normalizedTexts.map(nt => new RegExp(`^${nt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) },
+      category,
+      isActive: true
+    };
+
+    // Add campus and department to query if provided
+    if (campus && campus.trim()) {
+      query.campus = campus.trim();
+    }
+    if (department && department.trim()) {
+      query.department = department.trim();
+    }
+    // Add set to query if provided (check for duplicates within the same set)
+    if (set && set.trim()) {
+      query.set = set.trim();
+    }
+
+    const existingQuestions = await QuestionBank.find(query).select('questionText set').lean();
+
+    // Create a set of existing normalized texts for quick lookup
+    const existingNormalized = new Set(
+      existingQuestions.map(eq => normalizeQuestionText(eq.questionText))
+    );
+
+    // Filter out questions that exist in database
+    const finalValidQuestions = [];
+    validQuestions.forEach(({ question, normalizedText, originalIndex }) => {
+      if (existingNormalized.has(normalizedText)) {
+        duplicates.push({
+          row: originalIndex + 1,
+          questionText: question.questionText.substring(0, 100) + (question.questionText.length > 100 ? '...' : ''),
+          duplicateOf: 'existing_in_database',
+          reason: 'duplicate_in_database'
+        });
+      } else {
+        finalValidQuestions.push(question);
+      }
+    });
+
+    return {
+      validQuestions: finalValidQuestions,
+      duplicates,
+      errors
+    };
+  }
+
+  return {
+    validQuestions: [],
+    duplicates,
+    errors
+  };
+};
+
 router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPermission('tests.manage'), upload.single('file'), async (req, res) => {
   let uploadedFilePath;
 
@@ -432,7 +541,7 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
     }
 
     // Extract form data
-    const { campus, department, category, topicId, newTopicName } = req.body;
+    const { campus, department, category, topicId, newTopicName, set } = req.body;
 
     // Validate required fields
     if (!campus || !department || !category) {
@@ -489,6 +598,8 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
       return res.status(400).json({ message: 'Uploaded file does not contain any data rows' });
     }
 
+    console.log(`📊 [EXCEL UPLOAD] Found ${rows.length} rows in Excel file`);
+
     const toLower = (value) => (value || '').toString().trim().toLowerCase();
     const getCell = (row, keys) => {
       for (const key of keys) {
@@ -538,10 +649,15 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
     };
 
     // If no topic provided, create or find a default topic based on category and department
+    // Include set in topic name if set is provided
     if (!effectiveTopic) {
-      const defaultTopicName = `${category} - ${department}`;
+      let defaultTopicName = `${category} - ${department}`;
+      if (set && set.trim()) {
+        defaultTopicName = `${category} - ${department} - ${set.trim()}`;
+      }
+      const escapedTopicName = defaultTopicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       effectiveTopic = await QuestionTopic.findOne({
-        name: { $regex: `^${defaultTopicName}$`, $options: 'i' },
+        name: { $regex: `^${escapedTopicName}$`, $options: 'i' },
         category
       });
       
@@ -556,14 +672,22 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
     }
 
     const questionsToInsert = [];
-    const errors = [];
+    const parsingErrors = [];
+
+    console.log(`📊 [EXCEL UPLOAD] Processing ${rows.length} rows from Excel file...`);
 
     rows.forEach((row, index) => {
       const rowNumber = index + 2; // considering header row
 
+      // Check if row is completely empty (skip empty rows)
+      const hasAnyData = Object.values(row).some(val => val !== null && val !== undefined && val.toString().trim() !== '');
+      if (!hasAnyData) {
+        return; // Skip completely empty rows
+      }
+
       const questionText = getCell(row, ['Question', 'question', 'Question Text']).toString().trim();
       if (!questionText) {
-        errors.push(`Row ${rowNumber}: Question text is empty`);
+        parsingErrors.push(`Row ${rowNumber}: Question text is empty or missing`);
         return;
       }
 
@@ -578,7 +702,7 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
         .filter(opt => opt !== '');
 
       if (options.length < 2) {
-        errors.push(`Row ${rowNumber}: At least two answer options are required`);
+        parsingErrors.push(`Row ${rowNumber}: At least two answer options are required (found ${options.length})`);
         return;
       }
 
@@ -586,7 +710,8 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
       const correctAnswerIndex = determineCorrectAnswer(rawCorrectAnswer, options);
 
       if (correctAnswerIndex === null) {
-        errors.push(`Row ${rowNumber}: Unable to determine correct answer`);
+        const answerValue = rawCorrectAnswer ? rawCorrectAnswer.toString().trim() : '(empty)';
+        parsingErrors.push(`Row ${rowNumber}: Unable to determine correct answer from "${answerValue}". Please use A, B, C, D or 1, 2, 3, 4.`);
         return;
       }
 
@@ -600,6 +725,7 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
         category: effectiveTopic.category,
         campus: campus.trim(),
         department: department.trim(),
+        set: (set && set.trim()) ? set.trim() : undefined,
         questionText,
         options,
         correctAnswer: correctAnswerIndex,
@@ -610,20 +736,116 @@ router.post('/questions/bulk-upload', authenticateToken, requireSuperAdminOrPerm
       });
     });
 
+    console.log(`✅ [EXCEL UPLOAD] Parsed ${questionsToInsert.length} valid questions from ${rows.length} rows`);
+    if (parsingErrors.length > 0) {
+      console.log(`⚠️ [EXCEL UPLOAD] Found ${parsingErrors.length} parsing errors`);
+    }
+
+    // Combine parsing errors with validation errors
     if (questionsToInsert.length === 0) {
       return res.status(400).json({
-        message: 'No questions were imported. Please review the errors.',
-        errors
+        message: 'No valid questions were found in the file. Please check the file format.',
+        errors: parsingErrors.length > 0 ? parsingErrors : ['No valid questions found in the uploaded file'],
+        totalRows: rows.length,
+        parsingErrorsCount: parsingErrors.length
       });
     }
 
-    const inserted = await QuestionBank.insertMany(questionsToInsert, { ordered: false });
+    // Validate and detect duplicates
+    console.log(`🔍 [EXCEL UPLOAD] Validating ${questionsToInsert.length} questions and checking for duplicates...`);
+    const { validQuestions, duplicates, errors: validationErrors } = await validateAndDetectDuplicates(
+      questionsToInsert,
+      effectiveTopic.category,
+      campus,
+      department,
+      set
+    );
+
+    console.log(`✅ [EXCEL UPLOAD] Validation complete:`);
+    console.log(`   - Valid questions: ${validQuestions.length}`);
+    console.log(`   - Duplicates found: ${duplicates.length}`);
+    console.log(`   - Validation errors: ${validationErrors.length}`);
+
+    // Combine all errors
+    const allErrors = [...parsingErrors, ...validationErrors];
+
+    if (validQuestions.length === 0) {
+      return res.status(400).json({
+        message: 'No valid questions to import after validation and duplicate removal.',
+        errors: allErrors.length > 0 ? allErrors : undefined,
+        duplicates: duplicates.length > 0 ? duplicates : undefined,
+        totalRows: rows.length,
+        totalProcessed: questionsToInsert.length,
+        duplicatesCount: duplicates.length,
+        parsingErrorsCount: parsingErrors.length,
+        validationErrorsCount: validationErrors.length
+      });
+    }
+
+    console.log(`💾 [EXCEL UPLOAD] Attempting to insert ${validQuestions.length} questions into database...`);
+    
+    let inserted;
+    try {
+      inserted = await QuestionBank.insertMany(validQuestions, { ordered: false });
+      console.log(`✅ [EXCEL UPLOAD] Successfully inserted ${inserted.length} questions`);
+      
+      // Check if all questions were inserted
+      if (inserted.length !== validQuestions.length) {
+        console.warn(`⚠️ [EXCEL UPLOAD] Mismatch: Attempted to insert ${validQuestions.length}, but only ${inserted.length} were inserted`);
+      }
+    } catch (insertError) {
+      console.error(`❌ [EXCEL UPLOAD] Error during insertMany:`, insertError);
+      
+      // If it's a bulk write error, extract details
+      if (insertError.writeErrors && insertError.writeErrors.length > 0) {
+        const failedCount = insertError.writeErrors.length;
+        const insertedCount = insertError.insertedCount || 0;
+        console.error(`❌ [EXCEL UPLOAD] ${failedCount} questions failed to insert, ${insertedCount} succeeded`);
+        insertError.writeErrors.forEach((err, idx) => {
+          console.error(`   Error ${idx + 1}:`, err.errmsg || err.err);
+        });
+        
+        // Return partial success
+        return res.status(207).json({
+          message: `Partial upload completed. ${insertedCount} question(s) imported, ${failedCount} failed.`,
+          insertedCount: insertedCount,
+          failedCount: failedCount,
+          skippedCount: allErrors.length + duplicates.length,
+          duplicatesCount: duplicates.length,
+          parsingErrorsCount: parsingErrors.length,
+          validationErrorsCount: validationErrors.length,
+          totalRows: rows.length,
+          totalProcessed: questionsToInsert.length,
+          errors: allErrors.length > 0 ? allErrors : undefined,
+          duplicates: duplicates.length > 0 ? duplicates : undefined,
+          insertErrors: insertError.writeErrors.map(e => e.errmsg || e.err)
+        });
+      }
+      
+      throw insertError; // Re-throw if not a bulk write error
+    }
 
     res.status(201).json({
-      message: `Bulk upload completed. Imported ${inserted.length} question(s).`,
-      insertedCount: inserted.length,
-      skippedCount: errors.length,
-      errors
+      success: true,
+      message: `Successfully imported ${inserted.length} question(s) from ${rows.length} rows.`,
+      summary: {
+        totalRows: rows.length,
+        successfullyImported: inserted.length,
+        duplicatesRemoved: duplicates.length,
+        errorsFound: allErrors.length,
+        skippedTotal: allErrors.length + duplicates.length
+      },
+      details: {
+        duplicates: duplicates.length > 0 ? duplicates.map(dup => ({
+          row: dup.row,
+          questionText: dup.questionText,
+          reason: dup.reason === 'duplicate_in_batch' 
+            ? `Duplicate of row ${dup.duplicateOf} in the same file`
+            : 'Already exists in database',
+          duplicateOf: dup.duplicateOf
+        })) : [],
+        errors: allErrors.length > 0 ? allErrors : []
+      }
     });
   } catch (error) {
     console.error('Bulk question upload error:', error);
@@ -1176,7 +1398,7 @@ router.post('/questions/bulk-upload-word', authenticateToken, requireSuperAdminO
     }
 
     // Extract form data
-    const { campus, department, category, topicId, newTopicName } = req.body;
+    const { campus, department, category, topicId, newTopicName, set } = req.body;
 
     // Validate required fields
     if (!campus || !department || !category) {
@@ -1255,11 +1477,16 @@ router.post('/questions/bulk-upload-word', authenticateToken, requireSuperAdminO
     }
 
     // If no topic provided, create or find a default topic based on category and department
+    // Include set in topic name if set is provided
     if (!effectiveTopic) {
-      const defaultTopicName = `${category} - ${department}`;
+      let defaultTopicName = `${category} - ${department}`;
+      if (set && set.trim()) {
+        defaultTopicName = `${category} - ${department} - ${set.trim()}`;
+      }
       console.log(`   📝 [TOPIC] Creating/finding default topic: "${defaultTopicName}"`);
+      const escapedTopicName = defaultTopicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       effectiveTopic = await QuestionTopic.findOne({
-        name: { $regex: `^${defaultTopicName}$`, $options: 'i' },
+        name: { $regex: `^${escapedTopicName}$`, $options: 'i' },
         category
       });
       
@@ -1278,7 +1505,7 @@ router.post('/questions/bulk-upload-word', authenticateToken, requireSuperAdminO
 
     // Parse text content
     console.log('\n📝 [UPLOAD] Starting question parsing...');
-    const { questions: parsedQuestions, errors } = parseQuestionsFromText(textContent);
+    const { questions: parsedQuestions, errors: parseErrors } = parseQuestionsFromText(textContent);
     
     // Prepare questions for insertion
     const questionsToInsert = parsedQuestions.map(q => ({
@@ -1287,6 +1514,7 @@ router.post('/questions/bulk-upload-word', authenticateToken, requireSuperAdminO
       category: effectiveTopic.category,
       campus: campus.trim(),
       department: department.trim(),
+      set: (set && set.trim()) ? set.trim() : undefined,
       questionText: q.questionText,
       options: q.options,
       correctAnswer: q.correctAnswer,
@@ -1300,20 +1528,61 @@ router.post('/questions/bulk-upload-word', authenticateToken, requireSuperAdminO
       console.log('❌ [UPLOAD] No questions to insert');
       return res.status(400).json({
         message: 'No questions were parsed. Please check the format.',
-        errors: errors.length > 0 ? errors : ['No valid questions found in the text']
+        errors: parseErrors.length > 0 ? parseErrors : ['No valid questions found in the text']
       });
     }
 
-    console.log(`💾 [UPLOAD] Inserting ${questionsToInsert.length} questions into database...`);
-    const inserted = await QuestionBank.insertMany(questionsToInsert, { ordered: false });
+    // Validate and detect duplicates
+    console.log('🔍 [UPLOAD] Validating questions and checking for duplicates...');
+    const { validQuestions, duplicates, errors: validationErrors } = await validateAndDetectDuplicates(
+      questionsToInsert,
+      effectiveTopic.category,
+      campus,
+      department,
+      set
+    );
+
+    // Combine parse errors with validation errors
+    const allErrors = [...parseErrors, ...validationErrors];
+
+    if (validQuestions.length === 0) {
+      console.log('❌ [UPLOAD] No valid questions after validation and duplicate removal');
+      return res.status(400).json({
+        message: 'No valid questions to import after validation and duplicate removal.',
+        errors: allErrors.length > 0 ? allErrors : undefined,
+        duplicates: duplicates.length > 0 ? duplicates : undefined,
+        totalProcessed: questionsToInsert.length,
+        duplicatesCount: duplicates.length,
+        errorsCount: allErrors.length
+      });
+    }
+
+    console.log(`💾 [UPLOAD] Inserting ${validQuestions.length} questions into database...`);
+    console.log(`📊 [UPLOAD] Summary: ${validQuestions.length} valid, ${duplicates.length} duplicates, ${allErrors.length} errors`);
+    const inserted = await QuestionBank.insertMany(validQuestions, { ordered: false });
     console.log(`✅ [UPLOAD] Successfully inserted ${inserted.length} questions`);
-    console.log(`📊 [UPLOAD] Summary: ${inserted.length} inserted, ${errors.length} errors`);
 
     res.status(201).json({
-      message: `Bulk Word upload completed. Imported ${inserted.length} question(s).`,
-      insertedCount: inserted.length,
-      skippedCount: errors.length,
-      errors: errors.length > 0 ? errors : undefined
+      success: true,
+      message: `Successfully imported ${inserted.length} question(s) from Word document.`,
+      summary: {
+        totalRows: questionsToInsert.length,
+        successfullyImported: inserted.length,
+        duplicatesRemoved: duplicates.length,
+        errorsFound: allErrors.length,
+        skippedTotal: allErrors.length + duplicates.length
+      },
+      details: {
+        duplicates: duplicates.length > 0 ? duplicates.map(dup => ({
+          row: dup.row,
+          questionText: dup.questionText,
+          reason: dup.reason === 'duplicate_in_batch' 
+            ? `Duplicate of row ${dup.duplicateOf} in the same file`
+            : 'Already exists in database',
+          duplicateOf: dup.duplicateOf
+        })) : [],
+        errors: allErrors.length > 0 ? allErrors : []
+      }
     });
   } catch (error) {
     console.error('❌ [UPLOAD] Bulk Word upload error:', error);
@@ -1380,6 +1649,37 @@ router.post('/questions', authenticateToken, requireSuperAdminOrPermission('test
       return res.status(400).json({ message: 'Correct answer must be option index(es) or option value(s)' });
     }
 
+    // Check for duplicate question
+    const normalizedQuestionText = normalizeQuestionText(questionText);
+    const duplicateQuery = {
+      questionText: new RegExp(`^${normalizedQuestionText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      category: topic.category,
+      isActive: true
+    };
+
+    // Optionally check campus and department if provided in request
+    const { campus, department } = req.body;
+    if (campus && campus.trim()) {
+      duplicateQuery.campus = campus.trim();
+    }
+    if (department && department.trim()) {
+      duplicateQuery.department = department.trim();
+    }
+
+    const existingQuestion = await QuestionBank.findOne(duplicateQuery);
+    if (existingQuestion) {
+      return res.status(409).json({
+        message: 'Duplicate question detected',
+        duplicate: {
+          questionText: existingQuestion.questionText.substring(0, 100) + (existingQuestion.questionText.length > 100 ? '...' : ''),
+          id: existingQuestion._id,
+          topic: existingQuestion.topicName,
+          category: existingQuestion.category,
+          reason: 'duplicate_in_database'
+        }
+      });
+    }
+
     const question = new QuestionBank({
       topic: topic._id,
       topicName: topic.name,
@@ -1391,6 +1691,8 @@ router.post('/questions', authenticateToken, requireSuperAdminOrPermission('test
       explanation,
       difficulty,
       tags,
+      campus: campus ? campus.trim() : undefined,
+      department: department ? department.trim() : undefined,
       createdBy: req.user._id
     });
 

@@ -29,6 +29,10 @@ const mcqSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  set: {
+    type: String,
+    trim: true
+  },
   questionText: {
     type: String,
     required: true
