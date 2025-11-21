@@ -3171,6 +3171,50 @@ router.post('/:id/submit', async (req, res) => {
 
     await candidate.save();
 
+    // Send push notification to all super admins about test completion
+    try {
+      const { sendNotificationToSuperAdmins } = require('../utils/pushNotificationService');
+      
+      // Populate candidate and test details for notification
+      await candidate.populate('user', 'name email');
+      await candidate.populate('form', 'title position');
+      
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const notificationData = {
+        title: 'Test Completed',
+        body: `${candidate.user.name} has completed the test "${test.title}" with ${percentage.toFixed(1)}% (${passed ? 'Passed' : 'Failed'})`,
+        icon: `${frontendUrl}/logo192.png`,
+        badge: `${frontendUrl}/logo192.png`,
+        url: `${frontendUrl}/candidates/${candidate._id}`,
+        data: {
+          candidateId: candidate._id.toString(),
+          testId: test._id.toString(),
+          score: totalScore,
+          percentage: percentage.toFixed(1),
+          status: passed ? 'passed' : 'failed',
+          type: 'test_completed'
+        },
+        tag: 'test-completed',
+        requireInteraction: false
+      };
+      
+      // Send notification asynchronously (don't block response)
+      sendNotificationToSuperAdmins(notificationData)
+        .then(result => {
+          if (result.success) {
+            console.log(`✅ [PUSH] Notification sent to ${result.sent} super admin(s) about test completion`);
+          } else {
+            console.log(`ℹ️  [PUSH] No notifications sent (${result.message || 'no subscriptions'})`);
+          }
+        })
+        .catch(err => {
+          console.error('❌ [PUSH] Error sending notification (non-blocking):', err.message);
+        });
+    } catch (pushError) {
+      // Don't fail the request if push notification fails
+      console.error('❌ [PUSH] Error setting up notification (non-blocking):', pushError.message);
+    }
+
     console.log(`[TEST SUBMIT] Candidate ${candidate._id} completed test ${test._id}`);
     console.log(`Answered: ${processedAnswers.length}/${test.questions.length}`);
     console.log(`Score: ${totalScore}/${test.totalMarks} (${percentage.toFixed(2)}%) Status: ${passed ? 'passed' : 'failed'}`);

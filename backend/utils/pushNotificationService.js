@@ -19,11 +19,17 @@ async function sendNotificationToSubscription(subscription, payload) {
     // Ensure payload is a string (web-push requires JSON string)
     const payloadString = typeof payload === 'string' ? payload : JSON.stringify(payload);
     
+    // Log notification attempt (helpful for production debugging)
+    console.log(`📤 [PUSH] Attempting to send notification to: ${subscription.endpoint.substring(0, 50)}...`);
+    console.log(`📤 [PUSH] Payload:`, JSON.stringify(payload, null, 2));
+    
     // Send the notification
     await webpush.sendNotification(subscription, payloadString);
     
     // Mark as successfully sent
     await PushSubscription.markNotificationSent(subscription.endpoint);
+    
+    console.log(`✅ [PUSH] Notification sent successfully to: ${subscription.endpoint.substring(0, 50)}...`);
     
     return {
       success: true,
@@ -31,6 +37,12 @@ async function sendNotificationToSubscription(subscription, payload) {
     };
   } catch (error) {
     console.error('❌ [PUSH] Failed to send notification:', error.message);
+    console.error('❌ [PUSH] Error details:', {
+      statusCode: error.statusCode,
+      statusMessage: error.statusMessage,
+      body: error.body,
+      endpoint: subscription.endpoint ? subscription.endpoint.substring(0, 50) : 'N/A'
+    });
     
     // Handle specific error cases
     if (error.statusCode === 410 || error.statusCode === 404) {
@@ -85,15 +97,28 @@ async function sendNotificationToUser(userId, notificationData) {
     
     console.log(`📤 [PUSH] Sending notification to ${subscriptions.length} subscription(s) for user: ${userId}`);
     
+    // Get frontend URL for absolute icon/badge URLs (required for production)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    
+    // Helper to make URL absolute if it's relative
+    const makeAbsoluteUrl = (url) => {
+      if (!url) return undefined;
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url; // Already absolute
+      }
+      // Make relative URL absolute
+      return `${frontendUrl}${url.startsWith('/') ? url : '/' + url}`;
+    };
+    
     // Prepare notification payload
     const payload = {
       title: notificationData.title || 'New Notification',
       body: notificationData.body || '',
-      icon: notificationData.icon || '/logo192.png',
-      badge: notificationData.badge || '/logo192.png',
-      image: notificationData.image || undefined,
+      icon: makeAbsoluteUrl(notificationData.icon || '/logo192.png'),
+      badge: makeAbsoluteUrl(notificationData.badge || '/logo192.png'),
+      image: makeAbsoluteUrl(notificationData.image),
       data: {
-        url: notificationData.url || '/',
+        url: notificationData.url || `${frontendUrl}/`,
         ...notificationData.data
       },
       requireInteraction: notificationData.requireInteraction || false,
@@ -173,15 +198,38 @@ async function sendNotificationToUsers(userIds, notificationData) {
 async function sendNotificationToSuperAdmins(notificationData) {
   try {
     const User = require('../models/User');
-    const superAdmins = await User.find({ role: 'superadmin' }).select('_id');
+    // Use 'super_admin' (with underscore) as that's the actual role in the database
+    const superAdmins = await User.find({ role: 'super_admin' }).select('_id email');
     const superAdminIds = superAdmins.map(admin => admin._id.toString());
     
+    console.log(`🔍 [PUSH] Found ${superAdmins.length} super admin(s):`, superAdmins.map(a => a.email));
+    
     if (superAdminIds.length === 0) {
+      console.warn('⚠️  [PUSH] No super admins found in database');
       return {
         success: true,
         sent: 0,
         failed: 0,
         message: 'No super admins found'
+      };
+    }
+    
+    // Check for active subscriptions
+    const PushSubscription = require('../models/PushSubscription');
+    const allSubscriptions = await PushSubscription.find({ 
+      user: { $in: superAdminIds }, 
+      isActive: true 
+    });
+    
+    console.log(`🔍 [PUSH] Found ${allSubscriptions.length} active subscription(s) for super admins`);
+    
+    if (allSubscriptions.length === 0) {
+      console.warn('⚠️  [PUSH] No active push subscriptions found for super admins');
+      return {
+        success: true,
+        sent: 0,
+        failed: 0,
+        message: 'No active subscriptions found'
       };
     }
     
