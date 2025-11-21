@@ -138,11 +138,15 @@ async function sendNotificationToUser(userId, notificationData) {
       return `${frontendUrl}${url.startsWith('/') ? url : '/' + url}`;
     };
     
-    // Prepare notification payload
+    // Prepare notification payload with enhanced styling
     // Use pydah-logo.png as the default logo (matching the favicon)
     const defaultIcon = `${frontendUrl}/pydah-logo.png`;
     const defaultBadge = `${frontendUrl}/pydah-logo.png`;
     
+    // Determine notification type for styling
+    const notificationType = notificationData.data?.type || 'default';
+    
+    // Enhanced notification payload with styling
     const payload = {
       title: notificationData.title || 'New Notification',
       body: notificationData.body || '',
@@ -151,11 +155,17 @@ async function sendNotificationToUser(userId, notificationData) {
       image: makeAbsoluteUrl(notificationData.image),
       data: {
         url: notificationData.url || `${frontendUrl}/`,
+        type: notificationType,
         ...notificationData.data
       },
+      // Styling options
+      color: notificationData.color || (notificationType === 'new_application' ? '#10b981' : notificationType === 'test_completed' ? '#3b82f6' : '#6366f1'),
       requireInteraction: notificationData.requireInteraction || false,
       tag: notificationData.tag || 'default',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      // Additional metadata for better styling
+      priority: notificationData.priority || 'high',
+      silent: false
     };
     
     // Send to all subscriptions

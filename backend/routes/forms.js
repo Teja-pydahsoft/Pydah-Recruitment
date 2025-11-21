@@ -776,7 +776,7 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
       }
       
       const notificationData = {
-        title: 'New Application Received',
+        title: '🎯 New Application Received',
         body: `${userDetails.name} has submitted an application for ${form.position || form.title}`,
         icon: `${frontendUrl}/pydah-logo.png`,
         badge: `${frontendUrl}/pydah-logo.png`,
@@ -787,7 +787,9 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
           type: 'new_application'
         },
         tag: 'new-application',
-        requireInteraction: false
+        color: '#10b981', // Green color for new applications
+        requireInteraction: false,
+        priority: 'high'
       };
       
       // Send notification asynchronously (don't block response)

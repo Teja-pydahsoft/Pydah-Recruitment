@@ -3185,9 +3185,13 @@ router.post('/:id/submit', async (req, res) => {
         frontendUrl = frontendUrl.split(',')[0].trim();
       }
       
+      // Determine emoji and color based on pass/fail
+      const statusEmoji = passed ? '✅' : '❌';
+      const statusColor = passed ? '#10b981' : '#ef4444'; // Green for pass, red for fail
+      
       const notificationData = {
-        title: 'Test Completed',
-        body: `${candidate.user.name} has completed the test "${test.title}" with ${percentage.toFixed(1)}% (${passed ? 'Passed' : 'Failed'})`,
+        title: `${statusEmoji} Test Completed`,
+        body: `${candidate.user.name} completed "${test.title}" with ${percentage.toFixed(1)}% (${passed ? 'Passed ✓' : 'Failed ✗'})`,
         icon: `${frontendUrl}/pydah-logo.png`,
         badge: `${frontendUrl}/pydah-logo.png`,
         url: `${frontendUrl}/candidates/${candidate._id}`,
@@ -3200,7 +3204,9 @@ router.post('/:id/submit', async (req, res) => {
           type: 'test_completed'
         },
         tag: 'test-completed',
-        requireInteraction: false
+        color: statusColor,
+        requireInteraction: false,
+        priority: 'high'
       };
       
       // Send notification asynchronously (don't block response)

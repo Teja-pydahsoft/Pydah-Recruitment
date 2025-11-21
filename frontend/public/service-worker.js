@@ -72,27 +72,67 @@ self.addEventListener('push', (event) => {
     }
   }
   
-  // Show the notification
+  // Determine notification type for styling
+  const notificationType = notificationData.data?.type || 'default';
+  
+  // Style notifications based on type
+  const getNotificationStyle = (type) => {
+    const styles = {
+      'new_application': {
+        icon: notificationData.icon || '/pydah-logo.png',
+        badge: notificationData.badge || '/pydah-logo.png',
+        color: '#10b981', // Green for new applications
+        vibrate: [200, 100, 200]
+      },
+      'test_completed': {
+        icon: notificationData.icon || '/pydah-logo.png',
+        badge: notificationData.badge || '/pydah-logo.png',
+        color: '#3b82f6', // Blue for test completions
+        vibrate: [100, 50, 100, 50, 100]
+      },
+      'default': {
+        icon: notificationData.icon || '/pydah-logo.png',
+        badge: notificationData.badge || '/pydah-logo.png',
+        color: '#6366f1', // Indigo for default
+        vibrate: [200, 100, 200]
+      }
+    };
+    return styles[type] || styles['default'];
+  };
+  
+  const style = getNotificationStyle(notificationType);
+  
+  // Show the notification with enhanced styling
   const notificationOptions = {
     body: notificationData.body,
-    icon: notificationData.icon,
-    badge: notificationData.badge,
+    icon: style.icon,
+    badge: style.badge,
     tag: notificationData.tag,
-    requireInteraction: notificationData.requireInteraction,
+    requireInteraction: notificationData.requireInteraction || false,
     data: notificationData.data,
     timestamp: notificationData.timestamp,
-    vibrate: [200, 100, 200], // Vibration pattern for mobile devices
+    vibrate: style.vibrate,
+    // Add color for notification (supported in some browsers)
+    color: style.color,
+    // Add sound (if supported)
+    silent: false,
+    // Rich notification actions with styled buttons
     actions: [
       {
-        action: 'open',
-        title: 'View',
-        icon: '/logo192.png'
+        action: 'view',
+        title: '📋 View Details',
+        icon: style.icon
       },
       {
-        action: 'close',
-        title: 'Close'
+        action: 'dismiss',
+        title: '✕ Dismiss',
+        icon: style.icon
       }
-    ]
+    ],
+    // Add renotify for same tag (replace previous notification)
+    renotify: true,
+    // Show notification even if app is in foreground
+    showTrigger: null
   };
   
   // Add image if provided
@@ -122,13 +162,15 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   
   // Handle different actions
-  if (event.action === 'close') {
-    // User clicked close, do nothing
+  if (event.action === 'dismiss' || event.action === 'close') {
+    // User clicked dismiss/close, do nothing
+    console.log('[Service Worker] Notification dismissed by user');
     return;
   }
   
-  // Default action or 'open' action - navigate to the URL
+  // Default action (clicking notification body) or 'view' action - navigate to the URL
   const urlToOpen = event.notification.data?.url || '/';
+  console.log('[Service Worker] Opening URL:', urlToOpen);
   
   event.waitUntil(
     // Check if there's already a window/tab open with the target URL
