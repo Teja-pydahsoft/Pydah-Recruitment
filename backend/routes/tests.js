@@ -15,7 +15,7 @@ const QuestionTopic = require('../models/QuestionTopic');
 const PreviousPaper = require('../models/PreviousPaper');
 const Interview = require('../models/Interview');
 const NotificationSettings = require('../models/NotificationSettings');
-const { authenticateToken, requireSuperAdminOrPermission } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, getCampusFilter } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
 const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
 
@@ -349,15 +349,24 @@ router.get('/questions', authenticateToken, requireSuperAdminOrPermission('tests
       topic,
       category,
       search,
+      campus,
+      department,
+      set,
       page = 1,
       limit = 20,
       includeInactive
     } = req.query;
 
     const filter = {};
+    const campusFilter = getCampusFilter(req.user);
 
     if (includeInactive !== 'true') {
       filter.isActive = true;
+    }
+
+    // Apply campus filter if user has campus restriction
+    if (campusFilter.campus) {
+      filter.campus = campusFilter.campus;
     }
 
     if (topicId && mongoose.Types.ObjectId.isValid(topicId)) {
@@ -375,6 +384,18 @@ router.get('/questions', authenticateToken, requireSuperAdminOrPermission('tests
 
     if (category) {
       filter.category = category;
+    }
+
+    if (campus && campus !== 'all') {
+      filter.campus = campus;
+    }
+
+    if (department && department !== 'all') {
+      filter.department = department;
+    }
+
+    if (set && set !== 'all') {
+      filter.set = set;
     }
 
     if (search) {
@@ -402,6 +423,51 @@ router.get('/questions', authenticateToken, requireSuperAdminOrPermission('tests
   } catch (error) {
     console.error('Question bank fetch error:', error);
     res.status(500).json({ message: 'Server error fetching question bank' });
+  }
+});
+
+router.get('/questions/filters', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
+  try {
+    const { campus, department } = req.query;
+    const campusFilter = getCampusFilter(req.user);
+    
+    const filter = { isActive: true };
+    
+    // Apply campus filter if user has campus restriction (overrides query param)
+    if (campusFilter.campus) {
+      filter.campus = campusFilter.campus;
+    } else if (campus && campus !== 'all') {
+      filter.campus = campus;
+    }
+    
+    if (department && department !== 'all') {
+      filter.department = department;
+    }
+
+    // Get unique campuses
+    const campuses = await QuestionBank.distinct('campus', { ...filter, campus: { $exists: true, $ne: null, $ne: '' } });
+    
+    // Get unique departments (optionally filtered by campus)
+    const departments = await QuestionBank.distinct('department', { ...filter, department: { $exists: true, $ne: null, $ne: '' } });
+    
+    // Get unique sets (optionally filtered by campus and department)
+    const sets = await QuestionBank.distinct('set', { ...filter, set: { $exists: true, $ne: null, $ne: '' } });
+    
+    // Get unique topics (optionally filtered by campus and department)
+    const topicIds = await QuestionBank.distinct('topic', filter);
+    const topics = await QuestionTopic.find({ _id: { $in: topicIds }, isActive: true })
+      .select('_id name category')
+      .lean();
+
+    res.json({
+      campuses: campuses.filter(c => c).sort(),
+      departments: departments.filter(d => d).sort(),
+      sets: sets.filter(s => s).sort(),
+      topics
+    });
+  } catch (error) {
+    console.error('Question filters fetch error:', error);
+    res.status(500).json({ message: 'Server error fetching question filters' });
   }
 });
 
@@ -2043,6 +2109,34 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
       return res.status(400).json({ message: 'Every topic selection must include a topicId and questionCount greater than 0' });
     }
 
+    // Fetch candidate data early to get campus/department for filtering
+    let candidateData = [];
+    let filterCampus = null;
+    let filterDepartment = null;
+
+    if (Array.isArray(candidateIds) && candidateIds.length > 0) {
+      const uniqueCandidateIds = [...new Set(candidateIds.map(id => id.toString()))];
+      const candidateObjectIds = uniqueCandidateIds.map(id => new mongoose.Types.ObjectId(id));
+      candidateData = await Candidate.find({ _id: { $in: candidateObjectIds } })
+        .populate('form', 'title position department formCategory campus')
+        .populate('user', 'name email profile');
+
+      if (candidateData.length !== uniqueCandidateIds.length) {
+        return res.status(400).json({ message: 'One or more selected candidates could not be found' });
+      }
+
+      // Get campus and department from candidate if single candidate is selected
+      if (candidateIds.length === 1 && candidateData.length > 0) {
+        const candidate = candidateData[0];
+        if (candidate.form?.campus) {
+          filterCampus = candidate.form.campus;
+        }
+        if (candidate.form?.department) {
+          filterDepartment = candidate.form.department;
+        }
+      }
+    }
+
     // Fetch topic metadata
     const topicIds = normalizedSelections.map(selection => selection.topicId);
     const topics = await QuestionTopic.find({ _id: { $in: topicIds } }).lean();
@@ -2058,8 +2152,18 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
 
     for (const selection of normalizedSelections) {
       const topicObjectId = new mongoose.Types.ObjectId(selection.topicId);
+      const matchFilter = { topic: topicObjectId, isActive: true };
+      
+      // Add campus and department filter if available
+      if (filterCampus) {
+        matchFilter.campus = filterCampus;
+      }
+      if (filterDepartment) {
+        matchFilter.department = filterDepartment;
+      }
+      
       const sampledQuestions = await QuestionBank.aggregate([
-        { $match: { topic: topicObjectId, isActive: true } },
+        { $match: matchFilter },
         { $sample: { size: selection.questionCount } }
       ]);
 
@@ -2091,19 +2195,8 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
     let resolvedFormId = formId ? new mongoose.Types.ObjectId(formId) : null;
     let candidateAssignments = [];
 
-    let candidateData = [];
-
-    if (Array.isArray(candidateIds) && candidateIds.length > 0) {
-      const uniqueCandidateIds = [...new Set(candidateIds.map(id => id.toString()))];
-      const candidateObjectIds = uniqueCandidateIds.map(id => new mongoose.Types.ObjectId(id));
-      candidateData = await Candidate.find({ _id: { $in: candidateObjectIds } })
-        .populate('form', 'title position department formCategory')
-        .populate('user', 'name email profile');
-
-      if (candidateData.length !== uniqueCandidateIds.length) {
-        return res.status(400).json({ message: 'One or more selected candidates could not be found' });
-      }
-
+    // candidateData is already fetched above for filtering questions
+    if (Array.isArray(candidateIds) && candidateIds.length > 0 && candidateData.length > 0) {
       const formIds = [...new Set(candidateData.map(candidate => candidate.form?._id?.toString() || candidate.form?.toString()))];
 
       if (formIds.length > 1 && !resolvedFormId) {
@@ -2647,8 +2740,20 @@ router.get('/assigned', authenticateToken, async (req, res) => {
 // Get all tests (Super Admin only)
 router.get('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
-    const tests = await Test.find({})
-      .populate('form', 'title position department formCategory formType')
+    const campusFilter = getCampusFilter(req.user);
+    let query = {};
+    
+    // If user has campus restriction, filter by form's campus
+    if (campusFilter.campus) {
+      // First find forms with the matching campus
+      const RecruitmentForm = require('../models/RecruitmentForm');
+      const formsWithCampus = await RecruitmentForm.find({ campus: campusFilter.campus }).select('_id').lean();
+      const formIds = formsWithCampus.map(f => f._id);
+      query.form = { $in: formIds };
+    }
+    
+    const tests = await Test.find(query)
+      .populate('form', 'title position department formCategory formType campus')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
 

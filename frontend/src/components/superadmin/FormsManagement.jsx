@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Modal, Form, Alert, Badge, Spinner, Tabs, Tab } from 'react-bootstrap';
+import { Container, Row, Col, Card, Table, Button, Modal, Form, Badge, Spinner, Tabs, Tab } from 'react-bootstrap';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
+import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const FormsManagement = () => {
   const { hasWritePermission } = useAuth();
@@ -17,8 +18,7 @@ const FormsManagement = () => {
   const [selectedForm, setSelectedForm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [toast, setToast] = useState({ type: '', message: '' });
   const [activeTab, setActiveTab] = useState('teaching');
   const [editingForm, setEditingForm] = useState(null);
 
@@ -93,7 +93,7 @@ const FormsManagement = () => {
         setNonTeachingForms(nonTeachingFormsResponse.data.forms);
         setFeedbackForms(feedbackFormsResponse.data.forms);
       } catch (error) {
-        setError('Failed to fetch forms');
+        setToast({ type: 'danger', message: 'Failed to fetch forms' });
         console.error('Forms fetch error:', error);
       } finally {
         setLoading(false);
@@ -103,23 +103,22 @@ const FormsManagement = () => {
     const handleCreateForm = async (e) => {
       e.preventDefault();
       setSubmitting(true);
-      setError('');
 
       try {
         // Validate required fields for candidate_profile forms
         if (formData.formType === 'candidate_profile') {
           if (!formData.campus || !formData.campus.trim()) {
-            setError('Campus is required for candidate profile forms');
+            setToast({ type: 'danger', message: 'Campus is required for candidate profile forms' });
             setSubmitting(false);
             return;
           }
           if (!formData.department || !formData.department.trim()) {
-            setError('Department is required for candidate profile forms');
+            setToast({ type: 'danger', message: 'Department is required for candidate profile forms' });
             setSubmitting(false);
             return;
           }
           if (!formData.position || !formData.position.trim()) {
-            setError('Position is required for candidate profile forms');
+            setToast({ type: 'danger', message: 'Position is required for candidate profile forms' });
             setSubmitting(false);
             return;
           }
@@ -159,11 +158,11 @@ const FormsManagement = () => {
         if (editingForm) {
           // Update existing form
           await api.put(`/forms/${editingForm._id}`, formSubmissionData);
-          setSuccess('Form updated successfully!');
+          setToast({ type: 'success', message: 'Form updated successfully!' });
         } else {
           // Create new form
           await api.post('/forms', formSubmissionData);
-          setSuccess('Form created successfully!');
+          setToast({ type: 'success', message: 'Form created successfully!' });
         }
 
         setShowCreateModal(false);
@@ -172,7 +171,7 @@ const FormsManagement = () => {
         fetchForms();
       } catch (error) {
         const errorMessage = error.response?.data?.message || error.message || (editingForm ? 'Failed to update form' : 'Failed to create form');
-        setError(errorMessage);
+        setToast({ type: 'danger', message: errorMessage });
         console.error('Form creation/update error:', error);
         console.error('Error details:', error.response?.data);
       } finally {
@@ -212,7 +211,7 @@ const FormsManagement = () => {
         setEditingForm(fullForm);
         setShowCreateModal(true);
       } catch (error) {
-        setError('Failed to load form for editing');
+        setToast({ type: 'danger', message: 'Failed to load form for editing' });
         console.error('Error loading form:', error);
       }
     };
@@ -335,21 +334,21 @@ const FormsManagement = () => {
       if (window.confirm('Are you sure you want to delete this form? This action cannot be undone.')) {
         try {
           await api.delete(`/forms/${formId}`);
-          setSuccess('Form deleted successfully!');
+          setToast({ type: 'success', message: 'Form deleted successfully!' });
           fetchForms();
         } catch (error) {
-          setError(error.response?.data?.message || 'Failed to delete form');
+          setToast({ type: 'danger', message: error.response?.data?.message || 'Failed to delete form' });
         }
       }
     };
-  
+
     const handleToggleStatus = async (formId, currentStatus) => {
       try {
         await api.put(`/forms/${formId}`, { isActive: !currentStatus });
-        setSuccess(`Form ${!currentStatus ? 'activated' : 'deactivated'} successfully!`);
+        setToast({ type: 'success', message: `Form ${!currentStatus ? 'activated' : 'deactivated'} successfully!` });
         fetchForms();
       } catch (error) {
-        setError(error.response?.data?.message || 'Failed to update form status');
+        setToast({ type: 'danger', message: error.response?.data?.message || 'Failed to update form status' });
       }
     };
   
@@ -359,25 +358,24 @@ const FormsManagement = () => {
         setSelectedForm(response.data.form);
         setShowQRModal(true);
       } catch (error) {
-        setError('Failed to fetch QR code');
+        setToast({ type: 'danger', message: 'Failed to fetch QR code' });
       }
     };
-  
+
     const handleRegenerateQR = async (formId) => {
       try {
         await api.post(`/forms/${formId}/qr-code`);
-        setSuccess('QR code regenerated successfully!');
+        setToast({ type: 'success', message: 'QR code regenerated successfully!' });
         const response = await api.get(`/forms/${formId}/qr-code`);
         setSelectedForm(response.data.form);
       } catch (error) {
-        setError('Failed to regenerate QR code');
+        setToast({ type: 'danger', message: 'Failed to regenerate QR code' });
       }
     };
-  
+
     const copyToClipboard = (text) => {
       navigator.clipboard.writeText(text);
-      setSuccess('Link copied to clipboard!');
-      setTimeout(() => setSuccess(''), 3000);
+      setToast({ type: 'success', message: 'Link copied to clipboard!' });
     };
 
   const addFormField = () => {
@@ -465,15 +463,6 @@ const FormsManagement = () => {
           </div>
         </Col>
       </Row>
-
-      {(error || success) && (
-        <Row className="mb-3">
-          <Col>
-            {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-            {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}
-          </Col>
-        </Row>
-      )}
 
       <Row>
         <Col>
@@ -1199,6 +1188,10 @@ const FormsManagement = () => {
                 </Button>
               </Modal.Footer>
             </Modal>
+            <ToastNotificationContainer 
+              toast={toast} 
+              onClose={() => setToast({ type: '', message: '' })} 
+            />
           </Container>
         );
       };

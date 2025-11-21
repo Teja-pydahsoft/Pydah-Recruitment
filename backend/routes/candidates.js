@@ -6,7 +6,7 @@ const Interview = require('../models/Interview');
 const NotificationSettings = require('../models/NotificationSettings');
 const { sendEmail } = require('../config/email');
 const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
-const { authenticateToken, requireSuperAdminOrPermission, requireSuperAdminOrWritePermission, hasPermission } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, requireSuperAdminOrWritePermission, hasPermission, getCampusFilter } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -100,9 +100,21 @@ const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignm
 // Get all candidates (Super Admin only)
 router.get('/', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
-    const candidates = await Candidate.find({})
+    const campusFilter = getCampusFilter(req.user);
+    let query = {};
+    
+    // If user has campus restriction, filter by form's campus
+    if (campusFilter.campus) {
+      // First find forms with the matching campus
+      const RecruitmentForm = require('../models/RecruitmentForm');
+      const formsWithCampus = await RecruitmentForm.find({ campus: campusFilter.campus }).select('_id').lean();
+      const formIds = formsWithCampus.map(f => f._id);
+      query.form = { $in: formIds };
+    }
+    
+    const candidates = await Candidate.find(query)
       .populate('user', 'name email')
-      .populate('form', 'title position department formCategory')
+      .populate('form', 'title position department formCategory campus')
       .sort({ createdAt: -1 })
       .lean();
     

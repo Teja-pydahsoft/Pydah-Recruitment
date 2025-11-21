@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const Container = styled.div`
   width: 100%;
@@ -587,10 +588,12 @@ const SubAdminManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingSubAdmin, setEditingSubAdmin] = useState(null);
+  const [toast, setToast] = useState({ type: '', message: '' });
   const [formState, setFormState] = useState({
     name: '',
     email: '',
     password: '',
+    campus: '',
     permissions: {} // Object: { 'forms.manage': 'read_only' | 'full_access', ... }
   });
 
@@ -623,6 +626,7 @@ const SubAdminManagement = () => {
       name: '',
       email: '',
       password: '',
+      campus: '',
       permissions: {}
     });
     setEditingSubAdmin(null);
@@ -651,6 +655,7 @@ const SubAdminManagement = () => {
       name: subAdmin.name,
       email: subAdmin.email,
       password: '',
+      campus: subAdmin.campus || '',
       permissions: permissionsObj,
       isActive: subAdmin.isActive
     });
@@ -713,6 +718,7 @@ const SubAdminManagement = () => {
       const payload = {
         name: formState.name,
         email: formState.email,
+        campus: formState.campus || null,
         permissions: formState.permissions
       };
 
@@ -730,9 +736,10 @@ const SubAdminManagement = () => {
       await fetchSubAdmins();
       setShowModal(false);
       resetForm();
+      setToast({ type: 'success', message: editingSubAdmin ? 'Sub admin updated successfully.' : 'Sub admin created successfully.' });
     } catch (error) {
       console.error('Failed to save sub admin', error);
-      alert(error.response?.data?.message || 'Unable to save sub admin');
+      setToast({ type: 'danger', message: error.response?.data?.message || 'Unable to save sub admin' });
     } finally {
       setSaving(false);
     }
@@ -746,9 +753,10 @@ const SubAdminManagement = () => {
     try {
       await api.delete(`/auth/sub-admins/${subAdminId}`);
       await fetchSubAdmins();
+      setToast({ type: 'success', message: 'Sub admin deleted successfully.' });
     } catch (error) {
       console.error('Failed to delete sub admin', error);
-      alert(error.response?.data?.message || 'Unable to delete sub admin');
+      setToast({ type: 'danger', message: error.response?.data?.message || 'Unable to delete sub admin' });
     }
   };
 
@@ -756,9 +764,10 @@ const SubAdminManagement = () => {
     try {
       await api.put(`/auth/users/${subAdmin._id}/status`, { isActive: !subAdmin.isActive });
       await fetchSubAdmins();
+      setToast({ type: 'success', message: `Sub admin is now ${!subAdmin.isActive ? 'active' : 'inactive'}.` });
     } catch (error) {
       console.error('Failed to update sub admin status', error);
-      alert(error.response?.data?.message || 'Unable to update status');
+      setToast({ type: 'danger', message: error.response?.data?.message || 'Unable to update status' });
     }
   };
 
@@ -784,6 +793,7 @@ const SubAdminManagement = () => {
           <tr>
             <Th>Name</Th>
             <Th>Email</Th>
+            <Th>Campus</Th>
             <Th>Status</Th>
             <Th>Permissions</Th>
             <Th style={{ width: '200px' }}>Actions</Th>
@@ -797,6 +807,22 @@ const SubAdminManagement = () => {
                 <div style={{ fontSize: '0.85rem', color: '#64748b' }}>User Management</div>
               </Td>
               <Td>{subAdmin.email}</Td>
+              <Td>
+                {subAdmin.campus ? (
+                  <span style={{ 
+                    padding: '0.25rem 0.75rem', 
+                    borderRadius: '6px', 
+                    backgroundColor: '#dbeafe', 
+                    color: '#1e40af',
+                    fontSize: '0.875rem',
+                    fontWeight: 600
+                  }}>
+                    {subAdmin.campus}
+                  </span>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>All Campuses</span>
+                )}
+              </Td>
               <Td>
                 <StatusPill active={subAdmin.isActive}>
                   {subAdmin.isActive ? 'Active' : 'Inactive'}
@@ -911,6 +937,43 @@ const SubAdminManagement = () => {
                         placeholder={editingSubAdmin ? 'Leave blank to keep existing password' : 'Enter password'}
                         required={!editingSubAdmin}
                       />
+                    </FormGroup>
+
+                    <FormGroup>
+                      <Label htmlFor="campus">Campus (Optional)</Label>
+                      <select
+                        id="campus"
+                        name="campus"
+                        value={formState.campus}
+                        onChange={handleInputChange}
+                        style={{
+                          width: '100%',
+                          padding: '0.875rem 1.125rem',
+                          border: '2px solid #e2e8f0',
+                          borderRadius: '12px',
+                          fontSize: '1rem',
+                          transition: 'all 0.2s ease',
+                          background: '#ffffff',
+                          cursor: 'pointer'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = '#f97316';
+                          e.target.style.boxShadow = '0 0 0 4px rgba(249, 115, 22, 0.1)';
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = '#e2e8f0';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                      >
+                        <option value="">All Campuses (No Restriction)</option>
+                        <option value="Btech">Btech</option>
+                        <option value="Degree">Degree</option>
+                        <option value="Pharmacy">Pharmacy</option>
+                        <option value="Diploma">Diploma</option>
+                      </select>
+                      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                        If assigned, this sub-admin will only see data for the selected campus.
+                      </p>
                     </FormGroup>
 
                     {editingSubAdmin && (
@@ -1046,6 +1109,10 @@ const SubAdminManagement = () => {
           </ModalContent>
         </Modal>
       )}
+      <ToastNotificationContainer 
+        toast={toast} 
+        onClose={() => setToast({ type: '', message: '' })} 
+      />
     </Container>
   );
 };

@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup, Pagination } from 'react-bootstrap';
 import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes, FaSearch } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import ToastNotificationContainer from '../ToastNotificationContainer';
+
+const PAGE_SIZE = 12;
 
 const FormSubmissions = () => {
   const [allCandidates, setAllCandidates] = useState([]);
@@ -11,13 +14,15 @@ const FormSubmissions = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [error, setError] = useState('');
   const [selectedCandidates, setSelectedCandidates] = useState(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('teaching');
   const [selectedJobRole, setSelectedJobRole] = useState('all');
   const [quickSearch, setQuickSearch] = useState(''); // Applied search
   const [searchInput, setSearchInput] = useState(''); // Input value (not applied until button click)
+  const [pendingPage, setPendingPage] = useState(1);
+  const [progressedPage, setProgressedPage] = useState(1);
+  const [toast, setToast] = useState({ type: '', message: '' });
 
   const navigate = useNavigate();
 
@@ -32,7 +37,7 @@ const FormSubmissions = () => {
       const candidatesWithForms = response.data.candidates;
       setAllCandidates(candidatesWithForms);
     } catch (error) {
-      setError('Failed to fetch form submissions');
+      setToast({ type: 'danger', message: 'Failed to fetch form submissions' });
       console.error('Candidates fetch error:', error);
     } finally {
       setLoading(false);
@@ -91,6 +96,32 @@ const FormSubmissions = () => {
     })
   ), [filteredCandidates]);
 
+  // Paginated pending candidates
+  const paginatedPendingCandidates = useMemo(() => {
+    const startIndex = (pendingPage - 1) * PAGE_SIZE;
+    return pendingCandidates.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [pendingCandidates, pendingPage]);
+
+  const pendingTotalPages = useMemo(() => {
+    return Math.ceil(pendingCandidates.length / PAGE_SIZE);
+  }, [pendingCandidates.length]);
+
+  // Paginated progressed candidates
+  const paginatedProgressedCandidates = useMemo(() => {
+    const startIndex = (progressedPage - 1) * PAGE_SIZE;
+    return progressedCandidates.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [progressedCandidates, progressedPage]);
+
+  const progressedTotalPages = useMemo(() => {
+    return Math.ceil(progressedCandidates.length / PAGE_SIZE);
+  }, [progressedCandidates.length]);
+
+  // Reset pages when filters change
+  useEffect(() => {
+    setPendingPage(1);
+    setProgressedPage(1);
+  }, [activeTab, selectedJobRole, quickSearch]);
+
   // Get unique job roles for the current tab
   const getJobRoles = () => {
     let candidates = allCandidates.filter(c => {
@@ -119,7 +150,7 @@ const FormSubmissions = () => {
       setSelectedCandidate(response.data.candidate);
       setShowProfileModal(true);
     } catch (error) {
-      setError('Failed to fetch candidate profile');
+      setToast({ type: 'danger', message: 'Failed to fetch candidate profile' });
       console.error('Profile fetch error:', error);
     } finally {
       setProfileLoading(false);
@@ -135,8 +166,9 @@ const FormSubmissions = () => {
       }
       fetchCandidates();
       setSelectedCandidates(new Set());
+      setToast({ type: 'success', message: 'Candidate approved successfully.' });
     } catch (error) {
-      setError('Failed to approve candidate');
+      setToast({ type: 'danger', message: 'Failed to approve candidate' });
       console.error('Approve error:', error);
     }
   };
@@ -150,8 +182,9 @@ const FormSubmissions = () => {
       }
       fetchCandidates();
       setSelectedCandidates(new Set());
+      setToast({ type: 'success', message: 'Candidate rejected successfully.' });
     } catch (error) {
-      setError('Failed to reject candidate');
+      setToast({ type: 'danger', message: 'Failed to reject candidate' });
       console.error('Reject error:', error);
     }
   };
@@ -166,8 +199,9 @@ const FormSubmissions = () => {
       });
       fetchCandidates();
       setSelectedCandidates(new Set());
+      setToast({ type: 'success', message: `${selectedCandidates.size} candidate(s) approved successfully.` });
     } catch (error) {
-      setError('Failed to approve candidates');
+      setToast({ type: 'danger', message: 'Failed to approve candidates' });
       console.error('Bulk approve error:', error);
     } finally {
       setBulkActionLoading(false);
@@ -184,8 +218,9 @@ const FormSubmissions = () => {
       });
       fetchCandidates();
       setSelectedCandidates(new Set());
+      setToast({ type: 'success', message: `${selectedCandidates.size} candidate(s) rejected successfully.` });
     } catch (error) {
-      setError('Failed to reject candidates');
+      setToast({ type: 'danger', message: 'Failed to reject candidates' });
       console.error('Bulk reject error:', error);
     } finally {
       setBulkActionLoading(false);
@@ -461,15 +496,6 @@ const FormSubmissions = () => {
         </Col>
       </Row>
 
-      {error && (
-        <Row className="mb-3">
-          <Col>
-            <Alert variant="danger" dismissible onClose={() => setError('')}>
-              {error}
-            </Alert>
-          </Col>
-        </Row>
-      )}
 
       {/* Bulk Actions */}
       {selectedCandidates.size > 0 && (
@@ -518,8 +544,9 @@ const FormSubmissions = () => {
           </Col>
         </Row>
       ) : (
-        <Row className="g-3">
-          {pendingCandidates.map(candidate => (
+        <>
+          <Row className="g-3">
+            {paginatedPendingCandidates.map(candidate => (
             <Col xs={12} md={6} lg={4} key={candidate._id}>
               <Card className="h-100 shadow-sm border-0">
                 <Card.Body className="d-flex flex-column">
@@ -605,7 +632,33 @@ const FormSubmissions = () => {
               </Card>
             </Col>
           ))}
-        </Row>
+          </Row>
+          {pendingTotalPages > 1 && (
+            <Row className="mt-4">
+              <Col className="d-flex justify-content-center">
+                <Pagination size="sm">
+                  <Pagination.Prev
+                    disabled={pendingPage === 1}
+                    onClick={() => setPendingPage(prev => Math.max(prev - 1, 1))}
+                  />
+                  {Array.from({ length: pendingTotalPages }).map((_, index) => (
+                    <Pagination.Item
+                      key={index + 1}
+                      active={pendingPage === index + 1}
+                      onClick={() => setPendingPage(index + 1)}
+                    >
+                      {index + 1}
+                    </Pagination.Item>
+                  ))}
+                  <Pagination.Next
+                    disabled={pendingPage === pendingTotalPages}
+                    onClick={() => setPendingPage(prev => Math.min(prev + 1, pendingTotalPages))}
+                  />
+                </Pagination>
+              </Col>
+            </Row>
+          )}
+        </>
       )}
 
       {progressedCandidates.length > 0 && (
@@ -619,7 +672,7 @@ const FormSubmissions = () => {
             </Col>
           </Row>
           <Row className="g-3 mt-1">
-            {progressedCandidates.map(candidate => (
+            {paginatedProgressedCandidates.map(candidate => (
               <Col xs={12} md={6} lg={4} key={candidate._id}>
                 <Card className="h-100 shadow-sm border-0 bg-light">
                   <Card.Body className="d-flex flex-column">
@@ -699,6 +752,31 @@ const FormSubmissions = () => {
               </Col>
             ))}
           </Row>
+          {progressedTotalPages > 1 && (
+            <Row className="mt-4">
+              <Col className="d-flex justify-content-center">
+                <Pagination size="sm">
+                  <Pagination.Prev
+                    disabled={progressedPage === 1}
+                    onClick={() => setProgressedPage(prev => Math.max(prev - 1, 1))}
+                  />
+                  {Array.from({ length: progressedTotalPages }).map((_, index) => (
+                    <Pagination.Item
+                      key={index + 1}
+                      active={progressedPage === index + 1}
+                      onClick={() => setProgressedPage(index + 1)}
+                    >
+                      {index + 1}
+                    </Pagination.Item>
+                  ))}
+                  <Pagination.Next
+                    disabled={progressedPage === progressedTotalPages}
+                    onClick={() => setProgressedPage(prev => Math.min(prev + 1, progressedTotalPages))}
+                  />
+                </Pagination>
+              </Col>
+            </Row>
+          )}
         </>
       )}
 
@@ -764,6 +842,10 @@ const FormSubmissions = () => {
           </Button>
         </Modal.Footer>
       </Modal>
+      <ToastNotificationContainer 
+        toast={toast} 
+        onClose={() => setToast({ type: '', message: '' })} 
+      />
     </Container>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Modal, Form, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Modal, Form } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const CourseManagement = () => {
   const [courses, setCourses] = useState([]);
@@ -13,8 +14,7 @@ const CourseManagement = () => {
   const [newDepartment, setNewDepartment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [toast, setToast] = useState({ type: '', message: '' });
 
   const campuses = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
 
@@ -26,9 +26,8 @@ const CourseManagement = () => {
     try {
       const response = await api.get('/courses');
       setCourses(response.data.courses || []);
-      setError('');
     } catch (error) {
-      setError('Failed to fetch departments');
+      setToast({ type: 'danger', message: 'Failed to fetch departments' });
       console.error('Courses fetch error:', error);
     } finally {
       setLoading(false);
@@ -42,8 +41,6 @@ const CourseManagement = () => {
   const handleAddDepartment = (campus) => {
     setSelectedCampus(campus);
     setNewDepartment('');
-    setError('');
-    setSuccess('');
     setShowAddDeptModal(true);
   };
 
@@ -51,21 +48,17 @@ const CourseManagement = () => {
     setSelectedCampus(course.campus);
     setSelectedDepartment(course);
     setNewDepartment(course.department || '');
-    setError('');
-    setSuccess('');
     setShowEditDeptModal(true);
   };
 
   const handleSaveDepartment = async (e) => {
     e.preventDefault();
     if (!newDepartment.trim()) {
-      setError('Department name is required');
+      setToast({ type: 'danger', message: 'Department name is required' });
       return;
     }
 
     setSubmitting(true);
-    setError('');
-    setSuccess('');
 
     try {
       // Check if this campus-department combination already exists
@@ -74,7 +67,7 @@ const CourseManagement = () => {
       );
       
       if (existingCourse) {
-        setError('This department already exists for this campus');
+        setToast({ type: 'danger', message: 'This department already exists for this campus' });
         setSubmitting(false);
         return;
       }
@@ -85,14 +78,14 @@ const CourseManagement = () => {
         department: newDepartment.trim()
       });
       
-      setSuccess('Department added successfully!');
+      setToast({ type: 'success', message: 'Department added successfully!' });
       setShowAddDeptModal(false);
       setNewDepartment('');
       setSelectedCampus('');
       fetchCourses();
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Failed to add department';
-      setError(errorMessage);
+      setToast({ type: 'danger', message: errorMessage });
     } finally {
       setSubmitting(false);
     }
@@ -101,13 +94,11 @@ const CourseManagement = () => {
   const handleUpdateDepartment = async (e) => {
     e.preventDefault();
     if (!newDepartment.trim()) {
-      setError('Department name is required');
+      setToast({ type: 'danger', message: 'Department name is required' });
       return;
     }
 
     setSubmitting(true);
-    setError('');
-    setSuccess('');
 
     try {
       // Check if new name already exists for this campus
@@ -118,7 +109,7 @@ const CourseManagement = () => {
       );
       
       if (existingCourse) {
-        setError('This department name already exists for this campus');
+        setToast({ type: 'danger', message: 'This department name already exists for this campus' });
         setSubmitting(false);
         return;
       }
@@ -128,7 +119,7 @@ const CourseManagement = () => {
         department: newDepartment.trim()
       });
       
-      setSuccess('Department updated successfully!');
+      setToast({ type: 'success', message: 'Department updated successfully!' });
       setShowEditDeptModal(false);
       setSelectedDepartment(null);
       setNewDepartment('');
@@ -136,7 +127,7 @@ const CourseManagement = () => {
       fetchCourses();
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Failed to update department';
-      setError(errorMessage);
+      setToast({ type: 'danger', message: errorMessage });
     } finally {
       setSubmitting(false);
     }
@@ -150,10 +141,10 @@ const CourseManagement = () => {
     if (window.confirm(`Are you sure you want to delete "${departmentName}" from ${course.campus}? This action cannot be undone.`)) {
       try {
         await api.delete(`/courses/${courseId}`);
-        setSuccess('Department deleted successfully!');
+        setToast({ type: 'success', message: 'Department deleted successfully!' });
         fetchCourses();
       } catch (error) {
-        setError(error.response?.data?.message || 'Failed to delete department');
+        setToast({ type: 'danger', message: error.response?.data?.message || 'Failed to delete department' });
       }
     }
   };
@@ -164,8 +155,6 @@ const CourseManagement = () => {
     setSelectedCampus('');
     setSelectedDepartment(null);
     setNewDepartment('');
-    setError('');
-    setSuccess('');
   };
 
   if (loading) {
@@ -185,8 +174,6 @@ const CourseManagement = () => {
         </Col>
       </Row>
 
-      {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-      {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}
 
       <Row>
         {campuses.map((campus) => {
@@ -287,7 +274,6 @@ const CourseManagement = () => {
         </Modal.Header>
         <Form onSubmit={handleSaveDepartment}>
           <Modal.Body>
-            {error && <Alert variant="danger">{error}</Alert>}
             <Form.Group className="mb-3">
               <Form.Label>Campus</Form.Label>
               <Form.Control
@@ -327,7 +313,6 @@ const CourseManagement = () => {
         </Modal.Header>
         <Form onSubmit={handleUpdateDepartment}>
           <Modal.Body>
-            {error && <Alert variant="danger">{error}</Alert>}
             <Form.Group className="mb-3">
               <Form.Label>Campus</Form.Label>
               <Form.Control
@@ -359,6 +344,10 @@ const CourseManagement = () => {
           </Modal.Footer>
         </Form>
       </Modal>
+      <ToastNotificationContainer 
+        toast={toast} 
+        onClose={() => setToast({ type: '', message: '' })} 
+      />
     </Container>
   );
 };

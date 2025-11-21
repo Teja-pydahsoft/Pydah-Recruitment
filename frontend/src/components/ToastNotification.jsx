@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaTimes, FaTimesCircle } from 'react-icons/fa';
 
@@ -135,6 +135,13 @@ const ProgressBar = styled.div`
 const ToastNotification = ({ type, message, onClose, autoClose = true, duration = 3000 }) => {
   const [isExiting, setIsExiting] = useState(false);
 
+  const handleClose = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => {
+      if (onClose) onClose();
+    }, 300); // Match animation duration
+  }, [onClose]);
+
   useEffect(() => {
     if (!autoClose || !message) return;
 
@@ -143,14 +150,7 @@ const ToastNotification = ({ type, message, onClose, autoClose = true, duration 
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [message, autoClose, duration]);
-
-  const handleClose = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      if (onClose) onClose();
-    }, 300); // Match animation duration
-  };
+  }, [message, autoClose, duration, handleClose]);
 
   if (!message) return null;
 

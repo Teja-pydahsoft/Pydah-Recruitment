@@ -565,10 +565,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   const subAdminNavigation = [
     { path: '/sub-admin', icon: FaHome, label: 'Dashboard' },
-    { path: '/sub-admin/forms', icon: FaFileAlt, label: 'Forms', permission: 'forms.manage' },
-    { path: '/sub-admin/submissions', icon: FaFileAlt, label: 'Submissions', permission: 'forms.manage' },
-    { path: '/sub-admin/candidates', icon: FaUsers, label: 'Candidates', permission: 'candidates.manage' },
-    { path: '/sub-admin/tests', icon: FaClipboardList, label: 'Tests', permission: 'tests.manage' },
+    { path: '/sub-admin/forms', icon: FaFileAlt, label: 'Forms & Applications', permission: 'forms.manage' },
+    { path: '/sub-admin/submissions', icon: FaFileAlt, label: 'Application Submissions', permission: 'forms.manage' },
+    { path: '/sub-admin/candidates', icon: FaUsers, label: 'Candidate Management', permission: 'candidates.manage' },
+    { path: '/sub-admin/tests', icon: FaClipboardList, label: 'Test Management', permission: 'tests.manage' },
     { path: '/sub-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management', permission: 'interviews.manage' },
     { path: '/sub-admin/users', icon: FaUserTie, label: 'Panel Members', permission: 'panel_members.manage' },
   ];

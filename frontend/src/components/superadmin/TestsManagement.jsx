@@ -43,7 +43,7 @@ const CATEGORY_OPTIONS = [
 
 const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard'];
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 const defaultQuestionForm = {
   topicId: '',
@@ -75,7 +75,19 @@ const TestsManagement = () => {
   const [topicSaving, setTopicSaving] = useState(false);
   const [topicForm, setTopicForm] = useState({ id: null, name: '', category: 'teaching', description: '', isActive: true });
 
-  const [questionFilters, setQuestionFilters] = useState({ topicId: 'all', search: '' });
+  const [questionFilters, setQuestionFilters] = useState({ 
+    campus: 'all', 
+    department: 'all', 
+    set: 'all',
+    topicId: 'all', 
+    search: '' 
+  });
+  const [filterOptions, setFilterOptions] = useState({
+    campuses: [],
+    departments: [],
+    sets: [],
+    topics: []
+  });
   const [questionLoading, setQuestionLoading] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [questionForm, setQuestionForm] = useState(defaultQuestionForm);
@@ -125,6 +137,13 @@ const TestsManagement = () => {
   const [builderModalVisible, setBuilderModalVisible] = useState(false);
   const [builderSaving, setBuilderSaving] = useState(false);
   const [builderState, setBuilderState] = useState(defaultBuilderState);
+  const [builderFilterOptions, setBuilderFilterOptions] = useState({
+    campuses: [],
+    departments: [],
+    sets: [],
+    topics: []
+  });
+  const [builderFilterOptionsLoading, setBuilderFilterOptionsLoading] = useState(false);
   const [promoteModalVisible, setPromoteModalVisible] = useState(false);
   const [promoteSubmitting, setPromoteSubmitting] = useState(false);
   const [promotionForm, setPromotionForm] = useState({
@@ -621,6 +640,24 @@ const TestsManagement = () => {
     }
   };
 
+  const fetchFilterOptions = useCallback(async (campus = 'all', department = 'all') => {
+    try {
+      const params = {};
+      if (campus !== 'all') params.campus = campus;
+      if (department !== 'all') params.department = department;
+      
+      const response = await api.get('/tests/questions/filters', { params });
+      setFilterOptions({
+        campuses: response.data.campuses || [],
+        departments: response.data.departments || [],
+        sets: response.data.sets || [],
+        topics: response.data.topics || []
+      });
+    } catch (error) {
+      console.error('Filter options fetch error:', error);
+    }
+  }, []);
+
   const fetchQuestions = useCallback(async () => {
     setQuestionLoading(true);
     try {
@@ -628,6 +665,15 @@ const TestsManagement = () => {
         limit: 200
       };
 
+      if (questionFilters.campus !== 'all') {
+        params.campus = questionFilters.campus;
+      }
+      if (questionFilters.department !== 'all') {
+        params.department = questionFilters.department;
+      }
+      if (questionFilters.set !== 'all') {
+        params.set = questionFilters.set;
+      }
       if (questionFilters.topicId !== 'all') {
         params.topicId = questionFilters.topicId;
       }
@@ -647,11 +693,18 @@ const TestsManagement = () => {
 
   useEffect(() => {
     if (activeTab === 'questionBank') {
+      fetchFilterOptions();
       fetchQuestions();
       // Clear selections when filters change
       setSelectedQuestions([]);
     }
-  }, [activeTab, fetchQuestions]);
+  }, [activeTab, fetchFilterOptions, fetchQuestions]);
+
+  useEffect(() => {
+    if (activeTab === 'questionBank') {
+      fetchFilterOptions(questionFilters.campus, questionFilters.department);
+    }
+  }, [activeTab, questionFilters.campus, questionFilters.department, fetchFilterOptions]);
 
   const fetchCandidates = async () => {
     setCandidatesLoading(true);
@@ -659,7 +712,14 @@ const TestsManagement = () => {
       const response = await api.get('/candidates');
       const candidatePoolStatuses = ['approved', 'shortlisted', 'selected', 'on_hold'];
       const pool = (response.data.candidates || []).filter(candidate => candidatePoolStatuses.includes(candidate.status));
-      setCandidates(pool);
+      // Ensure form is populated with campus and department
+      const candidatesWithForm = pool.map(candidate => {
+        if (candidate.form && typeof candidate.form === 'object') {
+          return candidate;
+        }
+        return candidate;
+      });
+      setCandidates(candidatesWithForm);
     } catch (error) {
       console.error('Candidates fetch error:', error);
       setToast({ type: 'danger', message: 'Unable to load candidate pool.' });
@@ -864,22 +924,7 @@ const TestsManagement = () => {
     }
   };
 
-  const handleDeleteQuestion = async (questionId) => {
-    if (!window.confirm('Are you sure you want to remove this question from the active bank?')) {
-      return;
-    }
-    try {
-      await api.delete(`/tests/questions/${questionId}`);
-      fetchQuestions();
-      fetchTopics();
-      setToast({ type: 'success', message: 'Question removed from the bank.' });
-      // Remove from selected if it was selected
-      setSelectedQuestions(prev => prev.filter(id => id !== questionId));
-    } catch (error) {
-      console.error('Question delete error:', error);
-      setToast({ type: 'danger', message: 'Unable to remove question.' });
-    }
-  };
+  // Removed unused handleDeleteQuestion function - using bulk delete instead
 
   const handleBulkDeleteQuestions = async () => {
     if (selectedQuestions.length === 0) {
@@ -935,9 +980,36 @@ const TestsManagement = () => {
     setBuilderModalVisible(true);
   };
 
+  const fetchBuilderFilterOptions = useCallback(async (campus, department) => {
+    if (!campus && !department) {
+      setBuilderFilterOptions({ campuses: [], departments: [], sets: [], topics: [] });
+      return;
+    }
+    setBuilderFilterOptionsLoading(true);
+    try {
+      const params = {};
+      if (campus) params.campus = campus;
+      if (department) params.department = department;
+      
+      const response = await api.get('/tests/questions/filters', { params });
+      setBuilderFilterOptions({
+        campuses: response.data.campuses || [],
+        departments: response.data.departments || [],
+        sets: response.data.sets || [],
+        topics: response.data.topics || []
+      });
+    } catch (error) {
+      console.error('Builder filter options fetch error:', error);
+    } finally {
+      setBuilderFilterOptionsLoading(false);
+    }
+  }, []);
+
   const closeBuilderModal = () => {
     if (!builderSaving) {
       setBuilderModalVisible(false);
+      setBuilderState(defaultBuilderState);
+      setBuilderFilterOptions({ campuses: [], departments: [], sets: [], topics: [] });
       setBuilderState(defaultBuilderState);
       setAssignmentDetails(null);
       setCopySuccess(false);
@@ -1050,6 +1122,59 @@ const TestsManagement = () => {
 
   const activeTopicOptions = useMemo(() => topics.filter(topic => topic.isActive), [topics]);
 
+  // Get selected candidate's campus and department
+  const selectedCandidate = useMemo(() => {
+    return candidates.find(c => c._id === builderState.candidateId) || null;
+  }, [candidates, builderState.candidateId]);
+
+  // Get campus and department - handle both populated form object and form ID
+  const candidateCampus = useMemo(() => {
+    if (!selectedCandidate?.form) return null;
+    // If form is an object (populated), get campus directly
+    if (typeof selectedCandidate.form === 'object' && selectedCandidate.form.campus) {
+      return selectedCandidate.form.campus;
+    }
+    return null;
+  }, [selectedCandidate]);
+
+  const candidateDepartment = useMemo(() => {
+    if (!selectedCandidate?.form) return null;
+    // If form is an object (populated), get department directly
+    if (typeof selectedCandidate.form === 'object' && selectedCandidate.form.department) {
+      return selectedCandidate.form.department;
+    }
+    return null;
+  }, [selectedCandidate]);
+
+  // Filter topics for builder based on candidate's campus/department
+  const builderTopicOptions = useMemo(() => {
+    if (builderFilterOptions.topics.length > 0) {
+      return builderFilterOptions.topics.filter(topic => topic.isActive !== false);
+    }
+    return activeTopicOptions;
+  }, [builderFilterOptions.topics, activeTopicOptions]);
+
+  // Fetch builder filter options when candidate is selected
+  useEffect(() => {
+    if (builderModalVisible && builderState.candidateId) {
+      const candidate = candidates.find(c => c._id === builderState.candidateId);
+      if (candidate?.form) {
+        const form = candidate.form;
+        const campus = (typeof form === 'object' && form.campus) ? form.campus : null;
+        const department = (typeof form === 'object' && form.department) ? form.department : null;
+        if (campus) {
+          fetchBuilderFilterOptions(campus, department);
+        } else {
+          setBuilderFilterOptions({ campuses: [], departments: [], sets: [], topics: [] });
+        }
+      } else {
+        setBuilderFilterOptions({ campuses: [], departments: [], sets: [], topics: [] });
+      }
+    } else if (builderModalVisible && !builderState.candidateId) {
+      setBuilderFilterOptions({ campuses: [], departments: [], sets: [], topics: [] });
+    }
+  }, [builderModalVisible, builderState.candidateId, candidates, fetchBuilderFilterOptions]);
+
   const categoryCounts = useMemo(() => {
     const counts = { teaching: 0, non_teaching: 0 };
     candidates.forEach(candidate => {
@@ -1151,6 +1276,11 @@ const TestsManagement = () => {
 
     if (!promotionForm.interviewDate) {
       setToast({ type: 'danger', message: 'Select an interview date to continue.' });
+      return;
+    }
+
+    if (!promotionForm.notes || promotionForm.notes.trim() === '') {
+      setToast({ type: 'danger', message: 'Please provide notes to the candidate. This field is required.' });
       return;
     }
 
@@ -1429,7 +1559,7 @@ const TestsManagement = () => {
                     {filteredAssessmentCandidates.length}
                   </Badge>
                 </Card.Header>
-                <Card.Body style={{ maxHeight: '420px', overflowY: 'auto', padding: '1.25rem', background: '#ffffff' }}>
+                <Card.Body style={{ padding: '1.25rem', background: '#ffffff', minHeight: 'calc(100vh - 450px)' }}>
                   {candidatesLoading ? (
                     <div className="text-center py-4">
                       <Spinner animation="border" />
@@ -1791,20 +1921,74 @@ const TestsManagement = () => {
 
         <Tab eventKey="questionBank" title="Question Bank">
           <Row className="mb-3 g-3 align-items-center">
-            <Col md={4} sm={6}>
+            <Col md={3} sm={6}>
+              <Form.Select
+                value={questionFilters.campus}
+                onChange={(event) => {
+                  setQuestionFilters(prev => ({ 
+                    ...prev, 
+                    campus: event.target.value,
+                    department: 'all', // Reset department when campus changes
+                    set: 'all' // Reset set when campus changes
+                  }));
+                }}
+              >
+                <option value="all">All Campuses</option>
+                {filterOptions.campuses.map(campus => (
+                  <option key={campus} value={campus}>
+                    {campus}
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
+            <Col md={3} sm={6}>
+              <Form.Select
+                value={questionFilters.department}
+                onChange={(event) => {
+                  setQuestionFilters(prev => ({ 
+                    ...prev, 
+                    department: event.target.value,
+                    set: 'all' // Reset set when department changes
+                  }));
+                }}
+                disabled={questionFilters.campus === 'all'}
+              >
+                <option value="all">All Departments</option>
+                {filterOptions.departments.map(dept => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
+            <Col md={3} sm={6}>
+              <Form.Select
+                value={questionFilters.set}
+                onChange={(event) => setQuestionFilters(prev => ({ ...prev, set: event.target.value }))}
+                disabled={questionFilters.campus === 'all' && questionFilters.department === 'all'}
+              >
+                <option value="all">All Sets</option>
+                {filterOptions.sets.map(set => (
+                  <option key={set} value={set}>
+                    {set}
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
+            <Col md={3} sm={6}>
               <Form.Select
                 value={questionFilters.topicId}
                 onChange={(event) => setQuestionFilters(prev => ({ ...prev, topicId: event.target.value }))}
               >
                 <option value="all">All Topics</option>
-                {topics.map(topic => (
+                {filterOptions.topics.map(topic => (
                   <option key={topic._id} value={topic._id}>
-                    {topic.name} {topic.questionCount ? `(${topic.questionCount})` : ''}
+                    {topic.name} ({topic.category === 'teaching' ? 'Teaching' : 'Non-Teaching'})
                   </option>
                 ))}
               </Form.Select>
             </Col>
-            <Col md={4} sm={6}>
+            <Col md={6} sm={12}>
               <InputGroup>
                 <Form.Control
                   placeholder="Search question text..."
@@ -1816,7 +2000,7 @@ const TestsManagement = () => {
                 </Button>
               </InputGroup>
             </Col>
-            <Col md={4} sm={12} className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
+            <Col md={6} sm={12} className="d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
               <Button
                 variant="outline-primary"
                 size="sm"
@@ -2201,28 +2385,47 @@ const TestsManagement = () => {
 
             <Form.Group className="mb-3">
               <Form.Label>Interview Time (IST)</Form.Label>
-              <Form.Select
-                value={promotionForm.interviewTime}
-                onChange={(event) => setPromotionForm(prev => ({ ...prev, interviewTime: event.target.value }))}
-              >
-                {interviewTimeOptions.map(option => (
-                  <option key={option.value || 'blank'} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Form.Select>
-              <Form.Text className="text-muted">Optional. Times are shown in IST (UTC+5:30) with 12-hour format.</Form.Text>
+              <div className="d-flex gap-2 align-items-center flex-wrap">
+                <Form.Control
+                  type="time"
+                  value={promotionForm.interviewTime || ''}
+                  onChange={(event) => {
+                    const timeValue = event.target.value;
+                    setPromotionForm(prev => ({ ...prev, interviewTime: timeValue }));
+                  }}
+                  style={{ flex: '1 1 200px', minWidth: '150px' }}
+                  placeholder="HH:MM"
+                />
+                <Form.Select
+                  value={promotionForm.interviewTime || ''}
+                  onChange={(event) => {
+                    const timeValue = event.target.value;
+                    setPromotionForm(prev => ({ ...prev, interviewTime: timeValue }));
+                  }}
+                  style={{ flex: '1 1 200px', minWidth: '150px' }}
+                >
+                  <option value="">Or select from list</option>
+                  {interviewTimeOptions.map(option => (
+                    <option key={option.value || 'blank'} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </div>
+              <Form.Text className="text-muted">You can either type a custom time (24-hour format) or select from the predefined list. Times are in IST (UTC+5:30).</Form.Text>
             </Form.Group>
 
             <Form.Group>
-              <Form.Label>Notes to Candidate</Form.Label>
+              <Form.Label>Notes to Candidate<span className="text-danger">*</span></Form.Label>
               <Form.Control
                 as="textarea"
                 rows={3}
-                placeholder="Optional message that will be included in the email..."
+                placeholder="Message that will be included in the email..."
                 value={promotionForm.notes}
                 onChange={(event) => setPromotionForm(prev => ({ ...prev, notes: event.target.value }))}
+                required
               />
+              <Form.Text className="text-muted">This message is required and will be sent to the candidate via email.</Form.Text>
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>
@@ -2253,9 +2456,20 @@ const TestsManagement = () => {
         size="xl" 
         centered
         scrollable
-        style={{ maxWidth: '98vw', width: '98vw' }}
         dialogClassName="candidate-test-overview-modal"
       >
+        <style>{`
+          .candidate-test-overview-modal .modal-dialog {
+            max-width: 95vw !important;
+            width: 95vw !important;
+          }
+          @media (min-width: 1400px) {
+            .candidate-test-overview-modal .modal-dialog {
+              max-width: 92vw !important;
+              width: 92vw !important;
+            }
+          }
+        `}</style>
         <Modal.Header 
           closeButton 
           style={{ 
@@ -2295,12 +2509,23 @@ const TestsManagement = () => {
       <Modal 
         show={builderModalVisible} 
         onHide={closeBuilderModal} 
-        size="lg" 
+        size="xl" 
         centered
         scrollable
-        style={{ maxWidth: '90vw' }}
         dialogClassName="assessment-builder-modal"
       >
+        <style>{`
+          .assessment-builder-modal .modal-dialog {
+            max-width: 95vw !important;
+            width: 95vw !important;
+          }
+          @media (min-width: 1200px) {
+            .assessment-builder-modal .modal-dialog {
+              max-width: 90vw !important;
+              width: 90vw !important;
+            }
+          }
+        `}</style>
         <Modal.Header 
           closeButton
           style={{ 
@@ -2324,7 +2549,16 @@ const TestsManagement = () => {
                   </Form.Label>
                   <Form.Select
                     value={builderState.candidateId}
-                    onChange={(event) => setBuilderState(prev => ({ ...prev, candidateId: event.target.value }))}
+                    onChange={(event) => {
+                      const candidateId = event.target.value;
+                      const candidate = candidates.find(c => c._id === candidateId);
+                      setBuilderState(prev => ({ ...prev, candidateId }));
+                      if (candidate?.form?.campus) {
+                        fetchBuilderFilterOptions(candidate.form.campus, candidate.form.department);
+                      } else {
+                        setBuilderFilterOptions({ campuses: [], departments: [], sets: [], topics: [] });
+                      }
+                    }}
                     required
                     style={{ 
                       borderRadius: '8px',
@@ -2339,6 +2573,11 @@ const TestsManagement = () => {
                       </option>
                     ))}
                   </Form.Select>
+                  {selectedCandidate && (candidateCampus || candidateDepartment) && (
+                    <div className="mt-2" style={{ fontSize: '0.875rem', color: '#6c757d' }}>
+                      <strong>Campus:</strong> {candidateCampus || 'N/A'} | <strong>Department:</strong> {candidateDepartment || 'N/A'}
+                    </div>
+                  )}
                 </Form.Group>
               </Col>
               <Col md={6}>
@@ -2533,12 +2772,22 @@ const TestsManagement = () => {
                             }}
                           >
                             <option value="">Select topic</option>
-                            {activeTopicOptions.map(item => (
+                            {builderTopicOptions.map(item => (
                               <option key={item._id} value={item._id}>
                                 {item.name} ({item.category === 'teaching' ? 'Teaching' : 'Non-Teaching'})
                               </option>
                             ))}
                           </Form.Select>
+                          {builderFilterOptionsLoading && (
+                            <div className="mt-1" style={{ fontSize: '0.75rem', color: '#6c757d' }}>
+                              Loading topics...
+                            </div>
+                          )}
+                          {selectedCandidate && builderTopicOptions.length === 0 && !builderFilterOptionsLoading && (
+                            <div className="mt-1" style={{ fontSize: '0.75rem', color: '#dc3545' }}>
+                              No topics available for this candidate's campus/department
+                            </div>
+                          )}
                         </Form.Group>
                       </Col>
                       <Col md={4}>

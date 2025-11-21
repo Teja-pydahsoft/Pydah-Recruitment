@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const Container = styled.div`
   width: 100%;
@@ -241,6 +242,7 @@ const UsersManagement = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
+  const [toast, setToast] = useState({ type: '', message: '' });
   const [formData, setFormData] = useState({
     campus: '',
     name: '',
@@ -320,7 +322,7 @@ const UsersManagement = () => {
     } catch (error) {
       console.error('Error saving panel member:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to save panel member';
-      alert(errorMessage);
+      setToast({ type: 'danger', message: errorMessage });
     }
   };
 
@@ -566,6 +568,10 @@ const UsersManagement = () => {
           </ModalContent>
         </Modal>
       )}
+      <ToastNotificationContainer 
+        toast={toast} 
+        onClose={() => setToast({ type: '', message: '' })} 
+      />
     </Container>
   );
 };

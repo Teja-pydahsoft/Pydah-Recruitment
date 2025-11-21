@@ -87,7 +87,7 @@ router.post('/register', authenticateToken, async (req, res) => {
       profile: req.body.profile
     });
 
-    const { name, email, password, role, profile, permissions } = req.body;
+    const { name, email, password, role, profile, permissions, campus } = req.body;
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -134,6 +134,7 @@ router.post('/register', authenticateToken, async (req, res) => {
       email,
       password,
       role: role || 'candidate',
+      campus: (role === 'sub_admin' || role === 'panel_member') ? (campus || undefined) : undefined,
       profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined,
       permissions: role === 'sub_admin'
         ? normalizePermissions(permissions)
@@ -340,6 +341,7 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        campus: user.campus,
         profile: user.profile,
         permissions: user.permissions || []
       }
@@ -589,7 +591,7 @@ router.get('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res)
 
 router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, email, password, profile, permissions } = req.body;
+    const { name, email, password, profile, permissions, campus } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
@@ -611,6 +613,7 @@ router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res
       email,
       password,
       role: 'sub_admin',
+      campus: campus || undefined,
       profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined,
       permissions: normalizedPermissions
     });
@@ -727,7 +730,7 @@ router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res
 
 router.put('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, email, password, profile, permissions, isActive } = req.body;
+    const { name, email, password, profile, permissions, isActive, campus } = req.body;
     const subAdmin = await User.findById(req.params.userId);
 
     if (!subAdmin) {
@@ -741,6 +744,7 @@ router.put('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (r
     if (name !== undefined) subAdmin.name = name;
     if (email !== undefined) subAdmin.email = email;
     if (typeof isActive === 'boolean') subAdmin.isActive = isActive;
+    if (campus !== undefined) subAdmin.campus = campus || undefined;
 
     if (profile !== undefined) {
       const cleanedProfile = profile ? Object.fromEntries(

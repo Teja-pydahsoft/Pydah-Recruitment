@@ -29,6 +29,7 @@ const userSchema = new mongoose.Schema({
     required: function() {
       return this.role === 'panel_member';
     }
+    // Optional for sub_admin - if set, they will only see data for that campus
   },
   permissions: {
     type: mongoose.Schema.Types.Mixed,

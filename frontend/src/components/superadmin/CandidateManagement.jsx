@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar, InputGroup } from 'react-bootstrap';
+import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar, InputGroup, Pagination } from 'react-bootstrap';
 import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaSearch } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
+import ToastNotificationContainer from '../ToastNotificationContainer';
+
+const PAGE_SIZE = 10;
 
 const WORKFLOW_STAGE_META = {
   application_review: { label: 'Application Review', variant: 'secondary' },
@@ -155,8 +158,7 @@ const CandidateManagement = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [toast, setToast] = useState({ type: '', message: '' });
   const [searchTerm, setSearchTerm] = useState(''); // Applied search
   const [searchInput, setSearchInput] = useState(''); // Input value (not applied until button click)
   const [statusFilter, setStatusFilter] = useState('all');
@@ -175,6 +177,7 @@ const CandidateManagement = () => {
     designation: ''
   });
   const [expandedTestResults, setExpandedTestResults] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetchCandidates();
@@ -218,9 +221,8 @@ const CandidateManagement = () => {
     try {
       const response = await api.get('/candidates');
       setCandidates(response.data.candidates || []);
-      setError('');
     } catch (error) {
-      setError('Failed to fetch candidates');
+      setToast({ type: 'danger', message: 'Failed to fetch candidates' });
       console.error('Candidates fetch error:', error);
     } finally {
       setLoading(false);
@@ -243,7 +245,7 @@ const CandidateManagement = () => {
       setShowProfileModal(true);
       setExpandedTestResults({});
     } catch (error) {
-      setError('Failed to fetch candidate profile');
+      setToast({ type: 'danger', message: 'Failed to fetch candidate profile' });
       console.error('Profile fetch error:', error);
     } finally {
       setProfileLoading(false);
@@ -325,6 +327,21 @@ const CandidateManagement = () => {
     });
   }, [candidates, searchTerm, statusFilter, stageFilter]);
 
+  // Paginated candidates
+  const paginatedCandidates = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    return filteredCandidates.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [filteredCandidates, currentPage]);
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredCandidates.length / PAGE_SIZE);
+  }, [filteredCandidates.length]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, stageFilter]);
+
   const getStageProgressPercentage = (stage) => {
     if (!stage) {
       return 0;
@@ -394,7 +411,7 @@ const CandidateManagement = () => {
     
     // Validate: Notes are mandatory for non-finalization decisions
     if (decisionType !== 'selected' && !decisionNotes.trim()) {
-      setError('Note is mandatory when promoting candidate to next step');
+      setToast({ type: 'danger', message: 'Note is mandatory when promoting candidate to next step' });
       return;
     }
     
@@ -402,13 +419,12 @@ const CandidateManagement = () => {
     if (decisionType === 'selected') {
       if (!finalizationData.bond.trim() || !finalizationData.conditions.trim() || 
           !finalizationData.salary.trim() || !finalizationData.designation.trim()) {
-        setError('All finalization fields (Bond, Conditions, Salary, Designation) are required');
+        setToast({ type: 'danger', message: 'All finalization fields (Bond, Conditions, Salary, Designation) are required' });
         return;
       }
     }
     
     setDecisionLoading(true);
-    setError('');
     try {
       const payload = {
         decision: decisionType,
@@ -430,8 +446,7 @@ const CandidateManagement = () => {
       } else if (decisionType === 'on_hold') {
         decisionLabel = 'put on hold';
       }
-      setSuccessMessage(`Candidate ${decisionCandidate.user?.name || ''} ${decisionLabel} successfully.`);
-      setError('');
+      setToast({ type: 'success', message: `Candidate ${decisionCandidate.user?.name || ''} ${decisionLabel} successfully.` });
 
       if (response?.data?.candidate) {
         setCandidates(prevCandidates =>
@@ -457,7 +472,7 @@ const CandidateManagement = () => {
         await refreshCandidates();
       }
     } catch (err) {
-      setError('Failed to update candidate decision');
+      setToast({ type: 'danger', message: 'Failed to update candidate decision' });
       console.error('Decision update error:', err);
     } finally {
       setDecisionLoading(false);
@@ -1068,7 +1083,7 @@ const CandidateManagement = () => {
                   link.click();
                   link.remove();
                 } catch (error) {
-                  setError('Failed to download candidate details');
+                  setToast({ type: 'danger', message: 'Failed to download candidate details' });
                   console.error('PDF download error:', error);
                 }
               }}
@@ -1081,25 +1096,6 @@ const CandidateManagement = () => {
         </Col>
       </Row>
 
-      {error && (
-        <Row className="mb-3">
-          <Col>
-            <Alert variant="danger" dismissible onClose={() => setError('')}>
-              {error}
-            </Alert>
-          </Col>
-        </Row>
-      )}
-
-      {successMessage && (
-        <Row className="mb-3">
-          <Col>
-            <Alert variant="success" dismissible onClose={() => setSuccessMessage('')}>
-              {successMessage}
-            </Alert>
-          </Col>
-        </Row>
-      )}
 
       <Row className="mb-4 g-3">
         {['awaiting_test_assignment', 'test_assigned', 'test_in_progress', 'awaiting_interview', 'interview_scheduled', 'awaiting_decision', 'selected', 'rejected'].map(stage => {
@@ -1230,7 +1226,7 @@ const CandidateManagement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCandidates.map((candidate) => (
+                    {paginatedCandidates.map((candidate) => (
                       <tr key={candidate._id}>
                         <td className="text-center">
                           {candidate.passportPhotoUrl ? (
@@ -1357,6 +1353,29 @@ const CandidateManagement = () => {
                     ))}
                   </tbody>
                 </Table>
+              )}
+              {totalPages > 1 && (
+                <div className="d-flex justify-content-end align-items-center mt-3">
+                  <Pagination size="sm" className="mb-0">
+                    <Pagination.Prev
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    />
+                    {Array.from({ length: totalPages }).map((_, index) => (
+                      <Pagination.Item
+                        key={index + 1}
+                        active={currentPage === index + 1}
+                        onClick={() => setCurrentPage(index + 1)}
+                      >
+                        {index + 1}
+                      </Pagination.Item>
+                    ))}
+                    <Pagination.Next
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    />
+                  </Pagination>
+                </div>
               )}
             </Card.Body>
           </Card>
@@ -1685,6 +1704,10 @@ const CandidateManagement = () => {
           </Button>
         </Modal.Footer>
       </Modal>
+      <ToastNotificationContainer 
+        toast={toast} 
+        onClose={() => setToast({ type: '', message: '' })} 
+      />
     </Container>
   );
 };

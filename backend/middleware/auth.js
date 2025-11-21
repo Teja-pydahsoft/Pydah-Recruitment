@@ -189,6 +189,29 @@ const requireOwnershipOrAdmin = (userField = 'user') => {
   };
 };
 
+// Helper function to get campus filter for sub-admins
+// If user is a sub_admin with a campus assigned, returns filter object
+// Otherwise returns empty object (no filter)
+const getCampusFilter = (user) => {
+  if (!user) return {};
+  
+  // Super admins see all data
+  if (user.role === 'super_admin') return {};
+  
+  // Sub-admins with campus assigned only see their campus data
+  if (user.role === 'sub_admin' && user.campus) {
+    return { campus: user.campus };
+  }
+  
+  // Panel members with campus assigned only see their campus data
+  if (user.role === 'panel_member' && user.campus) {
+    return { campus: user.campus };
+  }
+  
+  // No filter for other cases
+  return {};
+};
+
 module.exports = {
   authenticateToken,
   authorizeRoles,
@@ -200,5 +223,6 @@ module.exports = {
   hasWritePermission,
   requirePermission,
   requireSuperAdminOrPermission,
-  requireSuperAdminOrWritePermission
+  requireSuperAdminOrWritePermission,
+  getCampusFilter
 };

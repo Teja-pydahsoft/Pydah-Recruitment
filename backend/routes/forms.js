@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const { uploadToDrive, ensureFolder, verifyFolderAccess } = require('../config/googleDrive');
-const { authenticateToken, requireSuperAdminOrPermission, requireSuperAdminOrWritePermission, hasPermission } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, requireSuperAdminOrWritePermission, hasPermission, getCampusFilter } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -161,7 +161,8 @@ router.get('/', authenticateToken, requireSuperAdminOrPermission('forms.manage')
     console.log('\n📋 [FORMS FETCH] Request received from:', req.user.email);
     console.log('📋 [FORMS FETCH] Fetching all forms...');
     
-    const forms = await RecruitmentForm.find({})
+    const campusFilter = getCampusFilter(req.user);
+    const forms = await RecruitmentForm.find(campusFilter)
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
 

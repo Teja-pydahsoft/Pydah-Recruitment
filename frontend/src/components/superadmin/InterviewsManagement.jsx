@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { Badge, Table } from 'react-bootstrap';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import ToastNotificationContainer from '../ToastNotificationContainer';
 
 // Utility function to format date/time in IST
 const formatISTDateTime = (dateString, timeString = '') => {
@@ -459,6 +460,7 @@ const InterviewsManagement = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [toast, setToast] = useState({ type: '', message: '' });
   const [showCandidatesModal, setShowCandidatesModal] = useState(false);
   const [showFeedbackFormModal, setShowFeedbackFormModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
@@ -552,7 +554,7 @@ const InterviewsManagement = () => {
       }
     } catch (error) {
       setInterviews([]);
-      alert('Failed to load interviews. Please try again.');
+      setToast({ type: 'danger', message: 'Failed to load interviews. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -596,7 +598,7 @@ const InterviewsManagement = () => {
   const handleAssignSubmit = async () => {
       try {
         if (!selectedInterview || !selectedInterview._id) {
-          alert('Error: Interview not selected');
+          setToast({ type: 'danger', message: 'Error: Interview not selected' });
           return;
         }
 
@@ -617,23 +619,22 @@ const InterviewsManagement = () => {
         let message = 'Panel members assigned successfully!';
         
         if (warning) {
-          message += `\n\n⚠️ Warning: ${warning}`;
+          message += ` ${warning}`;
         }
         
         if (total !== undefined) {
-          message += `\n\nEmail notifications:\n✅ Successful: ${successful || 0}\n❌ Failed: ${failed || 0}`;
+          message += ` Email notifications: Successful: ${successful || 0}, Failed: ${failed || 0}`;
           if (skipped && skipped > 0) {
-            message += `\n⚠️ Skipped: ${skipped} (no email address or panel member not found)`;
+            message += `, Skipped: ${skipped}`;
           }
-          message += `\n📊 Total: ${total}`;
         } else if (successful !== undefined || failed !== undefined) {
-          message += `\n\nEmail notifications:\n✅ Successful: ${successful || 0}\n❌ Failed: ${failed || 0}`;
+          message += ` Email notifications: Successful: ${successful || 0}, Failed: ${failed || 0}`;
         }
         
-        alert(message);
+        setToast({ type: 'success', message });
       } catch (error) {
         const errorMessage = error.response?.data?.message || error.message || 'Error assigning panel members. Please try again.';
-        alert(errorMessage);
+        setToast({ type: 'danger', message: errorMessage });
       }
     };
   
@@ -643,8 +644,9 @@ const InterviewsManagement = () => {
           await api.delete(`/interviews/${interviewId}`);
           // Refresh interviews list
           await fetchInterviews();
+          setToast({ type: 'success', message: 'Interview deleted successfully.' });
         } catch (error) {
-          alert('Error deleting interview. Please try again.');
+          setToast({ type: 'danger', message: 'Error deleting interview. Please try again.' });
         }
       }
     };
@@ -680,14 +682,14 @@ const InterviewsManagement = () => {
         await fetchInterviews();
         
         if (isReschedule && sendNotification && response.data.notificationSent) {
-          alert('Schedule updated successfully! Reschedule notification email has been sent to the candidate.');
+          setToast({ type: 'success', message: 'Schedule updated successfully! Reschedule notification email has been sent to the candidate.' });
         } else if (isReschedule && sendNotification) {
-          alert('Schedule updated successfully! However, the notification email could not be sent. Please notify the candidate manually.');
+          setToast({ type: 'warning', message: 'Schedule updated successfully! However, the notification email could not be sent. Please notify the candidate manually.' });
         } else {
-          alert('Schedule updated successfully!');
+          setToast({ type: 'success', message: 'Schedule updated successfully!' });
         }
       } catch (error) {
-        alert('Error updating schedule. Please try again.');
+        setToast({ type: 'danger', message: 'Error updating schedule. Please try again.' });
       }
     };
 
@@ -748,9 +750,9 @@ const InterviewsManagement = () => {
         });
         setShowFeedbackFormModal(false);
         await fetchInterviews();
-        alert('Feedback form updated successfully!');
+        setToast({ type: 'success', message: 'Feedback form updated successfully!' });
       } catch (error) {
-        alert('Error updating feedback form. Please try again.');
+        setToast({ type: 'danger', message: 'Error updating feedback form. Please try again.' });
       }
     };
   
@@ -1057,7 +1059,7 @@ const InterviewsManagement = () => {
                                               setFeedbackSummary(response.data);
                                               setShowFeedbackModal(true);
                                             } catch {
-                                              alert('Error fetching feedback data.');
+                                              setToast({ type: 'danger', message: 'Error fetching feedback data.' });
                                             }
                                           }}
                                         >
@@ -1089,9 +1091,9 @@ const InterviewsManagement = () => {
                                               try {
                                                 await api.delete(`/interviews/${interview._id}/candidate/${candidate._id}`);
                                                 await fetchInterviews();
-                                                alert('Candidate removed from interview successfully!');
+                                                setToast({ type: 'success', message: 'Candidate removed from interview successfully!' });
                                               } catch {
-                                                alert('Error removing candidate from interview. Please try again.');
+                                                setToast({ type: 'danger', message: 'Error removing candidate from interview. Please try again.' });
                                               }
                                             }
                                           }}
@@ -1751,6 +1753,10 @@ const InterviewsManagement = () => {
                     </ModalContent>
                   </ModalOverlay>
                 )}
+                <ToastNotificationContainer 
+                  toast={toast} 
+                  onClose={() => setToast({ type: '', message: '' })} 
+                />
               </Container>
             );
           };

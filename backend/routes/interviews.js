@@ -3,7 +3,7 @@ const Interview = require('../models/Interview');
 const Candidate = require('../models/Candidate');
 const User = require('../models/User');
 const NotificationSettings = require('../models/NotificationSettings');
-const { authenticateToken, requireSuperAdminOrPermission, requirePanelMember, hasPermission } = require('../middleware/auth');
+const { authenticateToken, requireSuperAdminOrPermission, requirePanelMember, hasPermission, getCampusFilter } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
 const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
 const crypto = require('crypto');
@@ -101,10 +101,19 @@ router.get('/', authenticateToken, async (req, res) => {
     console.log('📋 [INTERVIEWS FETCH] Request from:', req.user.email, 'Role:', req.user.role);
     
     let query = {};
+    const campusFilter = getCampusFilter(req.user);
 
     // Panel members can only see interviews they're assigned to
     if (req.user.role === 'panel_member') {
       query['panelMembers.panelMember'] = req.user._id;
+    }
+
+    // If user has campus restriction, filter by form's campus
+    if (campusFilter.campus) {
+      const RecruitmentForm = require('../models/RecruitmentForm');
+      const formsWithCampus = await RecruitmentForm.find({ campus: campusFilter.campus }).select('_id').lean();
+      const formIds = formsWithCampus.map(f => f._id);
+      query.form = { $in: formIds };
     }
 
     console.log('📋 [INTERVIEWS FETCH] Query:', JSON.stringify(query));
