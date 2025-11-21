@@ -9,6 +9,8 @@ import {
   FaSync
 } from 'react-icons/fa';
 import LoadingSpinner from '../LoadingSpinner';
+import PushNotificationInline from '../PushNotificationInline';
+import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 
 const fadeInUp = keyframes`
@@ -512,6 +514,7 @@ const getStageMeta = (stage) => {
 const getStatusVariant = (status) => STATUS_VARIANTS[status] || 'neutral';
 
 const DashboardOverview = () => {
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -835,6 +838,10 @@ const DashboardOverview = () => {
           </div>
           <HeaderActions>
             {lastUpdated && <Timestamp>Last updated {formatDateTime(lastUpdated)}</Timestamp>}
+            {/* Push Notification Status - Only show for super admins */}
+            {user && user.role === 'super_admin' && (
+              <PushNotificationInline user={user} />
+            )}
             <RefreshButton onClick={handleRefresh} disabled={refreshing}>
               <RefreshIcon $spinning={refreshing}>
                 <FaSync />

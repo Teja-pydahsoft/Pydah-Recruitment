@@ -762,6 +762,45 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
       $inc: { submissionCount: 1 }
     });
 
+    // Send push notification to all super admins about new application
+    try {
+      const { sendNotificationToSuperAdmins } = require('../utils/pushNotificationService');
+      
+      // Populate form details for notification
+      await form.populate('createdBy', 'name email');
+      
+      const notificationData = {
+        title: 'New Application Received',
+        body: `${userDetails.name} has submitted an application for ${form.position || form.title}`,
+        icon: '/logo192.png',
+        badge: '/logo192.png',
+        url: `/candidates/${candidate._id}`,
+        data: {
+          candidateId: candidate._id.toString(),
+          formId: form._id.toString(),
+          type: 'new_application'
+        },
+        tag: 'new-application',
+        requireInteraction: false
+      };
+      
+      // Send notification asynchronously (don't block response)
+      sendNotificationToSuperAdmins(notificationData)
+        .then(result => {
+          if (result.success) {
+            console.log(`✅ [PUSH] Notification sent to ${result.sent} super admin(s) about new application`);
+          } else {
+            console.log(`ℹ️  [PUSH] No notifications sent (${result.message || 'no subscriptions'})`);
+          }
+        })
+        .catch(err => {
+          console.error('❌ [PUSH] Error sending notification (non-blocking):', err.message);
+        });
+    } catch (pushError) {
+      // Don't fail the request if push notification fails
+      console.error('❌ [PUSH] Error setting up notification (non-blocking):', pushError.message);
+    }
+
     res.status(201).json({
       message: 'Application submitted successfully',
       candidateId: candidate._id,

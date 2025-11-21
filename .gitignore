@@ -17,6 +17,9 @@ yarn-error.log*
 backend/config/credentials.json
 backend/config/oauth-credentials.json
 
+# VAPID keys for push notifications (generated automatically)
+backend/config/vapid-keys.json
+
 # Build outputs
 dist/
 build/

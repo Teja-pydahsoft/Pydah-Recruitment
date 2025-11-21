@@ -6,7 +6,7 @@
       "src": "pydah-logo.png",
       "sizes": "192x192 256x256 384x384 512x512",
       "type": "image/png"
-    },
+    }
   ],
   "start_url": ".",
   "display": "standalone",
