@@ -3179,12 +3179,17 @@ router.post('/:id/submit', async (req, res) => {
       await candidate.populate('user', 'name email');
       await candidate.populate('form', 'title position');
       
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      // Get frontend URL (handle comma-separated values)
+      let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      if (frontendUrl.includes(',')) {
+        frontendUrl = frontendUrl.split(',')[0].trim();
+      }
+      
       const notificationData = {
         title: 'Test Completed',
         body: `${candidate.user.name} has completed the test "${test.title}" with ${percentage.toFixed(1)}% (${passed ? 'Passed' : 'Failed'})`,
-        icon: `${frontendUrl}/logo192.png`,
-        badge: `${frontendUrl}/logo192.png`,
+        icon: `${frontendUrl}/pydah-logo.png`,
+        badge: `${frontendUrl}/pydah-logo.png`,
         url: `${frontendUrl}/candidates/${candidate._id}`,
         data: {
           candidateId: candidate._id.toString(),

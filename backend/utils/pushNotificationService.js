@@ -56,6 +56,22 @@ async function sendNotificationToSubscription(subscription, payload) {
       };
     }
     
+    // Handle VAPID credentials mismatch (403 error)
+    if (error.statusCode === 403 && error.body && error.body.includes('VAPID')) {
+      console.error('❌ [PUSH] VAPID credentials mismatch!');
+      console.error('❌ [PUSH] The subscription was created with different VAPID keys.');
+      console.error('❌ [PUSH] Solution: User needs to unsubscribe and re-subscribe to get new keys.');
+      console.error('❌ [PUSH] This usually happens when VAPID keys were regenerated after subscription was created.');
+      
+      // Deactivate the subscription so user can re-subscribe
+      await PushSubscription.deactivateByEndpoint(subscription.endpoint);
+      return {
+        success: false,
+        error: 'VAPID credentials mismatch - subscription needs to be renewed',
+        endpoint: subscription.endpoint
+      };
+    }
+    
     // Increment failed attempts
     await PushSubscription.incrementFailedAttempts(subscription.endpoint);
     
@@ -98,12 +114,24 @@ async function sendNotificationToUser(userId, notificationData) {
     console.log(`📤 [PUSH] Sending notification to ${subscriptions.length} subscription(s) for user: ${userId}`);
     
     // Get frontend URL for absolute icon/badge URLs (required for production)
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    // Handle case where FRONTEND_URL might be comma-separated (take first one)
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    if (frontendUrl.includes(',')) {
+      frontendUrl = frontendUrl.split(',')[0].trim();
+      console.warn('⚠️  [PUSH] FRONTEND_URL contains multiple values, using first:', frontendUrl);
+    }
     
     // Helper to make URL absolute if it's relative
     const makeAbsoluteUrl = (url) => {
       if (!url) return undefined;
+      // If already absolute, return as-is (but clean up any issues)
       if (url.startsWith('http://') || url.startsWith('https://')) {
+        // Check for malformed URLs (with commas or multiple URLs)
+        if (url.includes(',') && (url.includes('http://') || url.includes('https://'))) {
+          // Extract the first valid URL
+          const urlMatch = url.match(/(https?:\/\/[^\s,]+)/);
+          return urlMatch ? urlMatch[1] : url.split(',')[0].trim();
+        }
         return url; // Already absolute
       }
       // Make relative URL absolute
@@ -111,11 +139,15 @@ async function sendNotificationToUser(userId, notificationData) {
     };
     
     // Prepare notification payload
+    // Use pydah-logo.png as the default logo (matching the favicon)
+    const defaultIcon = `${frontendUrl}/pydah-logo.png`;
+    const defaultBadge = `${frontendUrl}/pydah-logo.png`;
+    
     const payload = {
       title: notificationData.title || 'New Notification',
       body: notificationData.body || '',
-      icon: makeAbsoluteUrl(notificationData.icon || '/logo192.png'),
-      badge: makeAbsoluteUrl(notificationData.badge || '/logo192.png'),
+      icon: makeAbsoluteUrl(notificationData.icon) || defaultIcon,
+      badge: makeAbsoluteUrl(notificationData.badge) || defaultBadge,
       image: makeAbsoluteUrl(notificationData.image),
       data: {
         url: notificationData.url || `${frontendUrl}/`,

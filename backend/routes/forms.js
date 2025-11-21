@@ -769,12 +769,17 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
       // Populate form details for notification
       await form.populate('createdBy', 'name email');
       
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      // Get frontend URL (handle comma-separated values)
+      let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      if (frontendUrl.includes(',')) {
+        frontendUrl = frontendUrl.split(',')[0].trim();
+      }
+      
       const notificationData = {
         title: 'New Application Received',
         body: `${userDetails.name} has submitted an application for ${form.position || form.title}`,
-        icon: `${frontendUrl}/logo192.png`,
-        badge: `${frontendUrl}/logo192.png`,
+        icon: `${frontendUrl}/pydah-logo.png`,
+        badge: `${frontendUrl}/pydah-logo.png`,
         url: `${frontendUrl}/candidates/${candidate._id}`,
         data: {
           candidateId: candidate._id.toString(),
