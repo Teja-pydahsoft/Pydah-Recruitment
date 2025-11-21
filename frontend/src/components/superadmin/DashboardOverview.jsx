@@ -838,8 +838,8 @@ const DashboardOverview = () => {
           </div>
           <HeaderActions>
             {lastUpdated && <Timestamp>Last updated {formatDateTime(lastUpdated)}</Timestamp>}
-            {/* Push Notification Status - Only show for super admins */}
-            {user && user.role === 'super_admin' && (
+            {/* Push Notification Status - Show for all admin users (super_admin, sub_admin, panel_member) */}
+            {user && (user.role === 'super_admin' || user.role === 'sub_admin' || user.role === 'panel_member') && (
               <PushNotificationInline user={user} />
             )}
             <RefreshButton onClick={handleRefresh} disabled={refreshing}>

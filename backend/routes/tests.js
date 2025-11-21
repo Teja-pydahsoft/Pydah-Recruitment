@@ -3171,13 +3171,13 @@ router.post('/:id/submit', async (req, res) => {
 
     await candidate.save();
 
-    // Send push notification to all super admins about test completion
+    // Send push notification to all admin users (super_admin + sub_admin) about test completion
     try {
-      const { sendNotificationToSuperAdmins } = require('../utils/pushNotificationService');
+      const { sendNotificationToAllAdmins } = require('../utils/pushNotificationService');
       
       // Populate candidate and test details for notification
       await candidate.populate('user', 'name email');
-      await candidate.populate('form', 'title position');
+      await candidate.populate('form', 'title position campus');
       
       // Get frontend URL (handle comma-separated values)
       let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -3209,11 +3209,15 @@ router.post('/:id/submit', async (req, res) => {
         priority: 'high'
       };
       
+      // Send notification to all admins (filtered by campus if form has campus)
+      const form = candidate.form;
+      const options = form?.campus ? { campus: form.campus } : {};
+      
       // Send notification asynchronously (don't block response)
-      sendNotificationToSuperAdmins(notificationData)
+      sendNotificationToAllAdmins(notificationData, options)
         .then(result => {
           if (result.success) {
-            console.log(`✅ [PUSH] Notification sent to ${result.sent} super admin(s) about test completion`);
+            console.log(`✅ [PUSH] Notification sent to ${result.sent} admin user(s) about test completion`);
           } else {
             console.log(`ℹ️  [PUSH] No notifications sent (${result.message || 'no subscriptions'})`);
           }

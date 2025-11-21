@@ -287,10 +287,159 @@ async function sendNotificationToSuperAdmins(notificationData) {
   }
 }
 
+/**
+ * Send notification to all admin users (super_admin + sub_admin)
+ * @param {Object} notificationData - Notification data
+ * @param {Object} options - Optional filters (campus, department)
+ * @returns {Promise<Object>} Result object
+ */
+async function sendNotificationToAllAdmins(notificationData, options = {}) {
+  try {
+    const User = require('../models/User');
+    const { campus, department } = options;
+    
+    // Build query for admin users
+    const query = {
+      role: { $in: ['super_admin', 'sub_admin'] },
+      isActive: { $ne: false }
+    };
+    
+    // Filter by campus if provided (for sub_admins)
+    if (campus) {
+      query.$or = [
+        { role: 'super_admin' }, // Super admins always included
+        { role: 'sub_admin', campus: campus }, // Sub admins filtered by campus
+        { role: 'sub_admin', campus: { $exists: false } } // Sub admins without campus restriction
+      ];
+    }
+    
+    const adminUsers = await User.find(query).select('_id email role campus');
+    const adminUserIds = adminUsers.map(user => user._id.toString());
+    
+    console.log(`🔍 [PUSH] Found ${adminUsers.length} admin user(s) (super_admin + sub_admin):`, 
+      adminUsers.map(u => `${u.email} (${u.role})`));
+    
+    if (adminUserIds.length === 0) {
+      console.warn('⚠️  [PUSH] No admin users found in database');
+      return {
+        success: true,
+        sent: 0,
+        failed: 0,
+        message: 'No admin users found'
+      };
+    }
+    
+    // Check for active subscriptions
+    const PushSubscription = require('../models/PushSubscription');
+    const allSubscriptions = await PushSubscription.find({ 
+      user: { $in: adminUserIds }, 
+      isActive: true 
+    });
+    
+    console.log(`🔍 [PUSH] Found ${allSubscriptions.length} active subscription(s) for admin users`);
+    
+    if (allSubscriptions.length === 0) {
+      console.warn('⚠️  [PUSH] No active push subscriptions found for admin users');
+      return {
+        success: true,
+        sent: 0,
+        failed: 0,
+        message: 'No active subscriptions found'
+      };
+    }
+    
+    return await sendNotificationToUsers(adminUserIds, notificationData);
+  } catch (error) {
+    console.error('❌ [PUSH] Error sending notification to all admins:', error);
+    return {
+      success: false,
+      error: error.message,
+      sent: 0,
+      failed: 0
+    };
+  }
+}
+
+/**
+ * Send notification to all staff users (super_admin + sub_admin + panel_member)
+ * @param {Object} notificationData - Notification data
+ * @param {Object} options - Optional filters (campus, department)
+ * @returns {Promise<Object>} Result object
+ */
+async function sendNotificationToAllStaff(notificationData, options = {}) {
+  try {
+    const User = require('../models/User');
+    const { campus, department } = options;
+    
+    // Build query for staff users
+    const query = {
+      role: { $in: ['super_admin', 'sub_admin', 'panel_member'] },
+      isActive: { $ne: false }
+    };
+    
+    // Filter by campus if provided
+    if (campus) {
+      query.$or = [
+        { role: 'super_admin' }, // Super admins always included
+        { role: 'sub_admin', campus: campus }, // Sub admins filtered by campus
+        { role: 'sub_admin', campus: { $exists: false } }, // Sub admins without campus restriction
+        { role: 'panel_member', campus: campus } // Panel members filtered by campus
+      ];
+    }
+    
+    const staffUsers = await User.find(query).select('_id email role campus');
+    const staffUserIds = staffUsers.map(user => user._id.toString());
+    
+    console.log(`🔍 [PUSH] Found ${staffUsers.length} staff user(s) (super_admin + sub_admin + panel_member):`, 
+      staffUsers.map(u => `${u.email} (${u.role})`));
+    
+    if (staffUserIds.length === 0) {
+      console.warn('⚠️  [PUSH] No staff users found in database');
+      return {
+        success: true,
+        sent: 0,
+        failed: 0,
+        message: 'No staff users found'
+      };
+    }
+    
+    // Check for active subscriptions
+    const PushSubscription = require('../models/PushSubscription');
+    const allSubscriptions = await PushSubscription.find({ 
+      user: { $in: staffUserIds }, 
+      isActive: true 
+    });
+    
+    console.log(`🔍 [PUSH] Found ${allSubscriptions.length} active subscription(s) for staff users`);
+    
+    if (allSubscriptions.length === 0) {
+      console.warn('⚠️  [PUSH] No active push subscriptions found for staff users');
+      return {
+        success: true,
+        sent: 0,
+        failed: 0,
+        message: 'No active subscriptions found'
+      };
+    }
+    
+    return await sendNotificationToUsers(staffUserIds, notificationData);
+  } catch (error) {
+    console.error('❌ [PUSH] Error sending notification to all staff:', error);
+    return {
+      success: false,
+      error: error.message,
+      sent: 0,
+      failed: 0
+    };
+  }
+}
+
 module.exports = {
   sendNotificationToUser,
   sendNotificationToUsers,
   sendNotificationToSuperAdmins,
+  sendNotificationToAllAdmins,
+  sendNotificationToAllStaff,
   sendNotificationToSubscription
 };
 

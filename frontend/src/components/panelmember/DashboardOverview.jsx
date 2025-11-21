@@ -4,6 +4,8 @@ import styled, { keyframes } from 'styled-components';
 import { FaCalendarAlt, FaChartBar, FaClock, FaCheckCircle, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
+import PushNotificationInline from '../PushNotificationInline';
+import { useAuth } from '../../contexts/AuthContext';
 
 const fadeInUp = keyframes`
   from {
@@ -539,6 +541,7 @@ const EmptyState = styled.div`
 `;
 
 const DashboardOverview = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState({
     stats: null,
@@ -721,6 +724,13 @@ const DashboardOverview = () => {
             Manage your assigned interviews, stay updated on schedules, and monitor overall progress.
           </DashboardSubtitle>
         </HeaderSection>
+
+        {/* Push Notification Status - Show for panel members */}
+        {user && user.role === 'panel_member' && (
+          <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+            <PushNotificationInline user={user} />
+          </div>
+        )}
 
         {dashboardData.error && (
           <ErrorState>
