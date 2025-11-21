@@ -489,23 +489,99 @@ router.get('/questions/bulk-template', authenticateToken, requireSuperAdminOrPer
   }
 });
 
-// Helper function to normalize question text for duplicate detection
-const normalizeQuestionText = (text) => {
+// Helper function to normalize text for duplicate detection
+const normalizeText = (text) => {
   if (!text) return '';
   return text.toString().trim().toLowerCase().replace(/\s+/g, ' ');
 };
 
+// Helper function to normalize options array for comparison
+const normalizeOptions = (options) => {
+  if (!Array.isArray(options)) return [];
+  return options.map(opt => normalizeText(opt)).filter(opt => opt !== '');
+};
+
+// Helper function to create a unique signature for the entire question row
+// This includes questionText, options, correctAnswer, and subTopic
+const createQuestionSignature = (question) => {
+  const normalizedQuestionText = normalizeText(question.questionText);
+  const normalizedOptions = normalizeOptions(question.options);
+  const normalizedSubTopic = normalizeText(question.subTopic || '');
+  
+  // Normalize correctAnswer - handle both index and string values
+  let normalizedAnswer = '';
+  if (question.correctAnswer !== null && question.correctAnswer !== undefined) {
+    if (typeof question.correctAnswer === 'number') {
+      normalizedAnswer = question.correctAnswer.toString();
+    } else if (Array.isArray(question.correctAnswer)) {
+      normalizedAnswer = question.correctAnswer.map(a => 
+        typeof a === 'number' ? a.toString() : normalizeText(a)
+      ).sort().join(',');
+    } else {
+      normalizedAnswer = normalizeText(question.correctAnswer);
+    }
+  }
+  
+  // Create signature: questionText | options (in order, since correctAnswer index depends on order) | correctAnswer | subTopic
+  const optionsSignature = normalizedOptions.join('|');
+  return `${normalizedQuestionText}|${optionsSignature}|${normalizedAnswer}|${normalizedSubTopic}`;
+};
+
+// Helper function to compare two questions for exact match (entire row)
+const areQuestionsIdentical = (q1, q2) => {
+  // Compare question text
+  if (normalizeText(q1.questionText) !== normalizeText(q2.questionText)) {
+    return false;
+  }
+  
+  // Compare options (order matters for correctAnswer index, but we normalize for comparison)
+  const opts1 = normalizeOptions(q1.options);
+  const opts2 = normalizeOptions(q2.options);
+  if (opts1.length !== opts2.length) {
+    return false;
+  }
+  // Compare options in order (since correctAnswer index depends on order)
+  for (let i = 0; i < opts1.length; i++) {
+    if (opts1[i] !== opts2[i]) {
+      return false;
+    }
+  }
+  
+  // Compare correctAnswer
+  let answer1 = q1.correctAnswer;
+  let answer2 = q2.correctAnswer;
+  if (typeof answer1 === 'number' && typeof answer2 === 'number') {
+    if (answer1 !== answer2) return false;
+  } else if (Array.isArray(answer1) && Array.isArray(answer2)) {
+    if (answer1.length !== answer2.length) return false;
+    const sorted1 = [...answer1].sort();
+    const sorted2 = [...answer2].sort();
+    for (let i = 0; i < sorted1.length; i++) {
+      if (sorted1[i] !== sorted2[i]) return false;
+    }
+  } else {
+    if (normalizeText(answer1) !== normalizeText(answer2)) return false;
+  }
+  
+  // Compare subTopic
+  if (normalizeText(q1.subTopic || '') !== normalizeText(q2.subTopic || '')) {
+    return false;
+  }
+  
+  return true;
+};
+
 // Helper function to validate and detect duplicates in questions
+// Now checks the entire row (questionText, options, correctAnswer, subTopic) for duplicates
 const validateAndDetectDuplicates = async (questionsToInsert, category, campus = null, department = null, set = null) => {
   const errors = [];
   const duplicates = [];
   const validQuestions = [];
-  const seenInBatch = new Map(); // Track questions within the batch
+  const seenInBatch = new Map(); // Track question signatures within the batch
 
   // First pass: validate and check for duplicates within the batch
   questionsToInsert.forEach((question, index) => {
     const rowNumber = index + 1;
-    const normalizedText = normalizeQuestionText(question.questionText);
 
     // Validation checks
     if (!question.questionText || !question.questionText.trim()) {
@@ -523,9 +599,12 @@ const validateAndDetectDuplicates = async (questionsToInsert, category, campus =
       return;
     }
 
-    // Check for duplicates within the batch
-    if (seenInBatch.has(normalizedText)) {
-      const duplicateInfo = seenInBatch.get(normalizedText);
+    // Create signature for the entire question row
+    const questionSignature = createQuestionSignature(question);
+
+    // Check for duplicates within the batch using the full row signature
+    if (seenInBatch.has(questionSignature)) {
+      const duplicateInfo = seenInBatch.get(questionSignature);
       duplicates.push({
         row: rowNumber,
         questionText: question.questionText.substring(0, 100) + (question.questionText.length > 100 ? '...' : ''),
@@ -535,17 +614,24 @@ const validateAndDetectDuplicates = async (questionsToInsert, category, campus =
       return;
     }
 
-    seenInBatch.set(normalizedText, { row: rowNumber, question });
-    validQuestions.push({ question, normalizedText, originalIndex: index });
+    seenInBatch.set(questionSignature, { row: rowNumber, question });
+    validQuestions.push({ question, questionSignature, originalIndex: index });
   });
 
   // Second pass: check for duplicates in database
   if (validQuestions.length > 0) {
-    const normalizedTexts = validQuestions.map(vq => vq.normalizedText);
+    // Build query to fetch potential duplicates from database
+    // We need to fetch questions with matching questionText first, then compare full rows
+    const normalizedQuestionTexts = validQuestions.map(vq => 
+      normalizeText(vq.question.questionText)
+    );
     
-    // Build query for existing questions
     const query = {
-      questionText: { $in: normalizedTexts.map(nt => new RegExp(`^${nt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) },
+      questionText: { 
+        $in: normalizedQuestionTexts.map(nt => 
+          new RegExp(`^${nt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+        ) 
+      },
       category,
       isActive: true
     };
@@ -562,17 +648,20 @@ const validateAndDetectDuplicates = async (questionsToInsert, category, campus =
       query.set = set.trim();
     }
 
-    const existingQuestions = await QuestionBank.find(query).select('questionText set').lean();
+    // Fetch existing questions with all fields needed for comparison
+    const existingQuestions = await QuestionBank.find(query)
+      .select('questionText options correctAnswer subTopic set')
+      .lean();
 
-    // Create a set of existing normalized texts for quick lookup
-    const existingNormalized = new Set(
-      existingQuestions.map(eq => normalizeQuestionText(eq.questionText))
-    );
-
-    // Filter out questions that exist in database
+    // Filter out questions that are exact duplicates in database (comparing entire row)
     const finalValidQuestions = [];
-    validQuestions.forEach(({ question, normalizedText, originalIndex }) => {
-      if (existingNormalized.has(normalizedText)) {
+    validQuestions.forEach(({ question, questionSignature, originalIndex }) => {
+      // Check if this question matches any existing question in the database
+      const isDuplicate = existingQuestions.some(existingQ => 
+        areQuestionsIdentical(question, existingQ)
+      );
+      
+      if (isDuplicate) {
         duplicates.push({
           row: originalIndex + 1,
           questionText: question.questionText.substring(0, 100) + (question.questionText.length > 100 ? '...' : ''),
@@ -1715,8 +1804,8 @@ router.post('/questions', authenticateToken, requireSuperAdminOrPermission('test
       return res.status(400).json({ message: 'Correct answer must be option index(es) or option value(s)' });
     }
 
-    // Check for duplicate question
-    const normalizedQuestionText = normalizeQuestionText(questionText);
+    // Check for duplicate question - now checking entire row (questionText, options, correctAnswer, subTopic)
+    const normalizedQuestionText = normalizeText(questionText);
     const duplicateQuery = {
       questionText: new RegExp(`^${normalizedQuestionText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
       category: topic.category,
@@ -1732,15 +1821,31 @@ router.post('/questions', authenticateToken, requireSuperAdminOrPermission('test
       duplicateQuery.department = department.trim();
     }
 
-    const existingQuestion = await QuestionBank.findOne(duplicateQuery);
-    if (existingQuestion) {
+    // Fetch potential duplicates (matching question text)
+    const existingQuestions = await QuestionBank.find(duplicateQuery)
+      .select('questionText options correctAnswer subTopic topicName category')
+      .lean();
+
+    // Check if any existing question matches the entire row
+    const newQuestion = {
+      questionText,
+      options,
+      correctAnswer,
+      subTopic: subTopic || ''
+    };
+
+    const duplicateQuestion = existingQuestions.find(existingQ => 
+      areQuestionsIdentical(newQuestion, existingQ)
+    );
+
+    if (duplicateQuestion) {
       return res.status(409).json({
-        message: 'Duplicate question detected',
+        message: 'Duplicate question detected (entire row matches: question, options, answer, and sub-topic)',
         duplicate: {
-          questionText: existingQuestion.questionText.substring(0, 100) + (existingQuestion.questionText.length > 100 ? '...' : ''),
-          id: existingQuestion._id,
-          topic: existingQuestion.topicName,
-          category: existingQuestion.category,
+          questionText: duplicateQuestion.questionText.substring(0, 100) + (duplicateQuestion.questionText.length > 100 ? '...' : ''),
+          id: duplicateQuestion._id,
+          topic: duplicateQuestion.topicName,
+          category: duplicateQuestion.category,
           reason: 'duplicate_in_database'
         }
       });

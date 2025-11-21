@@ -41,7 +41,8 @@ const recruitmentFormSchema = new mongoose.Schema({
   department: {
     type: String,
     required: function() {
-      return this.formType === 'candidate_profile';
+      // Department is only required for teaching forms, not for non-teaching
+      return this.formType === 'candidate_profile' && this.formCategory === 'teaching';
     },
     trim: true
   },

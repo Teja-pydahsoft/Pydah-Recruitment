@@ -192,7 +192,8 @@ const seedCandidateRegistrationForm = async () => {
       formType: 'candidate_profile',
       formCategory: 'non_teaching',
       position: 'Non-Teaching Staff',
-      department: 'Various',
+      // Department is optional for non-teaching forms
+      department: '',
       closingDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000), // 45 days from now
       vacancies: 8,
       formFields: nonTeachingFormFields,

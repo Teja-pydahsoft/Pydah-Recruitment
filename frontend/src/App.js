@@ -11,6 +11,7 @@ import PanelMemberDashboard from './components/PanelMemberDashboard';
 import CandidateDashboard from './components/CandidateDashboard';
 import PublicForm from './components/PublicForm';
 import TakeTest from './components/TakeTest';
+import TypingTest from './components/TypingTest';
 import Sidebar from './components/Sidebar';
 import LoadingSpinner from './components/LoadingSpinner';
 import CareersPage from './components/CareersPage';
@@ -107,6 +108,7 @@ function App() {
           <Route path="/careers" element={<AppLayout showSidebar={false}><CareersPage /></AppLayout>} />
           <Route path="/form/:uniqueLink" element={<AppLayout showSidebar={false}><PublicForm /></AppLayout>} />
           <Route path="/test/:testLink" element={<AppLayout showSidebar={false}><TakeTest /></AppLayout>} />
+          <Route path="/typing-test/:testLink" element={<AppLayout showSidebar={false}><TypingTest /></AppLayout>} />
 
           {/* Protected Routes - With Sidebar */}
           <Route

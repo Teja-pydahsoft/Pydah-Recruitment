@@ -110,7 +110,8 @@ router.post('/', authenticateToken, requireSuperAdminOrWritePermission('forms.ma
       formCategory: formType === 'candidate_profile' ? formCategory : undefined,
       campus: formType === 'candidate_profile' ? campus : undefined,
       position: formType === 'candidate_profile' ? position : undefined,
-      department: formType === 'candidate_profile' ? department : undefined,
+      // Department is only required for teaching forms, optional for non-teaching
+      department: formType === 'candidate_profile' && formCategory === 'teaching' ? department : (formType === 'candidate_profile' && department ? department : undefined),
       closingDate: formType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,
       vacancies: formType === 'candidate_profile' && vacancies ? parseInt(vacancies) : undefined,
       filledVacancies: 0,
@@ -349,7 +350,8 @@ router.put('/:id', authenticateToken, requireSuperAdminOrWritePermission('forms.
       formCategory: originalFormType === 'candidate_profile' ? formCategory : undefined,
       campus: originalFormType === 'candidate_profile' ? campus : undefined,
       position: originalFormType === 'candidate_profile' ? position : undefined,
-      department: originalFormType === 'candidate_profile' ? department : undefined,
+      // Department is only required for teaching forms, optional for non-teaching
+      department: originalFormType === 'candidate_profile' && formCategory === 'teaching' ? department : (originalFormType === 'candidate_profile' && department ? department : undefined),
       closingDate: originalFormType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,
       vacancies: originalFormType === 'candidate_profile' && vacancies ? parseInt(vacancies) : undefined,
       requirements,

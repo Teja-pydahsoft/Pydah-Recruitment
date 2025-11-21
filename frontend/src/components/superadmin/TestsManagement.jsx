@@ -30,7 +30,8 @@ import {
   FaEye,
   FaDownload,
   FaCopy,
-  FaUser
+  FaUser,
+  FaKeyboard
 } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
@@ -164,6 +165,38 @@ const TestsManagement = () => {
   const [searchInput, setSearchInput] = useState(''); // Separate state for input value
   const [assignmentDetails, setAssignmentDetails] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
+
+  // Typing test creation state
+  const [typingTestModalVisible, setTypingTestModalVisible] = useState(false);
+  const [typingTestSaving, setTypingTestSaving] = useState(false);
+  const [typingTestAssignmentDetails, setTypingTestAssignmentDetails] = useState(null);
+  const [typingTestCopySuccess, setTypingTestCopySuccess] = useState(false);
+  const [typingTestForm, setTypingTestForm] = useState({
+    candidateId: '',
+    title: '',
+    description: '',
+    typingParagraph: '',
+    durationOptions: [1, 2],
+    defaultDuration: 1,
+    instructions: 'Type the given paragraph as accurately and quickly as possible. Your typing speed (WPM) and accuracy will be measured.',
+    form: null,
+    startDate: new Date().toISOString().split('T')[0],
+    startTime: new Date().toTimeString().slice(0, 5),
+    endDate: '',
+    endTime: ''
+  });
+
+  // Typing test results state
+  const [typingTestResults, setTypingTestResults] = useState([]);
+  const [typingTestResultsLoading, setTypingTestResultsLoading] = useState(false);
+  const [typingTestResultsError, setTypingTestResultsError] = useState(null);
+  const [typingTests, setTypingTests] = useState([]);
+  const [selectedTypingResult, setSelectedTypingResult] = useState(null);
+  const [showTypingDetailModal, setShowTypingDetailModal] = useState(false);
+  const [typingSearchTerm, setTypingSearchTerm] = useState('');
+  const [typingFilterTestId, setTypingFilterTestId] = useState('all');
+  const [typingSortBy, setTypingSortBy] = useState('submittedAt');
+  const [typingSortOrder, setTypingSortOrder] = useState('desc');
 
   const formatDateTime = (value) => {
     if (!value) {
@@ -697,6 +730,9 @@ const TestsManagement = () => {
       fetchQuestions();
       // Clear selections when filters change
       setSelectedQuestions([]);
+    } else if (activeTab === 'typingTestResults') {
+      fetchTypingTestResults();
+      fetchTypingTestsForFilter();
     }
   }, [activeTab, fetchFilterOptions, fetchQuestions]);
 
@@ -980,6 +1016,144 @@ const TestsManagement = () => {
     setBuilderModalVisible(true);
   };
 
+  const openTypingTestModal = (candidate) => {
+    const now = new Date();
+    setTypingTestForm({
+      candidateId: candidate?._id || '',
+      title: candidate ? `${candidate.form?.title || candidate.form?.position || 'Typing Test'} - ${candidate.user?.name}` : '',
+      description: '',
+      typingParagraph: '',
+      durationOptions: [1, 2],
+      defaultDuration: 1,
+      instructions: 'Type the given paragraph as accurately and quickly as possible. Your typing speed (WPM) and accuracy will be measured.',
+      form: candidate?.form?._id || null,
+      startDate: now.toISOString().split('T')[0],
+      startTime: now.toTimeString().slice(0, 5),
+      endDate: '',
+      endTime: ''
+    });
+    setTypingTestModalVisible(true);
+  };
+
+  const closeTypingTestModal = () => {
+    setTypingTestModalVisible(false);
+    setTypingTestForm({
+      candidateId: '',
+      title: '',
+      description: '',
+      typingParagraph: '',
+      durationOptions: [1, 2],
+      defaultDuration: 1,
+      instructions: 'Type the given paragraph as accurately and quickly as possible. Your typing speed (WPM) and accuracy will be measured.',
+      form: null,
+      startDate: new Date().toISOString().split('T')[0],
+      startTime: new Date().toTimeString().slice(0, 5),
+      endDate: '',
+      endTime: ''
+    });
+    setTypingTestAssignmentDetails(null);
+    setTypingTestCopySuccess(false);
+  };
+
+  const handleCreateTypingTest = async (e) => {
+    e.preventDefault();
+    
+    if (!typingTestForm.typingParagraph || !typingTestForm.typingParagraph.trim()) {
+      setToast({ type: 'danger', message: 'Typing paragraph is required' });
+      return;
+    }
+
+    if (!typingTestForm.candidateId) {
+      setToast({ type: 'danger', message: 'Please select a candidate' });
+      return;
+    }
+
+    setTypingTestSaving(true);
+    try {
+      // Prepare start and end dates
+      let startDate = null;
+      let endDate = null;
+      
+      if (typingTestForm.startDate) {
+        if (typingTestForm.startTime) {
+          startDate = new Date(`${typingTestForm.startDate}T${typingTestForm.startTime}`);
+        } else {
+          startDate = new Date(typingTestForm.startDate);
+        }
+      }
+      
+      if (typingTestForm.endDate) {
+        if (typingTestForm.endTime) {
+          endDate = new Date(`${typingTestForm.endDate}T${typingTestForm.endTime}`);
+        } else {
+          endDate = new Date(typingTestForm.endDate);
+          endDate.setHours(23, 59, 59, 999); // Set to end of day if no time specified
+        }
+      }
+
+      // Create typing test
+      const typingTestResponse = await api.post('/typing-test', {
+        title: typingTestForm.title,
+        description: typingTestForm.description,
+        typingParagraph: typingTestForm.typingParagraph.trim(),
+        durationOptions: typingTestForm.durationOptions,
+        defaultDuration: typingTestForm.defaultDuration,
+        instructions: typingTestForm.instructions,
+        form: typingTestForm.form,
+        startDate: startDate,
+        endDate: endDate
+      });
+
+      const typingTestId = typingTestResponse.data.typingTest._id;
+      let typingTest = typingTestResponse.data.typingTest;
+
+      // Assign typing test to candidate
+      await api.post(`/typing-test/${typingTestId}/assign`, {
+        candidateIds: [typingTestForm.candidateId]
+      });
+
+      // Fetch the typing test again to ensure we have the testLink (it's generated in pre-save hook)
+      try {
+        const updatedTestResponse = await api.get(`/typing-test/${typingTestId}`);
+        typingTest = updatedTestResponse.data.typingTest;
+      } catch (err) {
+        console.warn('Could not fetch updated typing test, using original:', err);
+      }
+
+      // Store assignment details for copy functionality
+      if (typingTest && typingTest.testLink) {
+        setTypingTestAssignmentDetails({
+          candidateId: typingTestForm.candidateId,
+          title: typingTestForm.title,
+          testLink: typingTest.testLink,
+          defaultDuration: typingTestForm.defaultDuration,
+          durationOptions: typingTestForm.durationOptions
+        });
+      } else {
+        // Fallback: construct testLink if not available
+        const fallbackTestLink = `typing_${typingTestId}_${Date.now()}`;
+        setTypingTestAssignmentDetails({
+          candidateId: typingTestForm.candidateId,
+          title: typingTestForm.title,
+          testLink: fallbackTestLink,
+          defaultDuration: typingTestForm.defaultDuration,
+          durationOptions: typingTestForm.durationOptions
+        });
+      }
+
+      setToast({ type: 'success', message: 'Typing test created and assigned successfully!' });
+      
+      // Refresh candidates list
+      fetchCandidates();
+    } catch (error) {
+      console.error('Typing test creation error:', error);
+      const message = error.response?.data?.message || 'Failed to create typing test';
+      setToast({ type: 'danger', message });
+    } finally {
+      setTypingTestSaving(false);
+    }
+  };
+
   const fetchBuilderFilterOptions = useCallback(async (campus, department) => {
     if (!campus && !department) {
       setBuilderFilterOptions({ campuses: [], departments: [], sets: [], topics: [] });
@@ -1027,6 +1201,27 @@ const TestsManagement = () => {
     }).catch(err => {
       console.error('Failed to copy:', err);
       setToast({ type: 'danger', message: 'Failed to copy test link' });
+    });
+  };
+
+  const copyTypingTestLink = () => {
+    if (!typingTestAssignmentDetails) return;
+    
+    const frontendUrl = window.location.origin;
+    // Include candidate ID as query parameter (required for typing test)
+    const testLink = `${frontendUrl}/typing-test/${typingTestAssignmentDetails.testLink}?candidate=${typingTestAssignmentDetails.candidateId}`;
+    const candidate = candidates.find(c => c._id === typingTestAssignmentDetails.candidateId);
+    const candidateName = candidate?.user?.name || 'Candidate';
+    const durationText = typingTestAssignmentDetails.defaultDuration === 1 ? '1 minute' : '2 minutes';
+    
+    const textToCopy = `Candidate Name: ${candidateName}\nTyping Test: ${typingTestAssignmentDetails.title}\nDuration: ${durationText}\nTest Link: ${testLink}`;
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setTypingTestCopySuccess(true);
+      setTimeout(() => setTypingTestCopySuccess(false), 3000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      setToast({ type: 'danger', message: 'Failed to copy typing test link' });
     });
   };
 
@@ -1333,6 +1528,169 @@ const TestsManagement = () => {
       ...prev,
       [testId]: !prev[testId]
     }));
+  };
+
+  // Fetch typing test results
+  const fetchTypingTestResults = async () => {
+    setTypingTestResultsLoading(true);
+    setTypingTestResultsError(null);
+    try {
+      const response = await api.get('/typing-test/results');
+      setTypingTestResults(response.data.results || []);
+    } catch (err) {
+      setTypingTestResultsError(err.response?.data?.message || 'Failed to fetch typing test results');
+      console.error('Typing test results fetch error:', err);
+    } finally {
+      setTypingTestResultsLoading(false);
+    }
+  };
+
+  // Fetch typing tests for filter
+  const fetchTypingTestsForFilter = async () => {
+    try {
+      const response = await api.get('/typing-test');
+      setTypingTests(response.data.typingTests || []);
+    } catch (err) {
+      console.error('Typing tests fetch error:', err);
+    }
+  };
+
+  // Filter and sort typing test results
+  const filteredAndSortedTypingResults = useMemo(() => {
+    let filtered = typingTestResults;
+
+    // Filter by search term
+    if (typingSearchTerm.trim()) {
+      const term = typingSearchTerm.toLowerCase();
+      filtered = filtered.filter(result => {
+        const name = result.candidate?.user?.name?.toLowerCase() || '';
+        const email = result.candidate?.user?.email?.toLowerCase() || '';
+        const candidateNumber = result.candidate?.candidateNumber?.toLowerCase() || '';
+        return name.includes(term) || email.includes(term) || candidateNumber.includes(term);
+      });
+    }
+
+    // Filter by typing test
+    if (typingFilterTestId !== 'all') {
+      filtered = filtered.filter(result => 
+        result.typingTest?._id?.toString() === typingFilterTestId
+      );
+    }
+
+    // Sort results
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (typingSortBy) {
+        case 'wpm':
+          aValue = a.wpm || 0;
+          bValue = b.wpm || 0;
+          break;
+        case 'accuracy':
+          aValue = a.accuracy || 0;
+          bValue = b.accuracy || 0;
+          break;
+        case 'submittedAt':
+          aValue = new Date(a.submittedAt || 0).getTime();
+          bValue = new Date(b.submittedAt || 0).getTime();
+          break;
+        case 'candidateName':
+          aValue = (a.candidate?.user?.name || '').toLowerCase();
+          bValue = (b.candidate?.user?.name || '').toLowerCase();
+          break;
+        default:
+          aValue = a[typingSortBy] || 0;
+          bValue = b[typingSortBy] || 0;
+      }
+
+      if (typingSortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    return filtered;
+  }, [typingTestResults, typingSearchTerm, typingFilterTestId, typingSortBy, typingSortOrder]);
+
+  // Calculate typing test statistics
+  const typingStats = useMemo(() => {
+    if (filteredAndSortedTypingResults.length === 0) {
+      return {
+        total: 0,
+        avgWpm: 0,
+        avgAccuracy: 0,
+        totalErrors: 0
+      };
+    }
+
+    const total = filteredAndSortedTypingResults.length;
+    const avgWpm = filteredAndSortedTypingResults.reduce((sum, r) => sum + (r.wpm || 0), 0) / total;
+    const avgAccuracy = filteredAndSortedTypingResults.reduce((sum, r) => sum + (r.accuracy || 0), 0) / total;
+    const totalErrors = filteredAndSortedTypingResults.reduce((sum, r) => sum + (r.totalErrors || 0), 0);
+
+    return {
+      total,
+      avgWpm: Math.round(avgWpm * 10) / 10,
+      avgAccuracy: Math.round(avgAccuracy * 10) / 10,
+      totalErrors
+    };
+  }, [filteredAndSortedTypingResults]);
+
+  // Handle view typing test details
+  const handleViewTypingDetails = (result) => {
+    setSelectedTypingResult(result);
+    setShowTypingDetailModal(true);
+  };
+
+  // Export typing test results to CSV
+  const handleExportTypingCSV = () => {
+    const headers = ['Candidate Name', 'Email', 'Candidate Number', 'Test Title', 'WPM', 'Accuracy (%)', 'Total Errors', 'Time Taken (s)', 'Duration (min)', 'Submitted At'];
+    const rows = filteredAndSortedTypingResults.map(result => [
+      result.candidate?.user?.name || 'N/A',
+      result.candidate?.user?.email || 'N/A',
+      result.candidate?.candidateNumber || 'N/A',
+      result.typingTest?.title || 'N/A',
+      result.wpm || 0,
+      result.accuracy || 0,
+      result.totalErrors || 0,
+      result.timeTaken || 0,
+      result.duration || 0,
+      result.submittedAt ? new Date(result.submittedAt).toLocaleString() : 'N/A'
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `typing-test-results-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Format date for typing results
+  const formatTypingDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+  };
+
+  // Get accuracy badge variant
+  const getTypingAccuracyBadge = (accuracy) => {
+    if (accuracy >= 90) return 'success';
+    if (accuracy >= 70) return 'warning';
+    return 'danger';
+  };
+
+  // Get WPM badge variant
+  const getTypingWPMBadge = (wpm) => {
+    if (wpm >= 40) return 'success';
+    if (wpm >= 25) return 'warning';
+    return 'danger';
   };
 
   const formatDurationSeconds = (value) => {
@@ -1685,6 +2043,7 @@ const TestsManagement = () => {
                                   return 'outline-secondary';
                                 };
 
+                                const isNonTeaching = candidate.form?.formCategory === 'non_teaching';
                                 const primaryLabel = hasCompletedTests ? 'Conduct Test Again' : (testsAssigned > 0 ? 'Conduct Test Again' : 'Build Assessment');
                                 const primaryVariant = hasCompletedTests || testsAssigned > 0 ? 'warning' : 'primary';
                                 const showPrimaryAction = !movedToInterview;
@@ -1698,14 +2057,31 @@ const TestsManagement = () => {
                                     {!isFinalised && (
                                       <>
                                         {showPrimaryAction && (
-                                          <Button
-                                            size="sm"
-                                            variant={primaryVariant}
-                                            onClick={() => openBuilderModal(candidate)}
-                                            className="text-nowrap"
-                                          >
-                                            {primaryLabel}
-                                          </Button>
+                                          <>
+                                            {isNonTeaching ? (
+                                              <Button
+                                                size="sm"
+                                                variant="info"
+                                                onClick={() => openTypingTestModal(candidate)}
+                                                className="text-nowrap"
+                                                style={{
+                                                  background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+                                                  border: 'none'
+                                                }}
+                                              >
+                                                ⌨️ Create Typing Test
+                                              </Button>
+                                            ) : (
+                                              <Button
+                                                size="sm"
+                                                variant={primaryVariant}
+                                                onClick={() => openBuilderModal(candidate)}
+                                                className="text-nowrap"
+                                              >
+                                                {primaryLabel}
+                                              </Button>
+                                            )}
+                                          </>
                                         )}
                                         {canPromoteDirectly && (
                                           <Button
@@ -2290,6 +2666,624 @@ const TestsManagement = () => {
               </div>
             </Col>
           </Row>
+        </Tab>
+
+        <Tab eventKey="typingTestResults" title={
+          <span>
+            <FaKeyboard className="me-2" />
+            Typing Test Results
+          </span>
+        }>
+          <Row className="mb-4">
+            <Col>
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <h4 className="mb-1" style={{ fontWeight: '700', color: '#212529' }}>
+                    <FaKeyboard className="me-2" style={{ color: '#667eea' }} />
+                    Typing Test Results
+                  </h4>
+                  <p className="text-muted mb-0">View and manage typing test results for non-teaching candidates</p>
+                </div>
+                <div className="d-flex gap-2">
+                  <Button 
+                    variant="outline-primary" 
+                    onClick={() => {
+                      fetchTypingTestResults();
+                      fetchTypingTestsForFilter();
+                    }}
+                    disabled={typingTestResultsLoading}
+                  >
+                    <FaSync className={`me-2 ${typingTestResultsLoading ? 'fa-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                  <Button 
+                    variant="primary" 
+                    onClick={handleExportTypingCSV} 
+                    disabled={filteredAndSortedTypingResults.length === 0}
+                    style={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none',
+                      fontWeight: '600'
+                    }}
+                  >
+                    <FaDownload className="me-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </Col>
+          </Row>
+
+          {typingTestResultsError && (
+            <Alert variant="danger" dismissible onClose={() => setTypingTestResultsError(null)} className="mb-4">
+              {typingTestResultsError}
+            </Alert>
+          )}
+
+          {/* Statistics Cards */}
+          <Row className="mb-4">
+            <Col md={3}>
+              <Card className="text-center h-100 border-0 shadow-sm" style={{ 
+                borderRadius: '12px',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              }}
+              >
+                <Card.Body style={{ padding: '1.5rem' }}>
+                  <h6 className="text-muted text-uppercase mb-2" style={{ 
+                    fontSize: '0.75rem', 
+                    letterSpacing: '0.5px', 
+                    fontWeight: '600' 
+                  }}>
+                    Total Results
+                  </h6>
+                  <h3 className="mb-0 text-primary" style={{ fontWeight: '700', fontSize: '2.5rem' }}>
+                    {typingStats.total}
+                  </h3>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col md={3}>
+              <Card className="text-center h-100 border-0 shadow-sm" style={{ 
+                borderRadius: '12px',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              }}
+              >
+                <Card.Body style={{ padding: '1.5rem' }}>
+                  <h6 className="text-muted text-uppercase mb-2" style={{ 
+                    fontSize: '0.75rem', 
+                    letterSpacing: '0.5px', 
+                    fontWeight: '600' 
+                  }}>
+                    Average WPM
+                  </h6>
+                  <h3 className="mb-0 text-success" style={{ fontWeight: '700', fontSize: '2.5rem' }}>
+                    {typingStats.avgWpm.toFixed(1)}
+                  </h3>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col md={3}>
+              <Card className="text-center h-100 border-0 shadow-sm" style={{ 
+                borderRadius: '12px',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              }}
+              >
+                <Card.Body style={{ padding: '1.5rem' }}>
+                  <h6 className="text-muted text-uppercase mb-2" style={{ 
+                    fontSize: '0.75rem', 
+                    letterSpacing: '0.5px', 
+                    fontWeight: '600' 
+                  }}>
+                    Average Accuracy
+                  </h6>
+                  <h3 className="mb-0 text-info" style={{ fontWeight: '700', fontSize: '2.5rem' }}>
+                    {typingStats.avgAccuracy.toFixed(1)}%
+                  </h3>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col md={3}>
+              <Card className="text-center h-100 border-0 shadow-sm" style={{ 
+                borderRadius: '12px',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              }}
+              >
+                <Card.Body style={{ padding: '1.5rem' }}>
+                  <h6 className="text-muted text-uppercase mb-2" style={{ 
+                    fontSize: '0.75rem', 
+                    letterSpacing: '0.5px', 
+                    fontWeight: '600' 
+                  }}>
+                    Total Errors
+                  </h6>
+                  <h3 className="mb-0 text-danger" style={{ fontWeight: '700', fontSize: '2.5rem' }}>
+                    {typingStats.totalErrors}
+                  </h3>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Filters */}
+          <Card className="mb-4 border-0 shadow-sm" style={{ borderRadius: '12px' }}>
+            <Card.Body style={{ padding: '1.5rem' }}>
+              <Row className="g-3">
+                <Col md={4}>
+                  <InputGroup>
+                    <InputGroup.Text style={{ 
+                      background: '#f8f9fa', 
+                      border: '2px solid #e9ecef',
+                      borderRight: 'none',
+                      borderRadius: '10px 0 0 10px'
+                    }}>
+                      <FaSearch style={{ color: '#6c757d' }} />
+                    </InputGroup.Text>
+                    <Form.Control
+                      type="text"
+                      placeholder="Search by name, email, or candidate number..."
+                      value={typingSearchTerm}
+                      onChange={(e) => setTypingSearchTerm(e.target.value)}
+                      style={{
+                        border: '2px solid #e9ecef',
+                        borderLeft: 'none',
+                        borderRadius: '0 10px 10px 0',
+                        padding: '0.75rem 1rem'
+                      }}
+                    />
+                  </InputGroup>
+                </Col>
+                <Col md={3}>
+                  <Form.Select
+                    value={typingFilterTestId}
+                    onChange={(e) => setTypingFilterTestId(e.target.value)}
+                    style={{
+                      border: '2px solid #e9ecef',
+                      borderRadius: '10px',
+                      padding: '0.75rem 1rem'
+                    }}
+                  >
+                    <option value="all">All Typing Tests</option>
+                    {typingTests.map(test => (
+                      <option key={test._id} value={test._id}>
+                        {test.title}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Col>
+                <Col md={2}>
+                  <Form.Select
+                    value={typingSortBy}
+                    onChange={(e) => setTypingSortBy(e.target.value)}
+                    style={{
+                      border: '2px solid #e9ecef',
+                      borderRadius: '10px',
+                      padding: '0.75rem 1rem'
+                    }}
+                  >
+                    <option value="submittedAt">Sort by Date</option>
+                    <option value="wpm">Sort by WPM</option>
+                    <option value="accuracy">Sort by Accuracy</option>
+                    <option value="candidateName">Sort by Name</option>
+                  </Form.Select>
+                </Col>
+                <Col md={3}>
+                  <Form.Select
+                    value={typingSortOrder}
+                    onChange={(e) => setTypingSortOrder(e.target.value)}
+                    style={{
+                      border: '2px solid #e9ecef',
+                      borderRadius: '10px',
+                      padding: '0.75rem 1rem'
+                    }}
+                  >
+                    <option value="desc">Descending</option>
+                    <option value="asc">Ascending</option>
+                  </Form.Select>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+
+          {/* Results Table */}
+          <Card className="border-0 shadow-sm" style={{ borderRadius: '12px' }}>
+            <Card.Body style={{ padding: '1.5rem' }}>
+              {typingTestResultsLoading ? (
+                <div className="text-center py-5">
+                  <Spinner animation="border" variant="primary" style={{ width: '3rem', height: '3rem' }} />
+                  <p className="mt-3 text-muted" style={{ fontSize: '1.1rem' }}>Loading typing test results...</p>
+                </div>
+              ) : filteredAndSortedTypingResults.length === 0 ? (
+                <Alert variant="info" className="text-center border-0" style={{ 
+                  borderRadius: '12px',
+                  padding: '3rem 2rem',
+                  background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)'
+                }}>
+                  <FaKeyboard style={{ fontSize: '3rem', color: '#2196f3', marginBottom: '1rem' }} />
+                  <h5 className="mb-2" style={{ fontWeight: '600' }}>
+                    {typingTestResults.length === 0 
+                      ? 'No typing test results found' 
+                      : 'No results match your filters'}
+                  </h5>
+                  <p className="text-muted mb-0">
+                    {typingTestResults.length === 0 
+                      ? 'Typing test results will appear here once candidates complete their tests.' 
+                      : 'Try adjusting your search or filter criteria.'}
+                  </p>
+                </Alert>
+              ) : (
+                <div className="table-responsive">
+                  <Table striped bordered hover style={{ marginBottom: 0 }}>
+                    <thead style={{ 
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white'
+                    }}>
+                      <tr>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>Candidate</th>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>Test</th>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>WPM</th>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>Accuracy</th>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>Errors</th>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>Time Taken</th>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>Duration</th>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>Submitted At</th>
+                        <th style={{ border: 'none', padding: '1rem', fontWeight: '600' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAndSortedTypingResults.map((result, index) => (
+                        <tr key={index} style={{ transition: 'background-color 0.2s ease' }}>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <div>
+                              <strong style={{ color: '#212529', fontSize: '0.95rem' }}>
+                                {result.candidate?.user?.name || 'N/A'}
+                              </strong>
+                              <br />
+                              <small className="text-muted" style={{ fontSize: '0.85rem' }}>
+                                {result.candidate?.user?.email || 'N/A'}
+                              </small>
+                              <br />
+                              {result.candidate?.candidateNumber && (
+                                <Badge bg="secondary" style={{ marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                                  {result.candidate.candidateNumber}
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <span style={{ fontWeight: '500', color: '#495057' }}>
+                              {result.typingTest?.title || 'N/A'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <Badge bg={getTypingWPMBadge(result.wpm)} style={{ 
+                              fontSize: '0.875rem', 
+                              padding: '0.5rem 0.75rem',
+                              fontWeight: '600'
+                            }}>
+                              {result.wpm || 0} WPM
+                            </Badge>
+                          </td>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <Badge bg={getTypingAccuracyBadge(result.accuracy)} style={{ 
+                              fontSize: '0.875rem', 
+                              padding: '0.5rem 0.75rem',
+                              fontWeight: '600'
+                            }}>
+                              {result.accuracy || 0}%
+                            </Badge>
+                          </td>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <span style={{ fontWeight: '600', color: '#dc3545' }}>
+                              {result.totalErrors || 0}
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <span style={{ fontWeight: '500', color: '#495057' }}>
+                              {result.timeTaken || 0}s
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <span style={{ fontWeight: '500', color: '#495057' }}>
+                              {result.duration || 0} min
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <small className="text-muted" style={{ fontSize: '0.85rem' }}>
+                              {formatTypingDate(result.submittedAt)}
+                            </small>
+                          </td>
+                          <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() => handleViewTypingDetails(result)}
+                              style={{
+                                borderRadius: '8px',
+                                fontWeight: '500',
+                                borderWidth: '2px',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = 'none';
+                              }}
+                            >
+                              <FaEye className="me-1" />
+                              View
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+
+          {/* Detail Modal */}
+          <Modal 
+            show={showTypingDetailModal} 
+            onHide={() => setShowTypingDetailModal(false)} 
+            size="lg"
+            centered
+          >
+            <Modal.Header 
+              closeButton 
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px 12px 0 0'
+              }}
+            >
+              <Modal.Title style={{ fontWeight: '700', color: 'white' }}>
+                <FaKeyboard className="me-2" />
+                Typing Test Result Details
+              </Modal.Title>
+            </Modal.Header>
+            <Modal.Body style={{ padding: '2rem', background: '#f8f9fa' }}>
+              {selectedTypingResult && (
+                <div>
+                  <Row className="mb-3 g-3">
+                    <Col md={6}>
+                      <Card className="border-0 shadow-sm" style={{ borderRadius: '12px' }}>
+                        <Card.Header style={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '12px 12px 0 0',
+                          fontWeight: '600'
+                        }}>
+                          Candidate Information
+                        </Card.Header>
+                        <Card.Body style={{ padding: '1.5rem' }}>
+                          <p style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#495057' }}>Name:</strong>{' '}
+                            <span style={{ color: '#212529' }}>{selectedTypingResult.candidate?.user?.name || 'N/A'}</span>
+                          </p>
+                          <p style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#495057' }}>Email:</strong>{' '}
+                            <span style={{ color: '#212529' }}>{selectedTypingResult.candidate?.user?.email || 'N/A'}</span>
+                          </p>
+                          <p style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#495057' }}>Candidate Number:</strong>{' '}
+                            <Badge bg="secondary">{selectedTypingResult.candidate?.candidateNumber || 'N/A'}</Badge>
+                          </p>
+                          <p style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#495057' }}>Position:</strong>{' '}
+                            <span style={{ color: '#212529' }}>{selectedTypingResult.candidate?.form?.position || 'N/A'}</span>
+                          </p>
+                          <p style={{ marginBottom: 0 }}>
+                            <strong style={{ color: '#495057' }}>Department:</strong>{' '}
+                            <span style={{ color: '#212529' }}>{selectedTypingResult.candidate?.form?.department || 'N/A'}</span>
+                          </p>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                    <Col md={6}>
+                      <Card className="border-0 shadow-sm" style={{ borderRadius: '12px' }}>
+                        <Card.Header style={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '12px 12px 0 0',
+                          fontWeight: '600'
+                        }}>
+                          Test Information
+                        </Card.Header>
+                        <Card.Body style={{ padding: '1.5rem' }}>
+                          <p style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#495057' }}>Test Title:</strong>{' '}
+                            <span style={{ color: '#212529' }}>{selectedTypingResult.typingTest?.title || 'N/A'}</span>
+                          </p>
+                          <p style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#495057' }}>Duration:</strong>{' '}
+                            <span style={{ color: '#212529' }}>{selectedTypingResult.duration || 0} minute(s)</span>
+                          </p>
+                          <p style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#495057' }}>Started At:</strong>{' '}
+                            <span style={{ color: '#212529' }}>{formatTypingDate(selectedTypingResult.startedAt)}</span>
+                          </p>
+                          <p style={{ marginBottom: 0 }}>
+                            <strong style={{ color: '#495057' }}>Submitted At:</strong>{' '}
+                            <span style={{ color: '#212529' }}>{formatTypingDate(selectedTypingResult.submittedAt)}</span>
+                          </p>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                  </Row>
+                  <Row>
+                    <Col>
+                      <Card className="border-0 shadow-sm" style={{ borderRadius: '12px' }}>
+                        <Card.Header style={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '12px 12px 0 0',
+                          fontWeight: '600'
+                        }}>
+                          Performance Metrics
+                        </Card.Header>
+                        <Card.Body style={{ padding: '2rem' }}>
+                          <Row className="mb-4">
+                            <Col md={3} className="text-center mb-3">
+                              <div style={{
+                                background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+                                padding: '1.5rem',
+                                borderRadius: '12px',
+                                border: '2px solid #2196f3'
+                              }}>
+                                <h3 className="text-primary mb-2" style={{ fontWeight: '700', fontSize: '2.5rem' }}>
+                                  {selectedTypingResult.wpm || 0}
+                                </h3>
+                                <p className="text-muted mb-0" style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                                  Words Per Minute
+                                </p>
+                              </div>
+                            </Col>
+                            <Col md={3} className="text-center mb-3">
+                              <div style={{
+                                background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',
+                                padding: '1.5rem',
+                                borderRadius: '12px',
+                                border: '2px solid #4caf50'
+                              }}>
+                                <h3 className="text-success mb-2" style={{ fontWeight: '700', fontSize: '2.5rem' }}>
+                                  {selectedTypingResult.accuracy || 0}%
+                                </h3>
+                                <p className="text-muted mb-0" style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                                  Accuracy
+                                </p>
+                              </div>
+                            </Col>
+                            <Col md={3} className="text-center mb-3">
+                              <div style={{
+                                background: 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)',
+                                padding: '1.5rem',
+                                borderRadius: '12px',
+                                border: '2px solid #f44336'
+                              }}>
+                                <h3 className="text-danger mb-2" style={{ fontWeight: '700', fontSize: '2.5rem' }}>
+                                  {selectedTypingResult.totalErrors || 0}
+                                </h3>
+                                <p className="text-muted mb-0" style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                                  Total Errors
+                                </p>
+                              </div>
+                            </Col>
+                            <Col md={3} className="text-center mb-3">
+                              <div style={{
+                                background: 'linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%)',
+                                padding: '1.5rem',
+                                borderRadius: '12px',
+                                border: '2px solid #009688'
+                              }}>
+                                <h3 className="text-info mb-2" style={{ fontWeight: '700', fontSize: '2.5rem' }}>
+                                  {selectedTypingResult.timeTaken || 0}s
+                                </h3>
+                                <p className="text-muted mb-0" style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                                  Time Taken
+                                </p>
+                              </div>
+                            </Col>
+                          </Row>
+                          <hr style={{ margin: '1.5rem 0' }} />
+                          <Row>
+                            <Col md={6}>
+                              <p style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>
+                                <strong style={{ color: '#495057' }}>Total Characters:</strong>{' '}
+                                <span style={{ color: '#212529', fontWeight: '600' }}>
+                                  {selectedTypingResult.totalCharacters || 0}
+                                </span>
+                              </p>
+                              <p style={{ marginBottom: 0, fontSize: '1rem' }}>
+                                <strong style={{ color: '#495057' }}>Correct Characters:</strong>{' '}
+                                <span style={{ color: '#212529', fontWeight: '600' }}>
+                                  {selectedTypingResult.correctCharacters || 0}
+                                </span>
+                              </p>
+                            </Col>
+                            <Col md={6}>
+                              <p style={{ marginBottom: 0, fontSize: '1rem' }}>
+                                <strong style={{ color: '#495057' }}>Status:</strong>{' '}
+                                <Badge bg="success" style={{ 
+                                  fontSize: '0.9rem', 
+                                  padding: '0.5rem 1rem',
+                                  fontWeight: '600'
+                                }}>
+                                  {selectedTypingResult.status || 'completed'}
+                                </Badge>
+                              </p>
+                            </Col>
+                          </Row>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                  </Row>
+                </div>
+              )}
+            </Modal.Body>
+            <Modal.Footer style={{
+              border: 'none',
+              padding: '1.5rem 2rem',
+              background: '#f8f9fa',
+              borderRadius: '0 0 12px 12px'
+            }}>
+              <Button 
+                variant="secondary" 
+                onClick={() => setShowTypingDetailModal(false)}
+                style={{
+                  borderRadius: '10px',
+                  padding: '0.75rem 2rem',
+                  fontWeight: '600',
+                  border: 'none'
+                }}
+              >
+                Close
+              </Button>
+            </Modal.Footer>
+          </Modal>
         </Tab>
       </Tabs>
 
@@ -3822,6 +4816,890 @@ Ans: 3`}
             Close
           </Button>
         </Modal.Footer>
+      </Modal>
+
+      {/* Typing Test Creation Modal */}
+      <Modal
+        show={typingTestModalVisible}
+        onHide={closeTypingTestModal}
+        size="xl"
+        centered
+        scrollable
+        className="typing-test-modal"
+      >
+        <style>{`
+          .typing-test-modal .modal-dialog {
+            max-width: 1200px !important;
+            width: 95vw !important;
+            max-height: 95vh !important;
+            margin: 2.5vh auto !important;
+          }
+          .typing-test-modal .modal-content {
+            border: none;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            max-height: 95vh;
+          }
+          .typing-test-modal .modal-body {
+            overflow-y: auto;
+            overflow-x: hidden;
+            max-height: calc(95vh - 200px);
+            padding: 2rem !important;
+          }
+          .typing-test-modal .modal-body::-webkit-scrollbar {
+            width: 8px;
+          }
+          .typing-test-modal .modal-body::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+          }
+          .typing-test-modal .modal-body::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            border-radius: 10px;
+          }
+          .typing-test-modal .modal-body::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+          }
+          .typing-test-modal .form-control:focus,
+          .typing-test-modal .form-select:focus {
+            border-color: #17a2b8;
+            box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.25);
+          }
+          .typing-test-modal .form-check-input:checked {
+            background-color: #17a2b8;
+            border-color: #17a2b8;
+          }
+          .typing-test-modal .form-check-input:focus {
+            box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.25);
+          }
+        `}</style>
+        <Modal.Header
+          closeButton
+          style={{
+            background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+            color: 'white',
+            borderBottom: 'none',
+            padding: '1.5rem 2rem',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <div style={{
+            position: 'absolute',
+            top: '-50%',
+            right: '-10%',
+            width: '200px',
+            height: '200px',
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '50%',
+            zIndex: 0
+          }}></div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <Modal.Title style={{ 
+              color: 'white', 
+              fontWeight: '700',
+              fontSize: '1.5rem',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem'
+            }}>
+              <span style={{
+                fontSize: '2rem',
+                display: 'inline-block',
+                transform: 'rotate(-5deg)'
+              }}>⌨️</span>
+              <span>Create Typing Test</span>
+            </Modal.Title>
+            <p style={{ 
+              color: 'rgba(255, 255, 255, 0.9)', 
+              margin: '0.5rem 0 0 0',
+              fontSize: '0.9rem',
+              fontWeight: '400'
+            }}>
+              Configure and assign a typing speed test for non-teaching candidates
+            </p>
+          </div>
+        </Modal.Header>
+        <Form onSubmit={handleCreateTypingTest}>
+          <Modal.Body style={{ 
+            padding: '2rem', 
+            background: 'linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%)',
+            overflowY: 'auto',
+            overflowX: 'hidden'
+          }}>
+            {/* Candidate Selection Card */}
+            <Card className="mb-4 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+              <Card.Body style={{ padding: '1.5rem', background: 'white' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '1.25rem',
+                  paddingBottom: '1rem',
+                  borderBottom: '2px solid #e9ecef'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem'
+                  }}>
+                    👤
+                  </div>
+                  <div>
+                    <h6 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>Candidate Selection</h6>
+                    <small style={{ color: '#6c757d' }}>Select the candidate for this typing test</small>
+                  </div>
+                </div>
+                <Form.Group>
+                  <Form.Label style={{ 
+                    fontWeight: '600', 
+                    color: '#495057', 
+                    marginBottom: '0.75rem',
+                    fontSize: '0.95rem'
+                  }}>
+                    Assign to Candidate<span className="text-danger ms-1">*</span>
+                  </Form.Label>
+                  <Form.Select
+                    value={typingTestForm.candidateId}
+                    onChange={(event) => {
+                      const candidateId = event.target.value;
+                      const candidate = candidates.find(c => c._id === candidateId);
+                      setTypingTestForm(prev => ({
+                        ...prev,
+                        candidateId,
+                        title: candidate ? `${candidate.form?.title || candidate.form?.position || 'Typing Test'} - ${candidate.user?.name}` : '',
+                        form: candidate?.form?._id || null
+                      }));
+                    }}
+                    required
+                    style={{
+                      borderRadius: '10px',
+                      border: '2px solid #e9ecef',
+                      padding: '0.875rem 1rem',
+                      fontSize: '0.95rem',
+                      transition: 'all 0.3s ease',
+                      background: 'white'
+                    }}
+                  >
+                    <option value="">Select a non-teaching candidate...</option>
+                    {candidates
+                      .filter(c => c.form?.formCategory === 'non_teaching')
+                      .map(candidate => (
+                        <option key={candidate._id} value={candidate._id}>
+                          {candidate.user?.name} — {candidate.form?.position}{candidate.candidateNumber ? ` (${candidate.candidateNumber})` : ''}
+                        </option>
+                      ))}
+                  </Form.Select>
+                  {typingTestForm.candidateId && (() => {
+                    const selectedCandidate = candidates.find(c => c._id === typingTestForm.candidateId);
+                    return selectedCandidate && (
+                      <div className="mt-3 p-3" style={{ 
+                        background: 'linear-gradient(135deg, #e7f5f8 0%, #d1ecf1 100%)',
+                        borderRadius: '10px',
+                        border: '1px solid #bee5eb'
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          gap: '1rem',
+                          flexWrap: 'wrap'
+                        }}>
+                          <div style={{ fontSize: '0.9rem', color: '#0c5460' }}>
+                            <strong>📚 Campus:</strong> <span style={{ fontWeight: '500' }}>{selectedCandidate.form?.campus || 'N/A'}</span>
+                          </div>
+                          <div style={{ fontSize: '0.9rem', color: '#0c5460' }}>
+                            <strong>🏢 Department:</strong> <span style={{ fontWeight: '500' }}>{selectedCandidate.form?.department || 'N/A'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </Form.Group>
+              </Card.Body>
+            </Card>
+
+            {/* Test Configuration Card */}
+            <Card className="mb-4 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+              <Card.Body style={{ padding: '1.5rem', background: 'white' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '1.25rem',
+                  paddingBottom: '1rem',
+                  borderBottom: '2px solid #e9ecef'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem'
+                  }}>
+                    ⚙️
+                  </div>
+                  <div>
+                    <h6 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>Test Configuration</h6>
+                    <small style={{ color: '#6c757d' }}>Set up the typing test parameters</small>
+                  </div>
+                </div>
+
+                <Row className="mb-3 g-3">
+                  <Col md={12}>
+                    <Form.Group>
+                      <Form.Label style={{ 
+                        fontWeight: '600', 
+                        color: '#495057', 
+                        marginBottom: '0.75rem',
+                        fontSize: '0.95rem'
+                      }}>
+                        Test Title<span className="text-danger ms-1">*</span>
+                      </Form.Label>
+                      <Form.Control
+                        value={typingTestForm.title}
+                        onChange={(event) => setTypingTestForm(prev => ({ ...prev, title: event.target.value }))}
+                        placeholder="e.g., Typing Speed Test - Non-Teaching Staff"
+                        required
+                        style={{
+                          borderRadius: '10px',
+                          border: '2px solid #e9ecef',
+                          padding: '0.875rem 1rem',
+                          fontSize: '0.95rem',
+                          transition: 'all 0.3s ease',
+                          background: 'white'
+                        }}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+
+                <Form.Group className="mb-3">
+                  <Form.Label style={{ 
+                    fontWeight: '600', 
+                    color: '#495057', 
+                    marginBottom: '0.75rem',
+                    fontSize: '0.95rem'
+                  }}>
+                    Description
+                  </Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={3}
+                    value={typingTestForm.description}
+                    onChange={(event) => setTypingTestForm(prev => ({ ...prev, description: event.target.value }))}
+                    placeholder="Brief description of the typing test (optional)"
+                    style={{
+                      borderRadius: '10px',
+                      border: '2px solid #e9ecef',
+                      padding: '0.875rem 1rem',
+                      fontSize: '0.95rem',
+                      transition: 'all 0.3s ease',
+                      background: 'white',
+                      resize: 'vertical'
+                    }}
+                  />
+                </Form.Group>
+
+                <Row className="mb-3 g-3">
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label style={{ 
+                        fontWeight: '600', 
+                        color: '#495057', 
+                        marginBottom: '0.75rem',
+                        fontSize: '0.95rem'
+                      }}>
+                        Duration Options
+                      </Form.Label>
+                      <div className="d-flex gap-3" style={{ 
+                        padding: '1rem',
+                        background: '#f8f9fa',
+                        borderRadius: '10px',
+                        border: '2px solid #e9ecef'
+                      }}>
+                        <Form.Check
+                          type="checkbox"
+                          id="duration-1"
+                          label={
+                            <span style={{ 
+                              fontWeight: '500',
+                              fontSize: '0.95rem',
+                              color: '#495057'
+                            }}>
+                              1 minute
+                            </span>
+                          }
+                          checked={typingTestForm.durationOptions.includes(1)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTypingTestForm(prev => ({
+                                ...prev,
+                                durationOptions: [...prev.durationOptions.filter(d => d !== 1), 1].sort()
+                              }));
+                            } else {
+                              setTypingTestForm(prev => ({
+                                ...prev,
+                                durationOptions: prev.durationOptions.filter(d => d !== 1),
+                                defaultDuration: prev.defaultDuration === 1 ? 2 : prev.defaultDuration
+                              }));
+                            }
+                          }}
+                          style={{ margin: 0 }}
+                        />
+                        <Form.Check
+                          type="checkbox"
+                          id="duration-2"
+                          label={
+                            <span style={{ 
+                              fontWeight: '500',
+                              fontSize: '0.95rem',
+                              color: '#495057'
+                            }}>
+                              2 minutes
+                            </span>
+                          }
+                          checked={typingTestForm.durationOptions.includes(2)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTypingTestForm(prev => ({
+                                ...prev,
+                                durationOptions: [...prev.durationOptions.filter(d => d !== 2), 2].sort()
+                              }));
+                            } else {
+                              setTypingTestForm(prev => ({
+                                ...prev,
+                                durationOptions: prev.durationOptions.filter(d => d !== 2),
+                                defaultDuration: prev.defaultDuration === 2 ? 1 : prev.defaultDuration
+                              }));
+                            }
+                          }}
+                          style={{ margin: 0 }}
+                        />
+                      </div>
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label style={{ 
+                        fontWeight: '600', 
+                        color: '#495057', 
+                        marginBottom: '0.75rem',
+                        fontSize: '0.95rem'
+                      }}>
+                        Default Duration
+                      </Form.Label>
+                      <Form.Select
+                        value={typingTestForm.defaultDuration}
+                        onChange={(event) => setTypingTestForm(prev => ({ ...prev, defaultDuration: Number(event.target.value) }))}
+                        style={{
+                          borderRadius: '10px',
+                          border: '2px solid #e9ecef',
+                          padding: '0.875rem 1rem',
+                          fontSize: '0.95rem',
+                          transition: 'all 0.3s ease',
+                          background: 'white'
+                        }}
+                      >
+                        {typingTestForm.durationOptions.map(duration => (
+                          <option key={duration} value={duration}>{duration} minute{duration > 1 ? 's' : ''}</option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+
+            {/* Typing Paragraph Card */}
+            <Card className="mb-4 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+              <Card.Body style={{ padding: '1.5rem', background: 'white' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '1.25rem',
+                  paddingBottom: '1rem',
+                  borderBottom: '2px solid #e9ecef'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem'
+                  }}>
+                    📝
+                  </div>
+                  <div>
+                    <h6 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>Typing Content</h6>
+                    <small style={{ color: '#6c757d' }}>The text candidates will type during the test</small>
+                  </div>
+                </div>
+                <Form.Group>
+                  <Form.Label style={{ 
+                    fontWeight: '600', 
+                    color: '#495057', 
+                    marginBottom: '0.75rem',
+                    fontSize: '0.95rem'
+                  }}>
+                    Typing Paragraph<span className="text-danger ms-1">*</span>
+                  </Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={8}
+                    value={typingTestForm.typingParagraph}
+                    onChange={(event) => setTypingTestForm(prev => ({ ...prev, typingParagraph: event.target.value }))}
+                    placeholder="Enter the paragraph that candidates need to type. This should be a meaningful text of appropriate length that tests typing speed and accuracy..."
+                    required
+                    style={{
+                      borderRadius: '10px',
+                      border: '2px solid #e9ecef',
+                      padding: '1rem',
+                      fontSize: '0.95rem',
+                      fontFamily: '"Courier New", monospace',
+                      lineHeight: '1.6',
+                      transition: 'all 0.3s ease',
+                      background: '#f8f9fa',
+                      resize: 'vertical'
+                    }}
+                  />
+                  <Form.Text style={{ 
+                    display: 'block',
+                    marginTop: '0.5rem',
+                    fontSize: '0.85rem',
+                    color: '#6c757d',
+                    fontStyle: 'italic'
+                  }}>
+                    💡 This is the text that candidates will be required to type during the test. Make it clear and meaningful.
+                  </Form.Text>
+                </Form.Group>
+              </Card.Body>
+            </Card>
+
+            {/* Instructions Card */}
+            <Card className="mb-3 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+              <Card.Body style={{ padding: '1.5rem', background: 'white' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '1.25rem',
+                  paddingBottom: '1rem',
+                  borderBottom: '2px solid #e9ecef'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem'
+                  }}>
+                    📋
+                  </div>
+                  <div>
+                    <h6 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>Candidate Instructions</h6>
+                    <small style={{ color: '#6c757d' }}>Guidelines to show before the test begins</small>
+                  </div>
+                </div>
+                <Form.Group>
+                  <Form.Label style={{ 
+                    fontWeight: '600', 
+                    color: '#495057', 
+                    marginBottom: '0.75rem',
+                    fontSize: '0.95rem'
+                  }}>
+                    Instructions for Candidates
+                  </Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={4}
+                    value={typingTestForm.instructions}
+                    onChange={(event) => setTypingTestForm(prev => ({ ...prev, instructions: event.target.value }))}
+                    placeholder="Instructions to show before the typing test begins..."
+                    style={{
+                      borderRadius: '10px',
+                      border: '2px solid #e9ecef',
+                      padding: '0.875rem 1rem',
+                      fontSize: '0.95rem',
+                      transition: 'all 0.3s ease',
+                      background: 'white',
+                      resize: 'vertical'
+                    }}
+                  />
+                </Form.Group>
+              </Card.Body>
+            </Card>
+
+            {/* Test Schedule Card */}
+            <Card className="mb-3 border-0 shadow-sm" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+              <Card.Body style={{ padding: '1.5rem', background: 'white' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '1.25rem',
+                  paddingBottom: '1rem',
+                  borderBottom: '2px solid #e9ecef'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '1.2rem'
+                  }}>
+                    🕐
+                  </div>
+                  <div>
+                    <h6 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>Test Schedule</h6>
+                    <small style={{ color: '#6c757d' }}>Set when the test becomes available and expires</small>
+                  </div>
+                </div>
+
+                <Row className="mb-3 g-3">
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label style={{ 
+                        fontWeight: '600', 
+                        color: '#495057', 
+                        marginBottom: '0.75rem',
+                        fontSize: '0.95rem'
+                      }}>
+                        Start Date & Time<span className="text-danger ms-1">*</span>
+                      </Form.Label>
+                      <Row className="g-2">
+                        <Col xs={7}>
+                          <Form.Control
+                            type="date"
+                            value={typingTestForm.startDate}
+                            onChange={(event) => setTypingTestForm(prev => ({ ...prev, startDate: event.target.value }))}
+                            min={new Date().toISOString().split('T')[0]}
+                            required
+                            style={{
+                              borderRadius: '10px',
+                              border: '2px solid #e9ecef',
+                              padding: '0.875rem 1rem',
+                              fontSize: '0.95rem',
+                              transition: 'all 0.3s ease',
+                              background: 'white'
+                            }}
+                          />
+                        </Col>
+                        <Col xs={5}>
+                          <Form.Control
+                            type="time"
+                            value={typingTestForm.startTime}
+                            onChange={(event) => setTypingTestForm(prev => ({ ...prev, startTime: event.target.value }))}
+                            required
+                            style={{
+                              borderRadius: '10px',
+                              border: '2px solid #e9ecef',
+                              padding: '0.875rem 1rem',
+                              fontSize: '0.95rem',
+                              transition: 'all 0.3s ease',
+                              background: 'white'
+                            }}
+                          />
+                        </Col>
+                      </Row>
+                      <Form.Text style={{ 
+                        display: 'block',
+                        marginTop: '0.5rem',
+                        fontSize: '0.85rem',
+                        color: '#6c757d'
+                      }}>
+                        When the test becomes available to candidates
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label style={{ 
+                        fontWeight: '600', 
+                        color: '#495057', 
+                        marginBottom: '0.75rem',
+                        fontSize: '0.95rem'
+                      }}>
+                        End Date & Time <small className="text-muted">(Optional)</small>
+                      </Form.Label>
+                      <Row className="g-2">
+                        <Col xs={7}>
+                          <Form.Control
+                            type="date"
+                            value={typingTestForm.endDate}
+                            onChange={(event) => setTypingTestForm(prev => ({ ...prev, endDate: event.target.value }))}
+                            min={typingTestForm.startDate || new Date().toISOString().split('T')[0]}
+                            style={{
+                              borderRadius: '10px',
+                              border: '2px solid #e9ecef',
+                              padding: '0.875rem 1rem',
+                              fontSize: '0.95rem',
+                              transition: 'all 0.3s ease',
+                              background: 'white'
+                            }}
+                          />
+                        </Col>
+                        <Col xs={5}>
+                          <Form.Control
+                            type="time"
+                            value={typingTestForm.endTime}
+                            onChange={(event) => setTypingTestForm(prev => ({ ...prev, endTime: event.target.value }))}
+                            disabled={!typingTestForm.endDate}
+                            style={{
+                              borderRadius: '10px',
+                              border: '2px solid #e9ecef',
+                              padding: '0.875rem 1rem',
+                              fontSize: '0.95rem',
+                              transition: 'all 0.3s ease',
+                              background: typingTestForm.endDate ? 'white' : '#f8f9fa'
+                            }}
+                          />
+                        </Col>
+                      </Row>
+                      <Form.Text style={{ 
+                        display: 'block',
+                        marginTop: '0.5rem',
+                        fontSize: '0.85rem',
+                        color: '#6c757d'
+                      }}>
+                        When the test expires (leave empty for no expiration)
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+
+            {/* Assignment Success Alert */}
+            {typingTestAssignmentDetails && (
+              <Card className="mt-4 border-0 shadow-lg" style={{ 
+                borderRadius: '12px', 
+                overflow: 'hidden',
+                background: 'linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%)',
+                border: '2px solid #17a2b8'
+              }}>
+                <Card.Body style={{ padding: '1.5rem' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      fontSize: '1.2rem'
+                    }}>
+                      ✓
+                    </div>
+                    <div>
+                      <h6 style={{ margin: 0, fontWeight: '700', color: '#0c5460', fontSize: '1.1rem' }}>
+                        Typing Test Created Successfully!
+                      </h6>
+                      <small style={{ color: '#0c5460', opacity: 0.8 }}>
+                        Test has been assigned to the candidate
+                      </small>
+                    </div>
+                  </div>
+                  
+                  <div style={{
+                    background: 'white',
+                    borderRadius: '10px',
+                    padding: '1rem',
+                    marginBottom: '1rem',
+                    border: '1px solid #bee5eb'
+                  }}>
+                    {(() => {
+                      const candidate = candidates.find(c => c._id === typingTestAssignmentDetails.candidateId);
+                      const candidateName = candidate?.user?.name || 'Candidate';
+                      const frontendUrl = window.location.origin;
+                      // Include candidate ID as query parameter (required for typing test)
+                      const testLink = `${frontendUrl}/typing-test/${typingTestAssignmentDetails.testLink}?candidate=${typingTestAssignmentDetails.candidateId}`;
+                      const durationText = typingTestAssignmentDetails.defaultDuration === 1 ? '1 minute' : '2 minutes';
+                      
+                      return (
+                        <>
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#0c5460' }}>👤 Candidate:</strong>{' '}
+                            <span style={{ color: '#495057', fontWeight: '500' }}>{candidateName}</span>
+                          </div>
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#0c5460' }}>⌨️ Test:</strong>{' '}
+                            <span style={{ color: '#495057', fontWeight: '500' }}>{typingTestAssignmentDetails.title}</span>
+                          </div>
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <strong style={{ color: '#0c5460' }}>⏱️ Duration:</strong>{' '}
+                            <span style={{ color: '#495057', fontWeight: '500' }}>{durationText}</span>
+                          </div>
+                          <div>
+                            <strong style={{ color: '#0c5460' }}>🔗 Test Link:</strong>
+                            <div style={{
+                              background: '#f8f9fa',
+                              borderRadius: '8px',
+                              padding: '0.75rem',
+                              marginTop: '0.5rem',
+                              wordBreak: 'break-all',
+                              fontSize: '0.9rem',
+                              color: '#495057',
+                              border: '1px solid #dee2e6',
+                              fontFamily: 'monospace'
+                            }}>
+                              {testLink}
+                            </div>
+                            <small style={{ 
+                              display: 'block',
+                              marginTop: '0.5rem',
+                              color: '#6c757d',
+                              fontStyle: 'italic'
+                            }}>
+                              ⚠️ This link includes the candidate ID and can only be used by the assigned candidate.
+                            </small>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <Button
+                    variant="info"
+                    onClick={copyTypingTestLink}
+                    style={{
+                      borderRadius: '10px',
+                      fontWeight: '600',
+                      padding: '0.75rem 1.5rem',
+                      background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+                      border: 'none',
+                      fontSize: '0.95rem',
+                      width: '100%',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 4px 15px rgba(23, 162, 184, 0.4)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(23, 162, 184, 0.5)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(23, 162, 184, 0.4)';
+                    }}
+                  >
+                    <FaCopy className="me-2" />
+                    {typingTestCopySuccess ? '✓ Copied to Clipboard!' : '📋 Copy Test Link'}
+                  </Button>
+                </Card.Body>
+              </Card>
+            )}
+          </Modal.Body>
+          <Modal.Footer style={{
+            background: 'white',
+            borderTop: '2px solid #e9ecef',
+            padding: '1.5rem 2rem',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '1rem'
+          }}>
+            <Button
+              variant="secondary"
+              onClick={closeTypingTestModal}
+              disabled={typingTestSaving}
+              style={{ 
+                borderRadius: '10px', 
+                fontWeight: '600',
+                padding: '0.75rem 2rem',
+                border: 'none',
+                fontSize: '0.95rem',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              {typingTestAssignmentDetails ? 'Close' : 'Cancel'}
+            </Button>
+            {!typingTestAssignmentDetails && (
+              <Button
+                type="submit"
+                variant="info"
+                disabled={typingTestSaving}
+                style={{
+                  borderRadius: '10px',
+                  fontWeight: '600',
+                  padding: '0.75rem 2rem',
+                  background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+                  border: 'none',
+                  fontSize: '0.95rem',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 15px rgba(23, 162, 184, 0.4)'
+                }}
+                onMouseEnter={(e) => {
+                  if (!typingTestSaving) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(23, 162, 184, 0.5)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(23, 162, 184, 0.4)';
+                }}
+              >
+                {typingTestSaving ? (
+                  <>
+                    <Spinner animation="border" size="sm" className="me-2" />
+                    Creating Test...
+                  </>
+                ) : (
+                  <>
+                    <FaCheckCircle className="me-2" />
+                    Create & Assign Typing Test
+                  </>
+                )}
+              </Button>
+            )}
+          </Modal.Footer>
+        </Form>
       </Modal>
     </Container>
   );

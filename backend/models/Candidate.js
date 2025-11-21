@@ -136,6 +136,71 @@ const candidateSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
+  }],
+  // Typing test results for non-teaching candidates
+  typingTestResults: [{
+    typingTest: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TypingTest'
+    },
+    // Words per minute (WPM)
+    wpm: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    // Accuracy percentage (0-100)
+    accuracy: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 100
+    },
+    // Total number of errors
+    totalErrors: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    // Time taken in seconds
+    timeTaken: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    // Duration selected (1 or 2 minutes)
+    duration: {
+      type: Number,
+      required: true,
+      enum: [1, 2]
+    },
+    // Total characters typed
+    totalCharacters: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    // Total characters correct
+    correctCharacters: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    // Status of the test
+    status: {
+      type: String,
+      enum: ['pending', 'completed', 'expired'],
+      default: 'pending'
+    },
+    // When test was started
+    startedAt: {
+      type: Date
+    },
+    // When test was submitted
+    submittedAt: {
+      type: Date,
+      default: Date.now
+    }
   }]
 }, {
   timestamps: true

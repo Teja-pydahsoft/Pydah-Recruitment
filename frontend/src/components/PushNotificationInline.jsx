@@ -96,7 +96,6 @@ const PushNotificationInline = ({ user, onSubscriptionChange }) => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
     initializePushNotifications();
@@ -182,8 +181,6 @@ const PushNotificationInline = ({ user, onSubscriptionChange }) => {
         $status="enabled" 
         $clickable
         onClick={handleUnsubscribe}
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
         title="Click to disable push notifications"
       >
         <FaCheckCircle size={16} color="#047857" />

@@ -49,12 +49,13 @@ const FormsManagement = () => {
     }, []);
 
   useEffect(() => {
-    if (formData.campus) {
+    // Only fetch departments for teaching forms
+    if (formData.campus && formData.formCategory === 'teaching') {
       fetchDepartments(formData.campus);
     } else {
       setDepartments([]);
     }
-  }, [formData.campus]);
+  }, [formData.campus, formData.formCategory]);
 
   useEffect(() => {
     // Auto-load template when category changes (only if not editing and formFields is empty)
@@ -112,8 +113,9 @@ const FormsManagement = () => {
             setSubmitting(false);
             return;
           }
-          if (!formData.department || !formData.department.trim()) {
-            setToast({ type: 'danger', message: 'Department is required for candidate profile forms' });
+          // Department is only required for teaching forms, not for non-teaching
+          if (formData.formCategory === 'teaching' && (!formData.department || !formData.department.trim())) {
+            setToast({ type: 'danger', message: 'Department is required for teaching forms' });
             setSubmitting(false);
             return;
           }
@@ -137,7 +139,13 @@ const FormsManagement = () => {
         if (formData.formType === 'candidate_profile') {
           formSubmissionData.position = formData.position.trim();
           formSubmissionData.campus = formData.campus.trim();
-          formSubmissionData.department = formData.department.trim();
+          // Department is only required for teaching forms
+          if (formData.formCategory === 'teaching' && formData.department) {
+            formSubmissionData.department = formData.department.trim();
+          } else if (formData.formCategory === 'non_teaching') {
+            // For non-teaching, department is optional - set to empty string or omit
+            formSubmissionData.department = formData.department?.trim() || '';
+          }
           formSubmissionData.formCategory = formData.formCategory;
           if (formData.closingDate) {
             formSubmissionData.closingDate = formData.closingDate;
@@ -506,7 +514,12 @@ const FormsManagement = () => {
                         {form.formType === 'candidate_profile' ? (
                           <>
                             <div>{form.position}</div>
-                            <small className="text-muted">{form.department}</small>
+                            {form.formCategory === 'teaching' && form.department && (
+                              <small className="text-muted">{form.department}</small>
+                            )}
+                            {form.formCategory === 'non_teaching' && (
+                              <small className="text-muted">Non-Teaching</small>
+                            )}
                           </>
                         ) : (
                           <Badge bg="info">N/A</Badge>
@@ -769,7 +782,7 @@ const FormsManagement = () => {
                             )}
                           </Row>
                           <Row>
-                            <Col md={4}>
+                            <Col md={formData.formCategory === 'teaching' ? 4 : 6}>
                               <Form.Group className="mb-3">
                                 <Form.Label style={{ fontWeight: 600, color: '#495057' }}>Campus *</Form.Label>
                                 <Form.Select
@@ -791,47 +804,50 @@ const FormsManagement = () => {
                                 </Form.Select>
                               </Form.Group>
                             </Col>
-                            <Col md={4}>
+                            {/* Department field - only shown for teaching forms */}
+                            {formData.formCategory === 'teaching' && (
+                              <Col md={4}>
+                                <Form.Group className="mb-3">
+                                  <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
+                                    Department *
+                                  </Form.Label>
+                                  {formData.campus && departments.length > 0 ? (
+                                    <Form.Select
+                                      value={formData.department}
+                                      onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                                      required={formData.formType === 'candidate_profile'}
+                                      style={{ 
+                                        border: '1px solid #ced4da',
+                                        borderRadius: '6px',
+                                        padding: '0.75rem'
+                                      }}
+                                    >
+                                      <option value="">Select Department</option>
+                                      {departments.map((dept, idx) => (
+                                        <option key={idx} value={dept}>{dept}</option>
+                                      ))}
+                                    </Form.Select>
+                                  ) : (
+                                    <Form.Control
+                                      type="text"
+                                      value={formData.department}
+                                      onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                                      required={formData.formType === 'candidate_profile'}
+                                      placeholder={formData.campus ? 'Select campus first' : 'Enter department'}
+                                      style={{ 
+                                        border: '1px solid #ced4da',
+                                        borderRadius: '6px',
+                                        padding: '0.75rem'
+                                      }}
+                                    />
+                                  )}
+                                </Form.Group>
+                              </Col>
+                            )}
+                            <Col md={formData.formCategory === 'teaching' ? 4 : 6}>
                               <Form.Group className="mb-3">
                                 <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
-                                  {formData.formCategory === 'teaching' ? 'Department' : 'Position'} *
-                                </Form.Label>
-                                {formData.campus && departments.length > 0 ? (
-                                  <Form.Select
-                                    value={formData.department}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                                    required={formData.formType === 'candidate_profile'}
-                                    style={{ 
-                                      border: '1px solid #ced4da',
-                                      borderRadius: '6px',
-                                      padding: '0.75rem'
-                                    }}
-                                  >
-                                    <option value="">Select Department</option>
-                                    {departments.map((dept, idx) => (
-                                      <option key={idx} value={dept}>{dept}</option>
-                                    ))}
-                                  </Form.Select>
-                                ) : (
-                                  <Form.Control
-                                    type="text"
-                                    value={formData.department}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                                    required={formData.formType === 'candidate_profile'}
-                                    placeholder={formData.campus ? 'Select campus first' : 'Enter department'}
-                                    style={{ 
-                                      border: '1px solid #ced4da',
-                                      borderRadius: '6px',
-                                      padding: '0.75rem'
-                                    }}
-                                  />
-                                )}
-                              </Form.Group>
-                            </Col>
-                            <Col md={4}>
-                              <Form.Group className="mb-3">
-                                <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
-                                  {formData.formCategory === 'teaching' ? 'Subject/Position' : 'Designation'} *
+                                  {formData.formCategory === 'teaching' ? 'Subject/Position' : 'Position/Designation'} *
                                 </Form.Label>
                                 <Form.Control
                                   type="text"

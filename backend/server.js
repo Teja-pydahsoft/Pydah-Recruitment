@@ -101,6 +101,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/forms', require('./routes/forms'));
 app.use('/api/tests', require('./routes/tests'));
+app.use('/api/typing-test', require('./routes/typingTest'));
 app.use('/api/interviews', require('./routes/interviews'));
 app.use('/api/candidates', require('./routes/candidates'));
 app.use('/api/courses', require('./routes/courses'));
