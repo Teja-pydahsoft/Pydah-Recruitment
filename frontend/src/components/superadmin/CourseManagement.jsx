@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Modal, Form, Alert } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash, FaTag } from 'react-icons/fa';
 import api from '../../services/api';
@@ -38,21 +38,57 @@ const CourseManagement = () => {
     }
   };
 
-  // Get the actual campus name from database (in case it was renamed)
-  // Maps permanent campus names to their actual names in the database
-  const getActualCampusName = (permanentCampus) => {
-    // Get unique campus names from courses
+  // Create a mapping from permanent campus names to actual campus names
+  // This handles renamed campuses by maintaining a consistent mapping
+  const campusMapping = useMemo(() => {
+    const mapping = {};
     const actualCampusNames = [...new Set(courses.map(c => c.campus))];
+    const usedActualNames = new Set();
     
-    // Check if there's a course that matches the permanent campus name
-    // This handles cases where campus was renamed - we'll use the first match
-    // or fallback to the permanent name if no courses exist yet
-    const matchingCampus = actualCampusNames.find(actual => 
-      actual.toLowerCase() === permanentCampus.toLowerCase() || 
-      actual === permanentCampus
-    );
+    // First pass: exact and case-insensitive matches
+    PERMANENT_CAMPUSES.forEach((permanentCampus, index) => {
+      // Try exact match first
+      if (actualCampusNames.includes(permanentCampus)) {
+        mapping[permanentCampus] = permanentCampus;
+        usedActualNames.add(permanentCampus);
+        return;
+      }
+      
+      // Try case-insensitive match
+      const caseInsensitiveMatch = actualCampusNames.find(actual => 
+        actual.toLowerCase() === permanentCampus.toLowerCase() && !usedActualNames.has(actual)
+      );
+      
+      if (caseInsensitiveMatch) {
+        mapping[permanentCampus] = caseInsensitiveMatch;
+        usedActualNames.add(caseInsensitiveMatch);
+        return;
+      }
+    });
     
-    return matchingCampus || permanentCampus;
+    // Second pass: map remaining permanent campuses to remaining actual campuses by index
+    const sortedUnusedActual = actualCampusNames
+      .filter(name => !usedActualNames.has(name))
+      .sort();
+    
+    PERMANENT_CAMPUSES.forEach((permanentCampus, index) => {
+      if (!mapping[permanentCampus]) {
+        // If we have an unused actual campus at this index, use it
+        if (index < sortedUnusedActual.length) {
+          mapping[permanentCampus] = sortedUnusedActual[index];
+        } else {
+          // No matching actual campus found, use permanent name
+          mapping[permanentCampus] = permanentCampus;
+        }
+      }
+    });
+    
+    return mapping;
+  }, [courses]);
+
+  // Get the actual campus name from database (in case it was renamed)
+  const getActualCampusName = (permanentCampus) => {
+    return campusMapping[permanentCampus] || permanentCampus;
   };
 
   const getDepartmentsForCampus = (permanentCampus) => {
@@ -192,20 +228,24 @@ const CourseManagement = () => {
 
     setSubmitting(true);
     try {
-      await api.put('/courses/campuses/rename', {
+      const response = await api.put('/courses/campuses/rename', {
         oldCampusName: campusToRename,
         newCampusName: newCampusName.trim()
       });
       
-      setToast({ type: 'success', message: 'Campus renamed successfully!' });
+      setToast({ 
+        type: 'success', 
+        message: `Campus renamed successfully! ${response.data?.updatedCount || 0} departments updated.` 
+      });
       setShowRenameCampusModal(false);
       setCampusToRename('');
       setNewCampusName('');
-      // Refresh courses to show updated campus names
+      // Refresh courses to show updated campus names and departments
       await fetchCourses();
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Failed to rename campus';
       setToast({ type: 'danger', message: errorMessage });
+      console.error('Campus rename error:', error);
     } finally {
       setSubmitting(false);
     }
@@ -241,7 +281,7 @@ const CourseManagement = () => {
 
 
       <Row>
-        {PERMANENT_CAMPUSES.map((permanentCampus) => {
+        {PERMANENT_CAMPUSES.map((permanentCampus, index) => {
           // Get actual campus name (handles renamed campuses)
           const actualCampusName = getActualCampusName(permanentCampus);
           const campusCourses = getDepartmentsForCampus(permanentCampus);
