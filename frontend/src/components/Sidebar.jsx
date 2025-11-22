@@ -545,7 +545,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/super-admin/tests', icon: FaClipboardList, label: 'Test Management' },
       { path: '/super-admin/users', icon: FaUserTie, label: 'Panel Members' },
       { path: '/super-admin/sub-admins', icon: FaUserShield, label: 'User Management' },
-      { path: '/super-admin/courses', icon: FaCog, label: 'Departments' },
+      { path: '/super-admin/courses', icon: FaCog, label: 'Campus Management' },
       { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management' },
       { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
       { path: '/super-admin/settings', icon: FaCog, label: 'Notifications' },

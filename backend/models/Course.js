@@ -4,7 +4,6 @@ const courseSchema = new mongoose.Schema({
   campus: {
     type: String,
     required: true,
-    enum: ['Btech', 'Degree', 'Pharmacy', 'Diploma'],
     trim: true
   },
   department: {

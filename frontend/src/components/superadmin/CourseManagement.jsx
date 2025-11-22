@@ -1,22 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Modal, Form } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { Container, Row, Col, Card, Button, Modal, Form, Alert } from 'react-bootstrap';
+import { FaPlus, FaEdit, FaTrash, FaTag } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const CourseManagement = () => {
+  // Permanent campuses - these are fixed and cannot be added/removed, only renamed
+  const PERMANENT_CAMPUSES = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
+  
   const [courses, setCourses] = useState([]);
   const [showAddDeptModal, setShowAddDeptModal] = useState(false);
   const [showEditDeptModal, setShowEditDeptModal] = useState(false);
+  const [showRenameCampusModal, setShowRenameCampusModal] = useState(false);
   const [selectedCampus, setSelectedCampus] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState(null);
+  const [campusToRename, setCampusToRename] = useState('');
+  const [newCampusName, setNewCampusName] = useState('');
   const [newDepartment, setNewDepartment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState({ type: '', message: '' });
-
-  const campuses = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
 
   useEffect(() => {
     fetchCourses();
@@ -34,8 +38,27 @@ const CourseManagement = () => {
     }
   };
 
-  const getDepartmentsForCampus = (campus) => {
-    return courses.filter(course => course.campus === campus);
+  // Get the actual campus name from database (in case it was renamed)
+  // Maps permanent campus names to their actual names in the database
+  const getActualCampusName = (permanentCampus) => {
+    // Get unique campus names from courses
+    const actualCampusNames = [...new Set(courses.map(c => c.campus))];
+    
+    // Check if there's a course that matches the permanent campus name
+    // This handles cases where campus was renamed - we'll use the first match
+    // or fallback to the permanent name if no courses exist yet
+    const matchingCampus = actualCampusNames.find(actual => 
+      actual.toLowerCase() === permanentCampus.toLowerCase() || 
+      actual === permanentCampus
+    );
+    
+    return matchingCampus || permanentCampus;
+  };
+
+  const getDepartmentsForCampus = (permanentCampus) => {
+    // Get the actual campus name (handles renamed campuses)
+    const actualCampusName = getActualCampusName(permanentCampus);
+    return courses.filter(course => course.campus === actualCampusName);
   };
 
   const handleAddDepartment = (campus) => {
@@ -149,16 +172,58 @@ const CourseManagement = () => {
     }
   };
 
+  const handleRenameCampus = (campus) => {
+    setCampusToRename(campus);
+    setNewCampusName(campus);
+    setShowRenameCampusModal(true);
+  };
+
+  const handleSaveCampusRename = async (e) => {
+    e.preventDefault();
+    if (!newCampusName.trim()) {
+      setToast({ type: 'danger', message: 'Campus name is required' });
+      return;
+    }
+
+    if (campusToRename.trim() === newCampusName.trim()) {
+      setToast({ type: 'warning', message: 'New campus name must be different from current name' });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await api.put('/courses/campuses/rename', {
+        oldCampusName: campusToRename,
+        newCampusName: newCampusName.trim()
+      });
+      
+      setToast({ type: 'success', message: 'Campus renamed successfully!' });
+      setShowRenameCampusModal(false);
+      setCampusToRename('');
+      setNewCampusName('');
+      // Refresh courses to show updated campus names
+      await fetchCourses();
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to rename campus';
+      setToast({ type: 'danger', message: errorMessage });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleCloseModal = () => {
     setShowAddDeptModal(false);
     setShowEditDeptModal(false);
+    setShowRenameCampusModal(false);
     setSelectedCampus('');
     setSelectedDepartment(null);
+    setCampusToRename('');
+    setNewCampusName('');
     setNewDepartment('');
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading departments..." />;
+    return <LoadingSpinner message="Loading campus management..." />;
   }
 
   return (
@@ -167,7 +232,7 @@ const CourseManagement = () => {
         <Col>
           <div className="d-flex justify-content-between align-items-center">
             <div>
-              <h2>Departments</h2>
+              <h2>Campus Management</h2>
               <p className="text-muted">Manage campuses and their departments</p>
             </div>
           </div>
@@ -176,15 +241,17 @@ const CourseManagement = () => {
 
 
       <Row>
-        {campuses.map((campus) => {
-          const campusCourses = getDepartmentsForCampus(campus);
+        {PERMANENT_CAMPUSES.map((permanentCampus) => {
+          // Get actual campus name (handles renamed campuses)
+          const actualCampusName = getActualCampusName(permanentCampus);
+          const campusCourses = getDepartmentsForCampus(permanentCampus);
           const allDepartments = campusCourses.map(course => ({
             dept: course.department,
             courseId: course._id
           }));
 
           return (
-            <Col md={6} lg={3} key={campus} className="mb-4">
+            <Col md={6} lg={3} key={permanentCampus} className="mb-4">
               <Card className="h-100 shadow-sm">
                 <Card.Header 
                   style={{ 
@@ -196,15 +263,28 @@ const CourseManagement = () => {
                     alignItems: 'center'
                   }}
                 >
-                  <span>{campus}</span>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleAddDepartment(campus)}
-                    style={{ borderRadius: '50%', width: '32px', height: '32px', padding: 0 }}
-                  >
-                    <FaPlus />
-                  </Button>
+                  <span>{actualCampusName}</span>
+                  <div>
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={() => handleRenameCampus(actualCampusName)}
+                      className="me-1"
+                      style={{ padding: '0.25rem 0.5rem' }}
+                      title="Rename Campus"
+                    >
+                      <FaTag />
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleAddDepartment(actualCampusName)}
+                      style={{ borderRadius: '50%', width: '32px', height: '32px', padding: 0 }}
+                      title="Add Department"
+                    >
+                      <FaPlus />
+                    </Button>
+                  </div>
                 </Card.Header>
                 <Card.Body>
                   {allDepartments.length > 0 ? (
@@ -253,7 +333,7 @@ const CourseManagement = () => {
                       <Button
                         variant="outline-primary"
                         size="sm"
-                        onClick={() => handleAddDepartment(campus)}
+                        onClick={() => handleAddDepartment(actualCampusName)}
                       >
                         <FaPlus className="me-1" />
                         Add Department
@@ -340,6 +420,48 @@ const CourseManagement = () => {
             </Button>
             <Button variant="primary" type="submit" disabled={submitting}>
               {submitting ? 'Updating...' : 'Update Department'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Rename Campus Modal */}
+      <Modal show={showRenameCampusModal} onHide={handleCloseModal} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Rename Campus</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleSaveCampusRename}>
+          <Modal.Body>
+            <Alert variant="info" className="mb-3">
+              <strong>Note:</strong> Renaming a campus will update all departments under this campus. This action cannot be undone easily.
+            </Alert>
+            <Form.Group className="mb-3">
+              <Form.Label>Current Campus Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={campusToRename}
+                disabled
+                style={{ backgroundColor: '#f8f9fa' }}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>New Campus Name *</Form.Label>
+              <Form.Control
+                type="text"
+                value={newCampusName}
+                onChange={(e) => setNewCampusName(e.target.value)}
+                required
+                placeholder="Enter new campus name"
+                autoFocus
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" disabled={submitting}>
+              {submitting ? 'Renaming...' : 'Rename Campus'}
             </Button>
           </Modal.Footer>
         </Form>

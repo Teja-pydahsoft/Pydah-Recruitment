@@ -186,6 +186,12 @@ const candidateSchema = new mongoose.Schema({
       required: true,
       min: 0
     },
+    // Backspace count
+    backspaceCount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
     // Status of the test
     status: {
       type: String,

@@ -122,5 +122,55 @@ router.delete('/:id', authenticateToken, requireSuperAdminOrPermission('forms.ma
   }
 });
 
+// Get all unique campuses
+router.get('/campuses/list', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
+  try {
+    const campuses = await Course.distinct('campus', { isActive: true });
+    res.json({ campuses: campuses.sort() });
+  } catch (error) {
+    console.error('Error fetching campuses:', error);
+    res.status(500).json({ message: 'Failed to fetch campuses' });
+  }
+});
+
+// Rename campus (bulk update all courses with old campus name)
+router.put('/campuses/rename', authenticateToken, requireSuperAdminOrPermission('forms.manage'), async (req, res) => {
+  try {
+    const { oldCampusName, newCampusName } = req.body;
+
+    if (!oldCampusName || !newCampusName) {
+      return res.status(400).json({ message: 'Old campus name and new campus name are required' });
+    }
+
+    if (oldCampusName.trim() === newCampusName.trim()) {
+      return res.status(400).json({ message: 'New campus name must be different from old campus name' });
+    }
+
+    // Check if new campus name already exists
+    const existingCampus = await Course.findOne({ 
+      campus: newCampusName.trim(), 
+      isActive: true 
+    });
+    
+    if (existingCampus) {
+      return res.status(400).json({ message: 'A campus with this name already exists' });
+    }
+
+    // Bulk update all courses with the old campus name
+    const result = await Course.updateMany(
+      { campus: oldCampusName, isActive: true },
+      { $set: { campus: newCampusName.trim() } }
+    );
+
+    res.json({ 
+      message: 'Campus renamed successfully',
+      updatedCount: result.modifiedCount
+    });
+  } catch (error) {
+    console.error('Error renaming campus:', error);
+    res.status(500).json({ message: 'Failed to rename campus' });
+  }
+});
+
 module.exports = router;
 

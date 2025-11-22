@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar, InputGroup, Pagination } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaSearch } from 'react-icons/fa';
+import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaSearch, FaKeyboard, FaEye } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -178,6 +178,9 @@ const CandidateManagement = () => {
   });
   const [expandedTestResults, setExpandedTestResults] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [typingTestResultsForCandidate, setTypingTestResultsForCandidate] = useState([]);
+  const [selectedTypingResult, setSelectedTypingResult] = useState(null);
+  const [showTypingResultModal, setShowTypingResultModal] = useState(false);
 
   useEffect(() => {
     fetchCandidates();
@@ -240,8 +243,12 @@ const CandidateManagement = () => {
   const fetchCandidateProfile = async (candidateId) => {
     setProfileLoading(true);
     try {
-      const response = await api.get(`/candidates/${candidateId}`);
-      setSelectedCandidate(response.data.candidate);
+      const [candidateResponse, typingResultsResponse] = await Promise.all([
+        api.get(`/candidates/${candidateId}`),
+        api.get(`/typing-test/results/${candidateId}`).catch(() => ({ data: { typingTestResults: [] } }))
+      ]);
+      setSelectedCandidate(candidateResponse.data.candidate);
+      setTypingTestResultsForCandidate(typingResultsResponse.data.typingTestResults || []);
       setShowProfileModal(true);
       setExpandedTestResults({});
     } catch (error) {
@@ -256,6 +263,9 @@ const CandidateManagement = () => {
     setShowProfileModal(false);
     setSelectedCandidate(null);
     setExpandedTestResults({});
+    setTypingTestResultsForCandidate([]);
+    setSelectedTypingResult(null);
+    setShowTypingResultModal(false);
   };
 
   const getStatusBadge = (status) => {
@@ -730,13 +740,58 @@ const CandidateManagement = () => {
     );
   };
 
-  const renderTestResultsTab = (candidate) => (
+  const renderTestResultsTab = (candidate) => {
+    // Include typing test results in counts
+    const summary = candidate.testResults?.summary || {};
+    const completedTests = Array.isArray(candidate.testResults?.tests) ? candidate.testResults.tests : [];
+    
+    const typingTestsCount = typingTestResultsForCandidate.length;
+    const typingTestsPassed = typingTestResultsForCandidate.filter(t => t.accuracy >= 70).length; // Consider 70%+ accuracy as passed
+    const typingTestsAvgScore = typingTestsCount > 0
+      ? typingTestResultsForCandidate.reduce((sum, t) => sum + (t.accuracy || 0), 0) / typingTestsCount
+      : 0;
+    
+    // Combine MCQ and typing test counts
+    const totalTests = Number(summary.totalTests || 0) + typingTestsCount;
+    const passedTests = Number(summary.passedTests || 0) + typingTestsPassed;
+    
+    // Calculate combined average score
+    const mcqTestsCount = completedTests.length;
+    const mcqAvgScore = typeof summary.averageScore === 'number' 
+      ? summary.averageScore 
+      : Number(summary.averageScore || 0);
+    
+    let averageScoreValue = 0;
+    if (totalTests > 0) {
+      const mcqTotal = mcqAvgScore * mcqTestsCount;
+      const typingTotal = typingTestsAvgScore * typingTestsCount;
+      averageScoreValue = (mcqTotal + typingTotal) / totalTests;
+    }
+
+    const formatTypingDate = (dateString) => {
+      if (!dateString) return 'N/A';
+      return new Date(dateString).toLocaleString();
+    };
+
+    const getTypingAccuracyBadge = (accuracy) => {
+      if (accuracy >= 90) return 'success';
+      if (accuracy >= 70) return 'warning';
+      return 'danger';
+    };
+
+    const getTypingWPMBadge = (wpm) => {
+      if (wpm >= 40) return 'success';
+      if (wpm >= 25) return 'warning';
+      return 'danger';
+    };
+
+    return (
     <div>
       <Row className="mb-4">
         <Col md={4}>
           <Card className="text-center">
             <Card.Body>
-              <h3 className="text-primary">{candidate.testResults.summary.totalTests}</h3>
+              <h3 className="text-primary">{totalTests}</h3>
               <p className="text-muted mb-0">Total Tests</p>
             </Card.Body>
           </Card>
@@ -744,7 +799,7 @@ const CandidateManagement = () => {
         <Col md={4}>
           <Card className="text-center">
             <Card.Body>
-              <h3 className="text-success">{candidate.testResults.summary.passedTests}</h3>
+              <h3 className="text-success">{passedTests}</h3>
               <p className="text-muted mb-0">Passed Tests</p>
             </Card.Body>
           </Card>
@@ -752,7 +807,7 @@ const CandidateManagement = () => {
         <Col md={4}>
           <Card className="text-center">
             <Card.Body>
-              <h3 className="text-info">{candidate.testResults.summary.averageScore.toFixed(1)}%</h3>
+              <h3 className="text-info">{averageScoreValue.toFixed(1)}%</h3>
               <p className="text-muted mb-0">Average Score</p>
             </Card.Body>
           </Card>
@@ -855,6 +910,68 @@ const CandidateManagement = () => {
         <Alert variant="info">No test results available yet.</Alert>
       )}
 
+      {/* Typing Test Results Section */}
+      {typingTestResultsForCandidate.length > 0 && (
+        <Card className="mt-3">
+          <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+            <h6 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+              <FaKeyboard className="me-2" />
+              Typing Test Results
+            </h6>
+          </Card.Header>
+          <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
+            <Table striped bordered hover responsive style={{ marginBottom: 0 }}>
+              <thead style={{ background: '#f8f9fa' }}>
+                <tr>
+                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Test Title</th>
+                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>WPM</th>
+                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Accuracy</th>
+                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Errors</th>
+                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Time Taken</th>
+                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Duration</th>
+                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Submitted At</th>
+                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {typingTestResultsForCandidate.map((result, index) => (
+                  <tr key={result._id || index}>
+                    <td>{result.typingTest?.title || 'N/A'}</td>
+                    <td>
+                      <Badge bg={getTypingWPMBadge(result.wpm)}>
+                        {result.wpm || 0} WPM
+                      </Badge>
+                    </td>
+                    <td>
+                      <Badge bg={getTypingAccuracyBadge(result.accuracy)}>
+                        {result.accuracy || 0}%
+                      </Badge>
+                    </td>
+                    <td>{result.totalErrors || 0}</td>
+                    <td>{result.timeTaken || 0}s</td>
+                    <td>{result.duration || 0} min</td>
+                    <td>{formatTypingDate(result.submittedAt)}</td>
+                    <td>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTypingResult(result);
+                          setShowTypingResultModal(true);
+                        }}
+                      >
+                        <FaEye className="me-1" />
+                        View Details
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card.Body>
+        </Card>
+      )}
+
       {candidate.assignments?.tests?.length > 0 && (
         <Card className="mt-3">
           <Card.Header>Test Assignments</Card.Header>
@@ -885,7 +1002,8 @@ const CandidateManagement = () => {
         </Card>
       )}
     </div>
-  );
+    );
+  };
 
   const renderInterviewFeedbackTab = (candidate) => {
     const { summary, feedback } = candidate.interviewFeedback || { summary: {}, feedback: [] };
@@ -1704,6 +1822,171 @@ const CandidateManagement = () => {
           </Button>
         </Modal.Footer>
       </Modal>
+
+      {/* Typing Test Result Details Modal */}
+      <Modal
+        show={showTypingResultModal}
+        onHide={() => {
+          setShowTypingResultModal(false);
+          setSelectedTypingResult(null);
+        }}
+        size="lg"
+        centered
+        scrollable
+        dialogClassName="typing-test-result-modal"
+      >
+        <style>{`
+          .typing-test-result-modal .modal-dialog {
+            max-width: 90vw !important;
+            width: 90vw !important;
+          }
+          @media (min-width: 992px) {
+            .typing-test-result-modal .modal-dialog {
+              max-width: 800px !important;
+              width: 800px !important;
+            }
+          }
+          @media (max-width: 768px) {
+            .typing-test-result-modal .modal-dialog {
+              max-width: 95vw !important;
+              width: 95vw !important;
+              margin: 0.5rem auto;
+            }
+          }
+        `}</style>
+        <Modal.Header
+          closeButton
+          style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            borderBottom: 'none'
+          }}
+        >
+          <Modal.Title style={{ color: 'white', fontWeight: '600' }}>
+            <FaKeyboard className="me-2" />
+            Typing Test Result Details
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ padding: '1.5rem', background: '#f8f9fa', maxHeight: '85vh', overflowY: 'auto' }}>
+          {selectedTypingResult ? (
+            <div>
+              <Row className="mb-3 g-3">
+                <Col md={6}>
+                  <Card className="h-100 border-0 shadow-sm" style={{ background: 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)' }}>
+                    <Card.Body style={{ padding: '1.25rem' }}>
+                      <h6 className="text-muted mb-3 text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.5px', fontWeight: '600' }}>
+                        Candidate Information
+                      </h6>
+                      <div style={{ lineHeight: '1.8' }}>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Name:</strong>
+                          <span style={{ color: '#212529' }}> {selectedCandidate?.personalDetails?.name || selectedCandidate?.user?.name || 'N/A'}</span>
+                        </p>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Email:</strong>
+                          <span style={{ color: '#212529' }}> {selectedCandidate?.personalDetails?.email || selectedCandidate?.user?.email || 'N/A'}</span>
+                        </p>
+                        <p className="mb-0">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Candidate Number:</strong>
+                          <span style={{ color: '#212529' }}> {selectedCandidate?.candidateNumber || 'N/A'}</span>
+                        </p>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col md={6}>
+                  <Card className="h-100 border-0 shadow-sm" style={{ background: 'linear-gradient(135deg, #f093fb15 0%, #f5576c15 100%)' }}>
+                    <Card.Body style={{ padding: '1.25rem' }}>
+                      <h6 className="text-muted mb-3 text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.5px', fontWeight: '600' }}>
+                        Test Information
+                      </h6>
+                      <div style={{ lineHeight: '1.8' }}>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Test Title:</strong>
+                          <span style={{ color: '#212529' }}> {selectedTypingResult.typingTest?.title || 'N/A'}</span>
+                        </p>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Duration:</strong>
+                          <span style={{ color: '#212529' }}> {selectedTypingResult.duration || 0} minute(s)</span>
+                        </p>
+                        <p className="mb-2">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Started At:</strong>
+                          <span style={{ color: '#212529' }}> {selectedTypingResult.startedAt ? new Date(selectedTypingResult.startedAt).toLocaleString() : 'N/A'}</span>
+                        </p>
+                        <p className="mb-0">
+                          <strong style={{ color: '#495057', minWidth: '140px', display: 'inline-block' }}>Submitted At:</strong>
+                          <span style={{ color: '#212529' }}> {selectedTypingResult.submittedAt ? new Date(selectedTypingResult.submittedAt).toLocaleString() : 'N/A'}</span>
+                        </p>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+              <Row>
+                <Col>
+                  <Card className="border-0 shadow-sm">
+                    <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+                      <h5 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+                        Performance Metrics
+                      </h5>
+                    </Card.Header>
+                    <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
+                      <Row>
+                        <Col md={3} className="text-center mb-3">
+                          <h4 className="text-primary">{selectedTypingResult.wpm || 0}</h4>
+                          <p className="text-muted mb-0">Words Per Minute</p>
+                        </Col>
+                        <Col md={3} className="text-center mb-3">
+                          <h4 className="text-success">{selectedTypingResult.accuracy || 0}%</h4>
+                          <p className="text-muted mb-0">Accuracy</p>
+                        </Col>
+                        <Col md={3} className="text-center mb-3">
+                          <h4 className="text-danger">{selectedTypingResult.totalErrors || 0}</h4>
+                          <p className="text-muted mb-0">Total Errors</p>
+                        </Col>
+                        <Col md={3} className="text-center mb-3">
+                          <h4 className="text-info">{selectedTypingResult.timeTaken || 0}s</h4>
+                          <p className="text-muted mb-0">Time Taken</p>
+                        </Col>
+                      </Row>
+                      <hr />
+                      <Row>
+                        <Col md={6}>
+                          <p><strong>Total Characters:</strong> {selectedTypingResult.totalCharacters || 0}</p>
+                          <p><strong>Correct Characters:</strong> {selectedTypingResult.correctCharacters || 0}</p>
+                        </Col>
+                        <Col md={6}>
+                          <p><strong>Backspace Count:</strong> {selectedTypingResult.backspaceCount || 0}</p>
+                          <p><strong>Status:</strong>
+                            <Badge bg="success" className="ms-2">
+                              {selectedTypingResult.status || 'completed'}
+                            </Badge>
+                          </p>
+                        </Col>
+                      </Row>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+            </div>
+          ) : (
+            <Alert variant="warning">No typing test result details available.</Alert>
+          )}
+        </Modal.Body>
+        <Modal.Footer style={{ borderTop: '1px solid #dee2e6', background: '#ffffff' }}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowTypingResultModal(false);
+              setSelectedTypingResult(null);
+            }}
+            style={{ borderRadius: '8px', fontWeight: '500' }}
+          >
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       <ToastNotificationContainer 
         toast={toast} 
         onClose={() => setToast({ type: '', message: '' })} 

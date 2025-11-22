@@ -512,6 +512,7 @@ const TypingTest = () => {
   const [results, setResults] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [backspaceCount, setBackspaceCount] = useState(0);
 
   const textareaRef = useRef(null);
   const timerRef = useRef(null);
@@ -587,9 +588,10 @@ const TypingTest = () => {
       accuracy,
       totalErrors,
       totalCharacters,
-      correctCharacters
+      correctCharacters,
+      backspaceCount
     };
-  }, [typingTest, userInput, duration, timeLeft]);
+  }, [typingTest, userInput, duration, timeLeft, backspaceCount]);
 
   // Handle test completion
   const handleTestComplete = useCallback(async () => {
@@ -610,6 +612,7 @@ const TypingTest = () => {
         await api.post(`/typing-test/${typingTest._id}/submit`, {
           candidateId,
           ...stats,
+          backspaceCount,
           timeTaken: duration * 60 - timeLeft,
           duration
         });
@@ -620,7 +623,7 @@ const TypingTest = () => {
         setSubmitting(false);
       }
     }
-  }, [typingTest, candidateId, duration, timeLeft, calculateStats]);
+  }, [typingTest, candidateId, duration, timeLeft, calculateStats, backspaceCount]);
 
   // Timer countdown
   useEffect(() => {
@@ -688,6 +691,16 @@ const TypingTest = () => {
     }
   };
 
+  // Handle keydown to track backspace
+  const handleKeyDown = (e) => {
+    if (!testStarted || testCompleted) return;
+
+    // Track backspace key
+    if (e.key === 'Backspace' || e.keyCode === 8) {
+      setBackspaceCount(prev => prev + 1);
+    }
+  };
+
   // Handle restart
   const handleRestart = () => {
     setTestStarted(false);
@@ -697,6 +710,7 @@ const TypingTest = () => {
     setDuration(null);
     setResults(null);
     setShowResults(false);
+    setBackspaceCount(0);
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -879,6 +893,7 @@ const TypingTest = () => {
                     ref={textareaRef}
                     value={userInput}
                     onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
                     placeholder="Start typing here..."
                     spellCheck={false}
                     autoComplete="off"

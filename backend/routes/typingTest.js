@@ -362,7 +362,7 @@ router.post('/:id/submit', async (req, res) => {
       body: req.body
     });
 
-    const { candidateId, wpm, accuracy, totalErrors, timeTaken, duration, totalCharacters, correctCharacters } = req.body;
+    const { candidateId, wpm, accuracy, totalErrors, timeTaken, duration, totalCharacters, correctCharacters, backspaceCount } = req.body;
 
     // Validate required fields
     if (!candidateId) {
@@ -422,6 +422,7 @@ router.post('/:id/submit', async (req, res) => {
       existingResult.duration = duration;
       existingResult.totalCharacters = totalCharacters;
       existingResult.correctCharacters = correctCharacters;
+      existingResult.backspaceCount = backspaceCount || 0;
       existingResult.status = 'completed';
       existingResult.submittedAt = new Date();
     } else {
@@ -435,6 +436,7 @@ router.post('/:id/submit', async (req, res) => {
         duration,
         totalCharacters,
         correctCharacters,
+        backspaceCount: backspaceCount || 0,
         status: 'completed',
         startedAt: candidateAssignment.startedAt || new Date(),
         submittedAt: new Date()
@@ -466,7 +468,8 @@ router.post('/:id/submit', async (req, res) => {
         timeTaken,
         duration,
         totalCharacters,
-        correctCharacters
+        correctCharacters,
+        backspaceCount: backspaceCount || 0
       }
     });
   } catch (error) {
