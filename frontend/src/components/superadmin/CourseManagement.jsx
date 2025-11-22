@@ -5,9 +5,10 @@ import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
+// Permanent campuses - these are fixed and cannot be added/removed, only renamed
+const PERMANENT_CAMPUSES = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
+
 const CourseManagement = () => {
-  // Permanent campuses - these are fixed and cannot be added/removed, only renamed
-  const PERMANENT_CAMPUSES = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
   
   const [courses, setCourses] = useState([]);
   const [showAddDeptModal, setShowAddDeptModal] = useState(false);
