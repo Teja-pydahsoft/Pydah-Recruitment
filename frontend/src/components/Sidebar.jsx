@@ -332,18 +332,24 @@ const Tooltip = styled.div`
 
 const NotificationBadge = styled.div`
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: ${props => props.$isOpen ? '8px' : '6px'};
   background: #ef4444;
   color: white;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.2rem 0.4rem;
-  border-radius: 10px;
-  min-width: 18px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.35rem;
+  border-radius: 8px;
+  min-width: ${props => props.count > 9 ? '20px' : '16px'};
+  height: 16px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: ${props => props.count > 0 ? 1 : 0};
   transition: opacity 0.3s ease;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
+  line-height: 1;
 `;
 
 const UserSection = styled.div`
@@ -515,11 +521,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const navigate = useNavigate();
   const { user, logout, hasPermission } = useAuth();
   const [notifications, setNotifications] = useState({ feedback: 0, interviews: 0 });
+  const [dashboardCounts, setDashboardCounts] = useState({
+    pendingApprovals: 0,
+    upcomingInterviews: 0,
+    newSubmissions: 0,
+    activeForms: 0
+  });
   const [hoveredItem, setHoveredItem] = useState(null);
 
   useEffect(() => {
     if (user?.role === 'panel_member') {
       fetchNotifications();
+    } else if (user?.role === 'super_admin' || user?.role === 'sub_admin') {
+      fetchDashboardCounts();
+      // Refresh counts every 30 seconds
+      const interval = setInterval(fetchDashboardCounts, 30000);
+      return () => clearInterval(interval);
     }
   }, [user]);
 
@@ -532,6 +549,48 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     }
   };
 
+  const fetchDashboardCounts = async () => {
+    try {
+      const [formsRes, candidatesRes, interviewsRes] = await Promise.allSettled([
+        api.get('/forms'),
+        api.get('/candidates'),
+        api.get('/interviews')
+      ]);
+
+      const forms = formsRes.status === 'fulfilled' ? formsRes.value.data?.forms || [] : [];
+      const candidates = candidatesRes.status === 'fulfilled' ? candidatesRes.value.data?.candidates || [] : [];
+      const interviews = interviewsRes.status === 'fulfilled' ? interviewsRes.value.data?.interviews || [] : [];
+
+      // Calculate counts
+      const candidateForms = forms.filter(f => f.formType === 'candidate_profile');
+      const activeForms = candidateForms.filter(f => f.isActive !== false).length;
+      const pendingApprovals = candidates.filter(c => c.status === 'pending' || c.status === 'application_review').length;
+      
+      const now = new Date();
+      const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const upcomingInterviews = interviews.filter(i => {
+        if (!i.scheduledDate) return false;
+        const scheduled = new Date(i.scheduledDate);
+        return scheduled >= now && scheduled <= fourteenDaysFromNow;
+      }).length;
+
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const newSubmissions = candidates.filter(c => {
+        if (!c.createdAt) return false;
+        return new Date(c.createdAt) >= sevenDaysAgo;
+      }).length;
+
+      setDashboardCounts({
+        pendingApprovals,
+        upcomingInterviews,
+        newSubmissions,
+        activeForms
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard counts:', error);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -540,14 +599,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const navigationItems = {
     super_admin: [
       { path: '/super-admin', icon: FaUserTie, label: 'Dashboard' },
-      { path: '/super-admin/creation', icon: FaFileAlt, label: 'Candidate Application' },
-      { path: '/super-admin/submissions', icon: FaFileAlt, label: 'Application Submissions' },
+      { path: '/super-admin/creation', icon: FaFileAlt, label: 'Candidate Application', badge: dashboardCounts.activeForms },
+      { path: '/super-admin/submissions', icon: FaFileAlt, label: 'Application Submissions', badge: dashboardCounts.pendingApprovals },
       { path: '/super-admin/tests', icon: FaClipboardList, label: 'Test Management' },
       { path: '/super-admin/users', icon: FaUserTie, label: 'Panel Members' },
       { path: '/super-admin/sub-admins', icon: FaUserShield, label: 'User Management' },
       { path: '/super-admin/courses', icon: FaCog, label: 'Campus Management' },
-      { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management' },
-      { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management' },
+      { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management', badge: dashboardCounts.upcomingInterviews },
+      { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management', badge: dashboardCounts.newSubmissions },
       { path: '/super-admin/settings', icon: FaCog, label: 'Notifications' },
     ],
     panel_member: [
@@ -565,11 +624,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   const subAdminNavigation = [
     { path: '/sub-admin', icon: FaHome, label: 'Dashboard' },
-    { path: '/sub-admin/forms', icon: FaFileAlt, label: 'Forms & Applications', permission: 'forms.manage' },
-    { path: '/sub-admin/submissions', icon: FaFileAlt, label: 'Application Submissions', permission: 'forms.manage' },
-    { path: '/sub-admin/candidates', icon: FaUsers, label: 'Candidate Management', permission: 'candidates.manage' },
+    { path: '/sub-admin/forms', icon: FaFileAlt, label: 'Forms & Applications', permission: 'forms.manage', badge: dashboardCounts.activeForms },
+    { path: '/sub-admin/submissions', icon: FaFileAlt, label: 'Application Submissions', permission: 'forms.manage', badge: dashboardCounts.pendingApprovals },
+    { path: '/sub-admin/candidates', icon: FaUsers, label: 'Candidate Management', permission: 'candidates.manage', badge: dashboardCounts.newSubmissions },
     { path: '/sub-admin/tests', icon: FaClipboardList, label: 'Test Management', permission: 'tests.manage' },
-    { path: '/sub-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management', permission: 'interviews.manage' },
+    { path: '/sub-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management', permission: 'interviews.manage', badge: dashboardCounts.upcomingInterviews },
     { path: '/sub-admin/users', icon: FaUserTie, label: 'Panel Members', permission: 'panel_members.manage' },
   ];
 
@@ -622,8 +681,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                           {item.badge && item.badge > 0 && ` (${item.badge > 99 ? '99+' : item.badge})`}
                         </Tooltip>
                       )}
-                      {item.badge && item.badge > 0 && isOpen && (
-                        <NotificationBadge count={item.badge}>
+                      {item.badge !== undefined && item.badge > 0 && (
+                        <NotificationBadge count={item.badge} $isOpen={isOpen}>
                           {item.badge > 99 ? '99+' : item.badge}
                         </NotificationBadge>
                       )}

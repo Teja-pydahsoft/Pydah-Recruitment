@@ -70,7 +70,7 @@ const OverviewContainer = styled.div`
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: clamp(1.5rem, 2.5vw, 2.5rem);
+  gap: clamp(1rem, 1.5vw, 1.5rem);
   animation: ${fadeInUp} 0.6s ease-out;
   background: #f8fafc;
 `;
@@ -81,7 +81,7 @@ const OverviewWrapper = styled.div`
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(1.5rem, 2.5vw, 2.5rem);
+  gap: clamp(1rem, 1.5vw, 1.5rem);
 `;
 
 const HeaderRow = styled.div`
@@ -98,15 +98,15 @@ const HeaderRow = styled.div`
 `;
 
 const Title = styled.h1`
-  font-size: 1.875rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #0f172a;
-  margin: 0 0 0.35rem 0;
+  margin: 0 0 0.25rem 0;
 `;
 
 const Subtitle = styled.p`
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: #475569;
 `;
 
@@ -172,13 +172,13 @@ const StatsGrid = styled.div`
   width: 100%;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: clamp(1rem, 2vw, 1.5rem);
+  gap: clamp(0.75rem, 1.5vw, 1rem);
 `;
 
 const StatsCard = styled.div`
   background: white;
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 0.875rem;
   box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
   border: 1px solid #e2e8f0;
   position: relative;
@@ -186,7 +186,7 @@ const StatsCard = styled.div`
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.3rem;
 
   &::before {
     content: '';
@@ -219,8 +219,16 @@ const StatsCard = styled.div`
   }
 `;
 
+const StatsIconContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  gap: 0.5rem;
+`;
+
 const StatsIcon = styled.div`
-  font-size: 2rem;
+  font-size: 1.5rem;
   color: ${({ $variant }) => {
     switch ($variant) {
       case 'primary':
@@ -237,30 +245,53 @@ const StatsIcon = styled.div`
         return '#475569';
     }
   }};
-  margin-bottom: 1rem;
   opacity: 0.85;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 `;
 
-const StatsNumber = styled.span`
-  display: block;
-  font-size: 2.5rem;
+const StatsCountBadge = styled.div`
+  background: ${({ $variant }) => {
+    switch ($variant) {
+      case 'primary':
+        return '#2563eb';
+      case 'success':
+        return '#10b981';
+      case 'info':
+        return '#06b6d4';
+      case 'warning':
+        return '#f59e0b';
+      case 'danger':
+        return '#ef4444';
+      default:
+        return '#6b7280';
+    }
+  }};
+  color: white;
+  font-size: 1.1rem;
   font-weight: 800;
-  color: #0f172a;
-  margin-bottom: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  min-width: 36px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+  line-height: 1.2;
 `;
 
 const StatsLabel = styled.span`
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: #475569;
   font-weight: 600;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
 `;
 
 const StatsMeta = styled.span`
   display: block;
-  margin-top: 0.25rem;
-  font-size: 0.85rem;
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
   color: #94a3b8;
   font-weight: 500;
 `;
@@ -269,16 +300,16 @@ const ErrorBanner = styled.div`
   background: #fee2e2;
   border: 1px solid #fecaca;
   color: #b91c1c;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   border-radius: 10px;
   font-weight: 500;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 `;
 
 const InsightGrid = styled.div`
   display: grid;
   width: 100%;
-  gap: clamp(1rem, 2vw, 1.75rem);
+  gap: clamp(0.75rem, 1.5vw, 1.25rem);
   grid-template-columns: 1fr;
 
   @media (min-width: 1024px) {
@@ -293,25 +324,25 @@ const InsightGrid = styled.div`
 const SectionCard = styled.div`
   background: white;
   border-radius: 12px;
-  padding: 1.75rem;
+  padding: 1.25rem;
   box-shadow: 0 10px 25px -18px rgba(15, 23, 42, 0.5);
   border: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.875rem;
   min-height: 0;
 `;
 
 const SectionTitle = styled.h2`
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
 `;
 
 const SectionSubtitle = styled.p`
-  margin: -0.5rem 0 0;
-  font-size: 0.9rem;
+  margin: -0.35rem 0 0;
+  font-size: 0.85rem;
   color: #64748b;
 `;
 
@@ -338,7 +369,7 @@ const VacancySummary = styled.div`
 `;
 
 const VacancyNumber = styled.span`
-  font-size: 2.25rem;
+  font-size: 1.875rem;
   font-weight: 800;
   color: #b45309;
 `;
@@ -367,8 +398,8 @@ const ListItem = styled.li`
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 1rem 0;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
   border-bottom: 1px solid #e2e8f0;
 
   &:first-child {
@@ -411,7 +442,7 @@ const SmallText = styled.span`
 `;
 
 const EmptyState = styled.div`
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 10px;
   background: #f8fafc;
   color: #64748b;
@@ -448,7 +479,7 @@ const Chip = styled.span`
 const ActivityGrid = styled.div`
   display: grid;
   width: 100%;
-  gap: clamp(1rem, 2vw, 1.75rem);
+  gap: clamp(0.75rem, 1.5vw, 1.25rem);
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 
   @media (min-width: 1360px) {
@@ -856,8 +887,12 @@ const DashboardOverview = () => {
         <StatsGrid>
           {statsCards.map((card) => (
             <StatsCard key={card.key} $variant={card.variant}>
-              <StatsIcon $variant={card.variant}>{card.icon}</StatsIcon>
-              <StatsNumber>{formatCount(card.value)}</StatsNumber>
+              <StatsIconContainer>
+                <StatsIcon $variant={card.variant}>{card.icon}</StatsIcon>
+                <StatsCountBadge $variant={card.variant}>
+                  {formatCount(card.value)}
+                </StatsCountBadge>
+              </StatsIconContainer>
               <StatsLabel>{card.label}</StatsLabel>
               <StatsMeta>{card.meta}</StatsMeta>
             </StatsCard>
