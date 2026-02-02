@@ -243,11 +243,14 @@ const UsersManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [toast, setToast] = useState({ type: '', message: '' });
+  const [campuses, setCampuses] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [formData, setFormData] = useState({
     campus: '',
     name: '',
     email: '',
     password: '',
+    courses: [],
     profile: {
       phone: '',
       designation: ''
@@ -256,7 +259,31 @@ const UsersManagement = () => {
 
   useEffect(() => {
     fetchPanelMembers();
+    fetchCampuses();
   }, []);
+
+  const fetchCampuses = async () => {
+    try {
+      const response = await api.get('/courses/campuses/list');
+      setCampuses(response.data.campuses || []);
+    } catch (error) {
+      console.error('Error fetching campuses:', error);
+    }
+  };
+
+  const fetchCoursesForCampus = async (campus) => {
+    if (!campus) {
+      setCourses([]);
+      return;
+    }
+    try {
+      const response = await api.get(`/courses/campus/${campus}`);
+      setCourses(response.data.courses || []);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+      setCourses([]);
+    }
+  };
 
   const fetchPanelMembers = async () => {
     try {
@@ -280,12 +307,28 @@ const UsersManagement = () => {
           [child]: value
         }
       }));
+    } else if (name === 'campus') {
+      // When campus changes, fetch courses for that campus and reset selected courses
+      setFormData(prev => ({
+        ...prev,
+        campus: value,
+        courses: [] // Reset courses when campus changes
+      }));
+      fetchCoursesForCampus(value);
     } else {
       setFormData(prev => ({
         ...prev,
         [name]: value
       }));
     }
+  };
+
+  const handleCourseChange = (e) => {
+    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+    setFormData(prev => ({
+      ...prev,
+      courses: selectedOptions
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -302,6 +345,7 @@ const UsersManagement = () => {
         email: formData.email,
         password: formData.password,
         role: 'panel_member',
+        courses: formData.courses && formData.courses.length > 0 ? formData.courses : undefined,
         profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined
       };
 
@@ -326,18 +370,24 @@ const UsersManagement = () => {
     }
   };
 
-  const handleEdit = (member) => {
+  const handleEdit = async (member) => {
     setEditingMember(member);
+    const memberCourses = member.courses ? member.courses.map(c => typeof c === 'object' ? c._id : c) : [];
     setFormData({
       campus: member.campus || '',
       name: member.name,
       email: member.email,
       password: '',
+      courses: memberCourses,
       profile: {
         phone: member.profile?.phone || '',
         designation: member.profile?.designation || ''
       }
     });
+    // Fetch courses for the member's campus
+    if (member.campus) {
+      await fetchCoursesForCampus(member.campus);
+    }
     setShowModal(true);
   };
 
@@ -367,11 +417,13 @@ const UsersManagement = () => {
       name: '',
       email: '',
       password: '',
+      courses: [],
       profile: {
         phone: '',
         designation: ''
       }
     });
+    setCourses([]);
   };
 
   const openAddModal = () => {
@@ -401,6 +453,8 @@ const UsersManagement = () => {
               <tr>
                 <Th>Name</Th>
                 <Th>Email</Th>
+                <Th>Campus</Th>
+                <Th>Courses</Th>
                 <Th>Designation</Th>
                 <Th>Phone</Th>
                 <Th>Status</Th>
@@ -412,6 +466,30 @@ const UsersManagement = () => {
                 <tr key={member._id}>
                   <Td>{member.name}</Td>
                   <Td>{member.email}</Td>
+                  <Td>{member.campus || 'N/A'}</Td>
+                  <Td>
+                    {member.courses && member.courses.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                        {member.courses.map((course, idx) => (
+                          <span
+                            key={typeof course === 'object' ? course._id : course}
+                            style={{
+                              background: '#e0e7ff',
+                              color: '#3730a3',
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: '4px',
+                              fontSize: '0.875rem',
+                              fontWeight: '500'
+                            }}
+                          >
+                            {typeof course === 'object' ? course.department : 'N/A'}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      'No courses assigned'
+                    )}
+                  </Td>
                   <Td>{member.profile?.designation || 'N/A'}</Td>
                   <Td>{member.profile?.phone || 'N/A'}</Td>
                   <Td>
@@ -476,12 +554,42 @@ const UsersManagement = () => {
                   }}
                 >
                   <option value="">Select Campus</option>
-                  <option value="Btech">Btech</option>
-                  <option value="Degree">Degree</option>
-                  <option value="Pharmacy">Pharmacy</option>
-                  <option value="Diploma">Diploma</option>
+                  {campuses.map(campus => (
+                    <option key={campus} value={campus}>{campus}</option>
+                  ))}
                 </select>
               </FormGroup>
+
+              {formData.campus && (
+                <FormGroup>
+                  <Label htmlFor="courses">Courses (Departments) *</Label>
+                  <select
+                    id="courses"
+                    name="courses"
+                    multiple
+                    value={formData.courses}
+                    onChange={handleCourseChange}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      fontSize: '1rem',
+                      minHeight: '120px'
+                    }}
+                  >
+                    {courses.map(course => (
+                      <option key={course._id} value={course._id}>
+                        {course.department}
+                      </option>
+                    ))}
+                  </select>
+                  <small style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                    Hold Ctrl (Windows) or Cmd (Mac) to select multiple courses
+                  </small>
+                </FormGroup>
+              )}
 
               <FormGroup>
                 <Label htmlFor="name">Name</Label>

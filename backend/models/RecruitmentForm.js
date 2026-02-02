@@ -35,8 +35,8 @@ const recruitmentFormSchema = new mongoose.Schema({
     required: function() {
       return this.formType === 'candidate_profile';
     },
-    enum: ['Btech', 'Degree', 'Pharmacy', 'Diploma'],
     trim: true
+    // No enum restriction to allow renamed campuses (e.g., "Btech" -> "Engineering")
   },
   department: {
     type: String,

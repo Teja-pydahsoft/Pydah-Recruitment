@@ -18,7 +18,7 @@ const mcqSchema = new mongoose.Schema({
   },
   campus: {
     type: String,
-    enum: ['Btech', 'Degree', 'Pharmacy', 'Diploma'],
+    // No enum restriction to allow renamed campuses (e.g., "Btech" -> "Engineering")
     trim: true
   },
   department: {

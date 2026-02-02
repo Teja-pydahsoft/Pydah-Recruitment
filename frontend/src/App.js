@@ -179,7 +179,7 @@ function App() {
             path="/panel-member/*"
             element={
               <AppLayout>
-                <ProtectedRoute allowedRoles={['panel_member']}>
+                <ProtectedRoute allowedRoles={['panel_member', 'super_admin']}>
                   <PanelMemberDashboard />
                 </ProtectedRoute>
               </AppLayout>

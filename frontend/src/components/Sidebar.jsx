@@ -14,7 +14,8 @@ import {
   FaUser,
   FaHome,
   FaUserShield,
-  FaCog
+  FaCog,
+  FaComments
 } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -227,6 +228,14 @@ const SectionTitle = styled.h6`
   padding: 0 1rem;
   opacity: ${props => props.$isOpen ? 1 : 0};
   transition: opacity 0.3s ease;
+`;
+
+const Divider = styled.div`
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: ${props => props.$isOpen ? '1rem 1rem' : '0.75rem 0.5rem'};
+  opacity: ${props => props.$isOpen ? 1 : 0.5};
+  transition: opacity 0.3s ease, margin 0.3s ease;
 `;
 
 const NavList = styled.ul`
@@ -565,7 +574,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       const interval = setInterval(fetchDashboardCounts, 30000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+    
+    // Also fetch notifications for super_admin when viewing panel member pages
+    if (user?.role === 'super_admin' && location.pathname.startsWith('/panel-member')) {
+      fetchNotifications();
+    }
+  }, [user, location.pathname]);
 
   const fetchNotifications = async () => {
     try {
@@ -635,6 +649,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { path: '/super-admin/interviews', icon: FaCalendarAlt, label: 'Interview Management', badge: dashboardCounts.upcomingInterviews },
       { path: '/super-admin/candidates', icon: FaUsers, label: 'Candidate Management', badge: dashboardCounts.newSubmissions },
       { path: '/super-admin/settings', icon: FaCog, label: 'Notifications' },
+      { path: '/panel-member/feedback', icon: FaComments, label: 'Panel Member View', divider: true },
     ],
     panel_member: [
       { path: '/panel-member', icon: FaHome, label: 'Dashboard' },
@@ -665,6 +680,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     currentNavItems = subAdminNavigation.filter(item => !item.permission || hasPermission(item.permission));
   }
 
+  // If super_admin is viewing panel member pages, show panel member navigation
+  if (user?.role === 'super_admin' && location.pathname.startsWith('/panel-member')) {
+    currentNavItems = [
+      ...navigationItems.panel_member,
+      { path: '/super-admin', icon: FaUserShield, label: 'Back to Admin View', divider: true }
+    ];
+  }
+
   const formatUserRole = (role) => {
     return role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
@@ -688,33 +711,36 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             <NavSection>
               <SectionTitle $isOpen={isOpen}>Navigation</SectionTitle>
               <NavList>
-                {currentNavItems.map((item) => (
-                  <NavItem key={item.path} $isOpen={isOpen}>
-                    <NavLink
-                      to={item.path}
-                      className={location.pathname === item.path ? 'active' : ''}
-                      $isOpen={isOpen}
-                      onMouseEnter={() => !isOpen && setHoveredItem(item.path)}
-                      onMouseLeave={() => setHoveredItem(null)}
-                    >
-                      <item.icon />
-                      <NavText $isOpen={isOpen}>{item.label}</NavText>
-                      {!isOpen && (
-                        <Tooltip 
-                          $show={hoveredItem === item.path}
-                          $sidebarWidth={isOpen ? 300 : 70}
-                        >
-                          {item.label}
-                          {item.badge && item.badge > 0 && ` (${item.badge > 99 ? '99+' : item.badge})`}
-                        </Tooltip>
-                      )}
-                      {item.badge !== undefined && item.badge > 0 && (
-                        <NotificationBadge count={item.badge} $isOpen={isOpen}>
-                          {item.badge > 99 ? '99+' : item.badge}
-                        </NotificationBadge>
-                      )}
-                    </NavLink>
-                  </NavItem>
+                {currentNavItems.map((item, index) => (
+                  <React.Fragment key={item.path}>
+                    {item.divider && index > 0 && <Divider $isOpen={isOpen} />}
+                    <NavItem $isOpen={isOpen}>
+                      <NavLink
+                        to={item.path}
+                        className={location.pathname === item.path || (item.path === '/panel-member/feedback' && location.pathname.startsWith('/panel-member')) ? 'active' : ''}
+                        $isOpen={isOpen}
+                        onMouseEnter={() => !isOpen && setHoveredItem(item.path)}
+                        onMouseLeave={() => setHoveredItem(null)}
+                      >
+                        <item.icon />
+                        <NavText $isOpen={isOpen}>{item.label}</NavText>
+                        {!isOpen && (
+                          <Tooltip 
+                            $show={hoveredItem === item.path}
+                            $sidebarWidth={isOpen ? 300 : 70}
+                          >
+                            {item.label}
+                            {item.badge && item.badge > 0 && ` (${item.badge > 99 ? '99+' : item.badge})`}
+                          </Tooltip>
+                        )}
+                        {item.badge !== undefined && item.badge > 0 && (
+                          <NotificationBadge count={item.badge} $isOpen={isOpen}>
+                            {item.badge > 99 ? '99+' : item.badge}
+                          </NotificationBadge>
+                        )}
+                      </NavLink>
+                    </NavItem>
+                  </React.Fragment>
                 ))}
               </NavList>
             </NavSection>

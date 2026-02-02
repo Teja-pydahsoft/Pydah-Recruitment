@@ -25,12 +25,17 @@ const userSchema = new mongoose.Schema({
   },
   campus: {
     type: String,
-    enum: ['Btech', 'Degree', 'Pharmacy', 'Diploma'],
+    trim: true,
     required: function() {
       return this.role === 'panel_member';
     }
     // Optional for sub_admin - if set, they will only see data for that campus
+    // No enum restriction to allow renamed campuses (e.g., "Btech" -> "Engineering")
   },
+  courses: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course'
+  }],
   permissions: {
     type: mongoose.Schema.Types.Mixed,
     default: {}

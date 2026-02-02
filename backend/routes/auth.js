@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Course = require('../models/Course');
 const { authenticateToken, requireSuperAdmin, requireSuperAdminOrPermission, hasPermission } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
 
@@ -87,7 +88,7 @@ router.post('/register', authenticateToken, async (req, res) => {
       profile: req.body.profile
     });
 
-    const { name, email, password, role, profile, permissions, campus } = req.body;
+    const { name, email, password, role, profile, permissions, campus, courses } = req.body;
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -128,6 +129,24 @@ router.post('/register', authenticateToken, async (req, res) => {
 
     console.log('👤 [USER REGISTRATION] Creating user with cleaned profile:', cleanedProfile);
 
+    // Validate courses if provided (for panel members)
+    let courseIds = [];
+    if (role === 'panel_member' && courses && Array.isArray(courses) && courses.length > 0) {
+      // Validate that all course IDs exist and belong to the selected campus
+      const validCourses = await Course.find({ 
+        _id: { $in: courses },
+        campus: campus,
+        isActive: true 
+      });
+      
+      if (validCourses.length !== courses.length) {
+        return res.status(400).json({ message: 'One or more selected courses are invalid or do not belong to the selected campus' });
+      }
+      
+      courseIds = courses;
+      console.log('👤 [USER REGISTRATION] Assigning courses to panel member:', courseIds);
+    }
+
     // Create new user
     const user = new User({
       name,
@@ -135,6 +154,7 @@ router.post('/register', authenticateToken, async (req, res) => {
       password,
       role: role || 'candidate',
       campus: (role === 'sub_admin' || role === 'panel_member') ? (campus || undefined) : undefined,
+      courses: courseIds.length > 0 ? courseIds : undefined,
       profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined,
       permissions: role === 'sub_admin'
         ? normalizePermissions(permissions)
@@ -458,10 +478,12 @@ router.put('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermi
     console.log('👤 [PANEL MEMBER UPDATE] Update data:', {
       name: req.body.name,
       email: req.body.email,
-      profile: req.body.profile
+      profile: req.body.profile,
+      campus: req.body.campus,
+      courses: req.body.courses
     });
 
-    const { name, email, password, profile } = req.body;
+    const { name, email, password, profile, campus, courses } = req.body;
 
     // Clean profile object - remove empty strings
     const cleanedProfile = profile ? Object.fromEntries(
@@ -498,6 +520,37 @@ router.put('/panel-members/:userId', authenticateToken, requireSuperAdminOrPermi
     }
     if (Object.keys(cleanedProfile).length > 0) {
       user.profile = cleanedProfile;
+    }
+    
+    // Update campus if provided
+    if (campus !== undefined) {
+      user.campus = campus || undefined;
+    }
+    
+    // Update courses if provided
+    if (courses !== undefined) {
+      if (Array.isArray(courses) && courses.length > 0) {
+        // Validate that all course IDs exist and belong to the selected campus
+        const campusToCheck = campus !== undefined ? campus : user.campus;
+        if (campusToCheck) {
+          const validCourses = await Course.find({ 
+            _id: { $in: courses },
+            campus: campusToCheck,
+            isActive: true 
+          });
+          
+          if (validCourses.length !== courses.length) {
+            return res.status(400).json({ message: 'One or more selected courses are invalid or do not belong to the selected campus' });
+          }
+          
+          user.courses = courses;
+          console.log('👤 [PANEL MEMBER UPDATE] Assigning courses:', courses);
+        } else {
+          return res.status(400).json({ message: 'Campus must be set before assigning courses' });
+        }
+      } else {
+        user.courses = [];
+      }
     }
 
     if (user.role !== 'panel_member') {
@@ -564,7 +617,10 @@ router.delete('/panel-members/:userId', authenticateToken, requireSuperAdminOrPe
 // Get all panel members (super admin only)
 router.get('/panel-members', authenticateToken, requireSuperAdminOrPermission('panel_members.manage'), async (req, res) => {
   try {
-    const panelMembers = await User.find({ role: 'panel_member' }).select('-password').sort({ createdAt: -1 });
+    const panelMembers = await User.find({ role: 'panel_member' })
+      .select('-password')
+      .populate('courses', 'campus department')
+      .sort({ createdAt: -1 });
     res.json({ panelMembers });
   } catch (error) {
     console.error('Panel members fetch error:', error);
@@ -577,6 +633,7 @@ router.get('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res)
   try {
     const subAdmins = await User.find({ role: 'sub_admin' })
       .select('-password')
+      .populate('courses', 'campus department')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -591,7 +648,7 @@ router.get('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res)
 
 router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, email, password, profile, permissions, campus } = req.body;
+    const { name, email, password, profile, permissions, campus, courses } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required' });
@@ -608,12 +665,35 @@ router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res
 
     const normalizedPermissions = normalizePermissions(permissions || {});
 
+    // Validate courses if provided (for sub-admins)
+    let courseIds = [];
+    if (courses && Array.isArray(courses) && courses.length > 0) {
+      if (!campus) {
+        return res.status(400).json({ message: 'Campus must be set before assigning courses' });
+      }
+      
+      // Validate that all course IDs exist and belong to the selected campus
+      const validCourses = await Course.find({ 
+        _id: { $in: courses },
+        campus: campus,
+        isActive: true 
+      });
+      
+      if (validCourses.length !== courses.length) {
+        return res.status(400).json({ message: 'One or more selected courses are invalid or do not belong to the selected campus' });
+      }
+      
+      courseIds = courses;
+      console.log('👤 [SUB ADMIN CREATION] Assigning courses to sub-admin:', courseIds);
+    }
+
     const subAdmin = new User({
       name,
       email,
       password,
       role: 'sub_admin',
       campus: campus || undefined,
+      courses: courseIds.length > 0 ? courseIds : undefined,
       profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined,
       permissions: normalizedPermissions
     });
@@ -730,7 +810,7 @@ router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res
 
 router.put('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, email, password, profile, permissions, isActive, campus } = req.body;
+    const { name, email, password, profile, permissions, isActive, campus, courses } = req.body;
     const subAdmin = await User.findById(req.params.userId);
 
     if (!subAdmin) {
@@ -759,6 +839,32 @@ router.put('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (r
 
     if (permissions !== undefined) {
       subAdmin.permissions = normalizePermissions(permissions || {});
+    }
+
+    // Update courses if provided
+    if (courses !== undefined) {
+      if (Array.isArray(courses) && courses.length > 0) {
+        const campusToCheck = campus !== undefined ? campus : subAdmin.campus;
+        if (campusToCheck) {
+          // Validate that all course IDs exist and belong to the selected campus
+          const validCourses = await Course.find({ 
+            _id: { $in: courses },
+            campus: campusToCheck,
+            isActive: true 
+          });
+          
+          if (validCourses.length !== courses.length) {
+            return res.status(400).json({ message: 'One or more selected courses are invalid or do not belong to the selected campus' });
+          }
+          
+          subAdmin.courses = courses;
+          console.log('👤 [SUB ADMIN UPDATE] Assigning courses:', courses);
+        } else {
+          return res.status(400).json({ message: 'Campus must be set before assigning courses' });
+        }
+      } else {
+        subAdmin.courses = [];
+      }
     }
 
     await subAdmin.save();

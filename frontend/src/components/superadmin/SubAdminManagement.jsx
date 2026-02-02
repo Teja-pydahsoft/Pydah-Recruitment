@@ -166,6 +166,7 @@ const Modal = styled.div`
   justify-content: center;
   padding: 1.5rem;
   z-index: 1000;
+  overflow-y: auto;
 `;
 
 const ModalContent = styled.div`
@@ -173,19 +174,24 @@ const ModalContent = styled.div`
   border-radius: 24px;
   width: 100%;
   max-width: 1400px;
+  max-height: calc(100vh - 3rem);
   padding: 2.5rem 3rem;
   box-shadow: 0 25px 60px rgba(15, 23, 42, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  margin: auto;
   
   @media (max-width: 1200px) {
     max-width: 95vw;
+    max-height: calc(100vh - 2rem);
   }
   
   @media (max-width: 768px) {
     padding: 2rem 1.5rem;
     border-radius: 20px;
+    max-height: calc(100vh - 1rem);
   }
 `;
 
@@ -194,6 +200,7 @@ const SectionsContainer = styled.div`
   grid-template-columns: 0.4fr 1.6fr;
   gap: 2.5rem;
   margin-bottom: 2rem;
+  min-height: 0;
   
   @media (max-width: 1200px) {
     grid-template-columns: 1fr;
@@ -204,13 +211,17 @@ const SectionsContainer = styled.div`
 const SectionWrapper = styled.div`
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  min-height: 0;
+  overflow: hidden;
 `;
 
 const SectionContent = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  min-height: 0;
 `;
 
 const ModalHeader = styled.div`
@@ -426,13 +437,6 @@ const SectionTitle = styled.h4`
   }
 `;
 
-const SectionDescription = styled.p`
-  margin: 0 0 1.25rem 0;
-  color: #64748b;
-  font-size: 0.875rem;
-  line-height: 1.5;
-`;
-
 const PermissionsAndAccessSection = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -448,15 +452,55 @@ const PermissionsSection = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
 `;
 
 const AccessLevelsSection = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
   
   @media (max-width: 1400px) {
     grid-template-columns: 1fr;
+  }
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
   }
 `;
 
@@ -589,11 +633,14 @@ const SubAdminManagement = () => {
   const [saving, setSaving] = useState(false);
   const [editingSubAdmin, setEditingSubAdmin] = useState(null);
   const [toast, setToast] = useState({ type: '', message: '' });
+  const [campuses, setCampuses] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [formState, setFormState] = useState({
     name: '',
     email: '',
     password: '',
     campus: '',
+    courses: [],
     permissions: {} // Object: { 'forms.manage': 'read_only' | 'full_access', ... }
   });
 
@@ -606,6 +653,7 @@ const SubAdminManagement = () => {
 
   useEffect(() => {
     fetchSubAdmins();
+    fetchCampuses();
   }, []);
 
   const fetchSubAdmins = async () => {
@@ -621,24 +669,61 @@ const SubAdminManagement = () => {
     }
   };
 
+  const fetchCampuses = async () => {
+    try {
+      const response = await api.get('/courses/campuses/list');
+      const fetchedCampuses = response.data.campuses || [];
+      setCampuses(fetchedCampuses);
+      console.log('Campuses fetched:', fetchedCampuses);
+    } catch (error) {
+      console.error('Error fetching campuses:', error);
+      setToast({ type: 'danger', message: 'Failed to load campuses. Please refresh the page.' });
+    }
+  };
+
+  const fetchCoursesForCampus = async (campus) => {
+    if (!campus) {
+      setCourses([]);
+      return;
+    }
+    try {
+      const response = await api.get(`/courses/campus/${campus}`);
+      setCourses(response.data.courses || []);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+      setCourses([]);
+    }
+  };
+
   const resetForm = () => {
     setFormState({
       name: '',
       email: '',
       password: '',
       campus: '',
+      courses: [],
       permissions: {}
     });
     setEditingSubAdmin(null);
+    setCourses([]);
   };
 
-  const openCreateModal = () => {
+  const openCreateModal = async () => {
+    // Ensure campuses are loaded before opening modal
+    if (campuses.length === 0) {
+      await fetchCampuses();
+    }
     resetForm();
     setShowModal(true);
   };
 
-  const openEditModal = (subAdmin) => {
+  const openEditModal = async (subAdmin) => {
     setEditingSubAdmin(subAdmin);
+    
+    // Ensure campuses are loaded before opening modal
+    if (campuses.length === 0) {
+      await fetchCampuses();
+    }
     
     // Convert permissions from array (old format) or object (new format) to object format
     let permissionsObj = {};
@@ -651,14 +736,23 @@ const SubAdminManagement = () => {
       permissionsObj = subAdmin.permissions;
     }
     
+    const subAdminCourses = subAdmin.courses ? subAdmin.courses.map(c => typeof c === 'object' ? c._id : c) : [];
+    
     setFormState({
       name: subAdmin.name,
       email: subAdmin.email,
       password: '',
       campus: subAdmin.campus || '',
+      courses: subAdminCourses,
       permissions: permissionsObj,
       isActive: subAdmin.isActive
     });
+    
+    // Fetch courses for the sub-admin's campus
+    if (subAdmin.campus) {
+      await fetchCoursesForCampus(subAdmin.campus);
+    }
+    
     setShowModal(true);
   };
 
@@ -671,9 +765,27 @@ const SubAdminManagement = () => {
 
   const handleInputChange = (event) => {
     const { name, value } = event.target;
+    if (name === 'campus') {
+      // When campus changes, fetch courses for that campus and reset selected courses
+      setFormState((prev) => ({
+        ...prev,
+        campus: value,
+        courses: [] // Reset courses when campus changes
+      }));
+      fetchCoursesForCampus(value);
+    } else {
+      setFormState((prev) => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+
+  const handleCourseChange = (e) => {
+    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
     setFormState((prev) => ({
       ...prev,
-      [name]: value
+      courses: selectedOptions
     }));
   };
 
@@ -719,6 +831,7 @@ const SubAdminManagement = () => {
         name: formState.name,
         email: formState.email,
         campus: formState.campus || null,
+        courses: formState.courses && formState.courses.length > 0 ? formState.courses : undefined,
         permissions: formState.permissions
       };
 
@@ -809,16 +922,39 @@ const SubAdminManagement = () => {
               <Td>{subAdmin.email}</Td>
               <Td>
                 {subAdmin.campus ? (
-                  <span style={{ 
-                    padding: '0.25rem 0.75rem', 
-                    borderRadius: '6px', 
-                    backgroundColor: '#dbeafe', 
-                    color: '#1e40af',
-                    fontSize: '0.875rem',
-                    fontWeight: 600
-                  }}>
-                    {subAdmin.campus}
-                  </span>
+                  <div>
+                    <span style={{ 
+                      padding: '0.25rem 0.75rem', 
+                      borderRadius: '6px', 
+                      backgroundColor: '#dbeafe', 
+                      color: '#1e40af',
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      display: 'inline-block',
+                      marginBottom: '0.5rem'
+                    }}>
+                      {subAdmin.campus}
+                    </span>
+                    {subAdmin.courses && subAdmin.courses.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
+                        {subAdmin.courses.map((course, idx) => (
+                          <span
+                            key={typeof course === 'object' ? course._id : course}
+                            style={{
+                              background: '#e0e7ff',
+                              color: '#3730a3',
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: '500'
+                            }}
+                          >
+                            {typeof course === 'object' ? course.department : 'N/A'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>All Campuses</span>
                 )}
@@ -896,7 +1032,6 @@ const SubAdminManagement = () => {
                 {/* Section 1: User Details */}
                 <SectionWrapper>
                   <SectionTitle>User Details</SectionTitle>
-                  <SectionDescription>Enter the basic information for the sub-admin account.</SectionDescription>
                   <SectionContent>
                     <FormGroup>
                       <Label htmlFor="name">Name</Label>
@@ -966,15 +1101,53 @@ const SubAdminManagement = () => {
                         }}
                       >
                         <option value="">All Campuses (No Restriction)</option>
-                        <option value="Btech">Btech</option>
-                        <option value="Degree">Degree</option>
-                        <option value="Pharmacy">Pharmacy</option>
-                        <option value="Diploma">Diploma</option>
+                        {campuses && campuses.length > 0 ? (
+                          campuses.map(campus => (
+                            <option key={campus} value={campus}>{campus}</option>
+                          ))
+                        ) : (
+                          <option value="" disabled>Loading campuses...</option>
+                        )}
                       </select>
-                      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                        If assigned, this sub-admin will only see data for the selected campus.
-                      </p>
                     </FormGroup>
+
+                    {formState.campus && (
+                      <FormGroup>
+                        <Label htmlFor="courses">Courses (Departments) - Optional</Label>
+                        <select
+                          id="courses"
+                          name="courses"
+                          multiple
+                          value={formState.courses}
+                          onChange={handleCourseChange}
+                          style={{
+                            width: '100%',
+                            padding: '0.875rem 1.125rem',
+                            border: '2px solid #e2e8f0',
+                            borderRadius: '12px',
+                            fontSize: '1rem',
+                            transition: 'all 0.2s ease',
+                            background: '#ffffff',
+                            cursor: 'pointer',
+                            minHeight: '120px'
+                          }}
+                          onFocus={(e) => {
+                            e.target.style.borderColor = '#f97316';
+                            e.target.style.boxShadow = '0 0 0 4px rgba(249, 115, 22, 0.1)';
+                          }}
+                          onBlur={(e) => {
+                            e.target.style.borderColor = '#e2e8f0';
+                            e.target.style.boxShadow = 'none';
+                          }}
+                        >
+                          {courses.map(course => (
+                            <option key={course._id} value={course._id}>
+                              {course.department}
+                            </option>
+                          ))}
+                        </select>
+                      </FormGroup>
+                    )}
 
                     {editingSubAdmin && (
                       <FormGroup>
@@ -1000,7 +1173,6 @@ const SubAdminManagement = () => {
                     {/* Permissions Section */}
                     <div>
                       <SectionTitle>Permissions</SectionTitle>
-                      <SectionDescription>Select which modules the sub-admin can access.</SectionDescription>
                       <PermissionsSection>
                         <PermissionsGrid>
                           {availablePermissions.map((permission) => {
@@ -1033,11 +1205,6 @@ const SubAdminManagement = () => {
                     {/* Access Levels Section */}
                     <div>
                       <SectionTitle>Access Levels</SectionTitle>
-                      <SectionDescription>
-                        {Object.keys(formState.permissions).length > 0 
-                          ? 'Set the access level for each enabled module.' 
-                          : 'Select permissions first to set access levels.'}
-                      </SectionDescription>
                       {Object.keys(formState.permissions).length > 0 ? (
                         <AccessLevelsSection>
                           {availablePermissions
