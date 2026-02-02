@@ -43,9 +43,12 @@ const FormsManagement = () => {
   });
 
   const [departments, setDepartments] = useState([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [courses, setCourses] = useState([]);
 
   useEffect(() => {
       fetchForms();
+      fetchCourses();
     }, []);
 
   useEffect(() => {
@@ -54,8 +57,9 @@ const FormsManagement = () => {
       fetchDepartments(formData.campus);
     } else {
       setDepartments([]);
+      setDepartmentsLoading(false);
     }
-  }, [formData.campus, formData.formCategory]);
+  }, [formData.campus, formData.formCategory, courses]);
 
   useEffect(() => {
     // Auto-load template when category changes (only if not editing and formFields is empty)
@@ -69,14 +73,139 @@ const FormsManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.formCategory]);
 
+  // Permanent campuses that might have been renamed in the database
+  const PERMANENT_CAMPUSES = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
+  
+  // Get the actual campus name from database (handles renamed campuses)
+  const getActualCampusName = (campusValue) => {
+    if (!campusValue || !courses.length) return campusValue;
+    
+    // Get all unique campus names from database
+    const actualCampusNames = [...new Set(courses.map(c => c.campus))];
+    
+    // First try exact match
+    if (actualCampusNames.includes(campusValue)) {
+      return campusValue;
+    }
+    
+    // Try case-insensitive match
+    const caseInsensitiveMatch = actualCampusNames.find(actual => 
+      actual.toLowerCase() === campusValue.toLowerCase()
+    );
+    if (caseInsensitiveMatch) return caseInsensitiveMatch;
+    
+    // If it's a permanent campus and we have courses, try to find the matching actual campus
+    // by checking which actual campus has the most courses (likely the renamed one)
+    if (PERMANENT_CAMPUSES.includes(campusValue)) {
+      // Count courses per actual campus
+      const campusCounts = actualCampusNames.map(actualName => ({
+        name: actualName,
+        count: courses.filter(c => c.campus === actualName && c.isActive).length
+      }));
+      
+      // Sort by count descending and return the one with most courses
+      // This assumes the renamed campus will have departments/courses
+      const sortedByCount = campusCounts.sort((a, b) => b.count - a.count);
+      if (sortedByCount.length > 0 && sortedByCount[0].count > 0) {
+        return sortedByCount[0].name;
+      }
+    }
+    
+    // If no match found, return the original value
+    return campusValue;
+  };
+
+  const fetchCourses = async () => {
+    try {
+      const response = await api.get('/courses');
+      setCourses(response.data.courses || []);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+      setCourses([]);
+    }
+  };
 
   const fetchDepartments = async (campus) => {
+    if (!campus) {
+      setDepartments([]);
+      setDepartmentsLoading(false);
+      return;
+    }
+    
+    setDepartmentsLoading(true);
     try {
-      const response = await api.get(`/courses/departments/${campus}`);
-      setDepartments(response.data.departments || []);
+      // Get the actual campus name from database (handles renamed campuses)
+      const actualCampusName = getActualCampusName(campus);
+      
+      // First, try to get departments from local courses data (handles renamed campuses automatically)
+      if (courses.length > 0) {
+        // Try with the mapped actual campus name first
+        let campusCourses = courses.filter(c => 
+          c.campus === actualCampusName && c.isActive
+        );
+        let uniqueDepartments = [...new Set(campusCourses.map(c => c.department).filter(Boolean))];
+        
+        // If no departments found and the actual name is different from original, try original too
+        if (uniqueDepartments.length === 0 && actualCampusName !== campus) {
+          campusCourses = courses.filter(c => 
+            c.campus === campus && c.isActive
+          );
+          uniqueDepartments = [...new Set(campusCourses.map(c => c.department).filter(Boolean))];
+        }
+        
+        // If still no departments, try all actual campus names to find one with departments
+        // This handles cases where campus was renamed and mapping didn't work
+        if (uniqueDepartments.length === 0 && PERMANENT_CAMPUSES.includes(campus)) {
+          const actualCampusNames = [...new Set(courses.map(c => c.campus))];
+          for (const actualName of actualCampusNames) {
+            const testCourses = courses.filter(c => c.campus === actualName && c.isActive);
+            if (testCourses.length > 0) {
+              const testDepartments = [...new Set(testCourses.map(c => c.department).filter(Boolean))];
+              if (testDepartments.length > 0) {
+                uniqueDepartments = testDepartments;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (uniqueDepartments.length > 0) {
+          setDepartments(uniqueDepartments.sort());
+          setDepartmentsLoading(false);
+          return;
+        }
+      }
+      
+      // Fallback to API call if local data doesn't have departments
+      // Try with actual campus name first
+      try {
+        const response = await api.get(`/courses/departments/${encodeURIComponent(actualCampusName)}`);
+        if (response.data.departments && response.data.departments.length > 0) {
+          setDepartments(response.data.departments);
+          setDepartmentsLoading(false);
+          return;
+        }
+      } catch (apiError) {
+        console.log('API call with actual campus name failed, trying original:', apiError);
+      }
+      
+      // If actual name didn't work and it's different, try original campus name
+      if (actualCampusName !== campus) {
+        try {
+          const response = await api.get(`/courses/departments/${encodeURIComponent(campus)}`);
+          setDepartments(response.data.departments || []);
+        } catch (error) {
+          console.error('Error fetching departments:', error);
+          setDepartments([]);
+        }
+      } else {
+        setDepartments([]);
+      }
     } catch (error) {
       console.error('Error fetching departments:', error);
       setDepartments([]);
+    } finally {
+      setDepartmentsLoading(false);
     }
   };
   
@@ -811,7 +940,32 @@ const FormsManagement = () => {
                                   <Form.Label style={{ fontWeight: 600, color: '#495057' }}>
                                     Department *
                                   </Form.Label>
-                                  {formData.campus && departments.length > 0 ? (
+                                  {!formData.campus ? (
+                                    <Form.Control
+                                      type="text"
+                                      value={formData.department}
+                                      disabled
+                                      placeholder="Select campus first"
+                                      style={{ 
+                                        border: '1px solid #ced4da',
+                                        borderRadius: '6px',
+                                        padding: '0.75rem',
+                                        backgroundColor: '#e9ecef'
+                                      }}
+                                    />
+                                  ) : departmentsLoading ? (
+                                    <Form.Select
+                                      disabled
+                                      style={{ 
+                                        border: '1px solid #ced4da',
+                                        borderRadius: '6px',
+                                        padding: '0.75rem',
+                                        backgroundColor: '#e9ecef'
+                                      }}
+                                    >
+                                      <option>Loading departments...</option>
+                                    </Form.Select>
+                                  ) : departments.length > 0 ? (
                                     <Form.Select
                                       value={formData.department}
                                       onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
@@ -833,7 +987,7 @@ const FormsManagement = () => {
                                       value={formData.department}
                                       onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
                                       required={formData.formType === 'candidate_profile'}
-                                      placeholder={formData.campus ? 'Select campus first' : 'Enter department'}
+                                      placeholder="No departments found. Enter manually"
                                       style={{ 
                                         border: '1px solid #ced4da',
                                         borderRadius: '6px',
