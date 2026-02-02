@@ -4,6 +4,7 @@ import { FaFileAlt, FaClipboardCheck, FaCalendarAlt, FaUser, FaPlay, FaCheckCirc
 import { Button, Badge, Card, Table, Alert } from 'react-bootstrap';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import SkeletonLoader, { TestCardSkeleton, CardGridSkeleton } from './SkeletonLoader';
 
 const fadeInUp = keyframes`
   from {
@@ -309,11 +310,13 @@ const CandidateDashboard = () => {
         )}
 
         {loading ? (
-          <div className="text-center py-5">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
+          <>
+            <TestCardSkeleton count={2} />
+            <div className="mb-4">
+              <SkeletonLoader loading={true} variant="table" rows={3} columns="repeat(5, 1fr)" />
             </div>
-          </div>
+            <CardGridSkeleton count={3} />
+          </>
         ) : (
           <>
             {/* Pending Tests Section */}

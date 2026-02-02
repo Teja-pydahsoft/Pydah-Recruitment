@@ -3,7 +3,7 @@ import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spin
 import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes, FaSearch } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const PAGE_SIZE = 12;
@@ -379,7 +379,7 @@ const FormSubmissions = () => {
   const nonTeachingCount = useMemo(() => allCandidates.filter(c => c.form?.formCategory === 'non_teaching').length, [allCandidates]);
 
   if (loading) {
-    return <LoadingSpinner message="Loading form submissions..." />;
+    return <SkeletonLoader loading={true} variant="card-grid" count={6} />;
   }
 
   return (

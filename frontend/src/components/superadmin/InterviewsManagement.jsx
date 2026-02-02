@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { Badge, Table } from 'react-bootstrap';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
 // Utility function to format date/time in IST
@@ -819,7 +819,7 @@ const InterviewsManagement = () => {
     const filteredInterviews = getFilteredInterviews();
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <SkeletonLoader loading={true} variant="table" rows={8} columns="repeat(6, 1fr)" />;
   }
 
   return (

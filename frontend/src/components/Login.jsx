@@ -561,13 +561,14 @@ const Login = () => {
       const result = await login(formData.email, formData.password);
 
       if (result.success) {
+        // Navigate immediately to show skeleton loading on destination page
         navigate('/');
       } else {
         setError(result.message);
+        setLoading(false);
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
-    } finally {
       setLoading(false);
     }
   };

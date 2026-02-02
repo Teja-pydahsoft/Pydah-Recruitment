@@ -8,7 +8,7 @@ import {
   FaChartLine,
   FaSync
 } from 'react-icons/fa';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import PushNotificationInline from '../PushNotificationInline';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
@@ -749,7 +749,7 @@ const DashboardOverview = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading dashboard..." />;
+    return <SkeletonLoader loading={true} variant="dashboard" />;
   }
 
   if (!dashboardData) {

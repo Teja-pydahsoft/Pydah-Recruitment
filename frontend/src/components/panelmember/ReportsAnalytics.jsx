@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { FaChartBar, FaChartLine, FaChartPie, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 
 const Container = styled.div`
   padding: 2rem 0;
@@ -314,7 +314,7 @@ const ReportsAnalytics = () => {
             <Title>Reports & Analytics</Title>
             <Subtitle>View comprehensive interview reports and performance statistics</Subtitle>
           </Header>
-          <LoadingSpinner />
+          <SkeletonLoader loading={true} variant="dashboard" />
         </Wrapper>
       </Container>
     );

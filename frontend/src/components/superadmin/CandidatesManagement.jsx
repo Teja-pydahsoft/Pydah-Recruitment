@@ -3,7 +3,7 @@ import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Aler
 import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaCopy } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 
 const CandidatesManagement = () => {
   // const { user } = useAuth(); // Temporarily unused for ESLint compliance
@@ -458,7 +458,7 @@ const CandidatesManagement = () => {
   );
 
   if (loading) {
-    return <LoadingSpinner message="Loading candidates..." />;
+    return <SkeletonLoader loading={true} variant="table" rows={8} columns="repeat(7, 1fr)" />;
   }
 
   return (

@@ -4,7 +4,7 @@ import { Badge } from 'react-bootstrap';
 import { FaCalendarAlt, FaClock, FaUser, FaCheckCircle, FaExclamationTriangle, FaRedo, FaVideo, FaBriefcase, FaBuilding, FaClipboardCheck, FaArrowRight, FaChevronDown, FaChevronUp, FaStar } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 
 const Container = styled.div`
   padding: 2rem 0;
@@ -612,7 +612,7 @@ const MyInterviews = () => {
             <Title>My Interviews</Title>
             <Subtitle>View and manage your assigned interview schedules</Subtitle>
           </Header>
-          <LoadingSpinner />
+          <SkeletonLoader loading={true} variant="table" rows={6} columns="repeat(5, 1fr)" />
         </Wrapper>
       </Container>
     );

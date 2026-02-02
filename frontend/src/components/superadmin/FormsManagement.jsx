@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Table, Button, Modal, Form, Badge, Spinner, Tabs, Tab } from 'react-bootstrap';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import { useAuth } from '../../contexts/AuthContext';
 import ToastNotificationContainer from '../ToastNotificationContainer';
+
+// Permanent campuses that might have been renamed in the database
+const PERMANENT_CAMPUSES = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
 
 const FormsManagement = () => {
   const { hasWritePermission } = useAuth();
@@ -52,16 +55,6 @@ const FormsManagement = () => {
     }, []);
 
   useEffect(() => {
-    // Only fetch departments for teaching forms
-    if (formData.campus && formData.formCategory === 'teaching') {
-      fetchDepartments(formData.campus);
-    } else {
-      setDepartments([]);
-      setDepartmentsLoading(false);
-    }
-  }, [formData.campus, formData.formCategory, courses]);
-
-  useEffect(() => {
     // Auto-load template when category changes (only if not editing and formFields is empty)
     if (formData.formCategory && !editingForm && formData.formFields.length === 0) {
       if (formData.formCategory === 'teaching') {
@@ -73,11 +66,8 @@ const FormsManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.formCategory]);
 
-  // Permanent campuses that might have been renamed in the database
-  const PERMANENT_CAMPUSES = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
-  
   // Get the actual campus name from database (handles renamed campuses)
-  const getActualCampusName = (campusValue) => {
+  const getActualCampusName = useCallback((campusValue) => {
     if (!campusValue || !courses.length) return campusValue;
     
     // Get all unique campus names from database
@@ -113,7 +103,7 @@ const FormsManagement = () => {
     
     // If no match found, return the original value
     return campusValue;
-  };
+  }, [courses]);
 
   const fetchCourses = async () => {
     try {
@@ -125,7 +115,7 @@ const FormsManagement = () => {
     }
   };
 
-  const fetchDepartments = async (campus) => {
+  const fetchDepartments = useCallback(async (campus) => {
     if (!campus) {
       setDepartments([]);
       setDepartmentsLoading(false);
@@ -207,7 +197,17 @@ const FormsManagement = () => {
     } finally {
       setDepartmentsLoading(false);
     }
-  };
+  }, [courses, getActualCampusName]);
+  
+  useEffect(() => {
+    // Only fetch departments for teaching forms
+    if (formData.campus && formData.formCategory === 'teaching') {
+      fetchDepartments(formData.campus);
+    } else {
+      setDepartments([]);
+      setDepartmentsLoading(false);
+    }
+  }, [formData.campus, formData.formCategory, courses, fetchDepartments]);
   
     const fetchForms = async () => {
       try {
@@ -580,7 +580,7 @@ const FormsManagement = () => {
     };
 
   if (loading) {
-    return <LoadingSpinner message="Loading forms..." />;
+    return <SkeletonLoader loading={true} variant="table" rows={8} columns="repeat(6, 1fr)" />;
   }
 
   return (

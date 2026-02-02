@@ -20,6 +20,9 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
 
+    // Set loading to false immediately to show skeleton, then verify auth in background
+    setLoading(false);
+
     if (token && savedUser) {
       try {
         const parsedUser = JSON.parse(savedUser);
@@ -32,7 +35,6 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('user');
       }
     }
-    setLoading(false);
   }, []);
 
   const login = async (email, password) => {

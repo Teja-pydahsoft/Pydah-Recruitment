@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { FaCalendarAlt, FaChartBar, FaClock, FaCheckCircle, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import PushNotificationInline from '../PushNotificationInline';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -709,7 +709,7 @@ const DashboardOverview = () => {
               Manage your assigned interviews, provide feedback, and track your evaluation progress.
             </DashboardSubtitle>
           </HeaderSection>
-          <LoadingSpinner />
+          <SkeletonLoader loading={true} variant="dashboard" />
         </DashboardWrapper>
       </DashboardContainer>
     );

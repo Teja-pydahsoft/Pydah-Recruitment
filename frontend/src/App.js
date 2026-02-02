@@ -13,7 +13,7 @@ import PublicForm from './components/PublicForm';
 import TakeTest from './components/TakeTest';
 import TypingTest from './components/TypingTest';
 import Sidebar from './components/Sidebar';
-import LoadingSpinner from './components/LoadingSpinner';
+import SkeletonLoader from './components/SkeletonLoader';
 import CareersPage from './components/CareersPage';
 
 // Protected Route Component
@@ -21,7 +21,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { isAuthenticated, user, loading } = useAuth();
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <SkeletonLoader loading={true} variant="dashboard" />;
   }
 
   if (!isAuthenticated) {
@@ -190,7 +190,7 @@ const PublicLanding = () => {
   const { isAuthenticated, user, loading } = useAuth();
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <SkeletonLoader loading={true} variant="dashboard" />;
   }
 
   if (!isAuthenticated) {

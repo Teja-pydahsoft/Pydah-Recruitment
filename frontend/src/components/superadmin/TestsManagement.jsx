@@ -34,7 +34,7 @@ import {
   FaKeyboard
 } from 'react-icons/fa';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const CATEGORY_OPTIONS = [
@@ -1832,7 +1832,7 @@ const TestsManagement = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading assessment workspace..." />;
+    return <SkeletonLoader loading={true} variant="table" rows={8} columns="repeat(5, 1fr)" />;
   }
 
   return (

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { FaClipboardCheck, FaUser, FaCalendarAlt, FaExclamationTriangle, FaRedo, FaCheckCircle, FaClock, FaStar } from 'react-icons/fa';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 
 const Container = styled.div`
   padding: 2rem 0;
@@ -953,7 +953,7 @@ const FeedbackEvaluations = () => {
             <Title>Feedback & Evaluations</Title>
             <Subtitle>Submit and manage interview feedback</Subtitle>
           </Header>
-          <LoadingSpinner />
+          <SkeletonLoader loading={true} variant="list" count={5} />
         </Wrapper>
       </Container>
     );
