@@ -459,6 +459,20 @@ router.get('/questions/filters', authenticateToken, requireSuperAdminOrPermissio
       .select('_id name category')
       .lean();
 
+    // Add question counts for each topic (with current filters)
+    if (topics.length > 0) {
+      const topicObjectIds = topics.map(t => t._id);
+      const counts = await QuestionBank.aggregate([
+        { $match: { ...filter, topic: { $in: topicObjectIds } } },
+        { $group: { _id: '$topic', count: { $sum: 1 } } }
+      ]);
+
+      const countMap = new Map(counts.map(item => [item._id.toString(), item.count]));
+      topics.forEach(topic => {
+        topic.questionCount = countMap.get(topic._id.toString()) || 0;
+      });
+    }
+
     res.json({
       campuses: campuses.filter(c => c).sort(),
       departments: departments.filter(d => d).sort(),
@@ -2257,9 +2271,10 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
 
     for (const selection of normalizedSelections) {
       const topicObjectId = new mongoose.Types.ObjectId(selection.topicId);
-      const matchFilter = { topic: topicObjectId, isActive: true };
+      const baseFilter = { topic: topicObjectId, isActive: true };
       
-      // Add campus and department filter if available
+      // First try with campus and department filter if available
+      let matchFilter = { ...baseFilter };
       if (filterCampus) {
         matchFilter.campus = filterCampus;
       }
@@ -2267,15 +2282,26 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
         matchFilter.department = filterDepartment;
       }
       
-      const sampledQuestions = await QuestionBank.aggregate([
+      let sampledQuestions = await QuestionBank.aggregate([
         { $match: matchFilter },
         { $sample: { size: selection.questionCount } }
       ]);
 
+      // If not enough questions found with campus/department filters, fall back to base filter
+      if (sampledQuestions.length < selection.questionCount && (filterCampus || filterDepartment)) {
+        console.log(`[AUTO-GENERATE] Not enough questions with campus/department filters for topic ${selection.topicId}. Falling back to base filter.`);
+        sampledQuestions = await QuestionBank.aggregate([
+          { $match: baseFilter },
+          { $sample: { size: selection.questionCount } }
+        ]);
+      }
+
       if (sampledQuestions.length < selection.questionCount) {
         const topicName = topicMap.get(selection.topicId)?.name || 'Selected topic';
+        // Check total available questions for better error message
+        const totalAvailable = await QuestionBank.countDocuments(baseFilter);
         return res.status(400).json({
-          message: `Not enough active questions available for topic "${topicName}". Requested ${selection.questionCount}, found ${sampledQuestions.length}.`
+          message: `Not enough active questions available for topic "${topicName}". Requested ${selection.questionCount}, found ${sampledQuestions.length}${filterCampus || filterDepartment ? ` (${totalAvailable} total available for this topic)` : ''}.`
         });
       }
 

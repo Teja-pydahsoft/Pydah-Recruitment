@@ -110,6 +110,11 @@ const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignm
     stage = 'awaiting_interview';
     label = 'Awaiting Interview Scheduling';
     nextAction = 'Schedule next interview round';
+  } else if (testsCompleted > 0) {
+    // Tests are completed but none have passed yet - still move to awaiting interview
+    stage = 'awaiting_interview';
+    label = 'Awaiting Interview Scheduling';
+    nextAction = 'Schedule next interview round';
   } else if (testsPending > 0) {
     stage = 'test_in_progress';
     label = 'Test In Progress';
@@ -181,6 +186,8 @@ const CandidateManagement = () => {
   const [typingTestResultsForCandidate, setTypingTestResultsForCandidate] = useState([]);
   const [selectedTypingResult, setSelectedTypingResult] = useState(null);
   const [showTypingResultModal, setShowTypingResultModal] = useState(false);
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
+  const [selectedCandidateForDownload, setSelectedCandidateForDownload] = useState(null);
 
   useEffect(() => {
     fetchCandidates();
@@ -1189,22 +1196,7 @@ const CandidateManagement = () => {
             <h2>Candidate Management</h2>
             <Button
               variant="outline-primary"
-              onClick={async () => {
-                try {
-                  // Download all candidates as PDF
-                  const response = await api.get('/candidates/export/pdf', { responseType: 'blob' });
-                  const url = window.URL.createObjectURL(new Blob([response.data]));
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.setAttribute('download', `candidates_${new Date().toISOString().split('T')[0]}.pdf`);
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
-                } catch (error) {
-                  setToast({ type: 'danger', message: 'Failed to download candidate details' });
-                  console.error('PDF download error:', error);
-                }
-              }}
+              onClick={() => setShowDownloadDialog(true)}
             >
               <FaDownload className="me-2" />
               Download Candidate Details
@@ -1983,6 +1975,67 @@ const CandidateManagement = () => {
             style={{ borderRadius: '8px', fontWeight: '500' }}
           >
             Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Candidate Selection Dialog for PDF Download */}
+      <Modal show={showDownloadDialog} onHide={() => setShowDownloadDialog(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Select Candidate to Download</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-3">
+            <Form.Label>Select Candidate</Form.Label>
+            <Form.Select
+              value={selectedCandidateForDownload || ''}
+              onChange={(e) => setSelectedCandidateForDownload(e.target.value)}
+            >
+              <option value="">-- Select a candidate --</option>
+              {candidates.map((candidate) => (
+                <option key={candidate._id} value={candidate._id}>
+                  {candidate.user?.name || candidate.personalDetails?.name || 'Unknown'} - {candidate.form?.position || 'N/A'}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => {
+            setShowDownloadDialog(false);
+            setSelectedCandidateForDownload(null);
+          }}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={async () => {
+              if (!selectedCandidateForDownload) {
+                setToast({ type: 'danger', message: 'Please select a candidate' });
+                return;
+              }
+              try {
+                setShowDownloadDialog(false);
+                const response = await api.get(`/candidates/${selectedCandidateForDownload}/pdf`, { responseType: 'blob' });
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                const candidateName = candidates.find(c => c._id === selectedCandidateForDownload)?.user?.name || 'candidate';
+                link.setAttribute('download', `candidate_${candidateName}_${new Date().toISOString().split('T')[0]}.pdf`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setSelectedCandidateForDownload(null);
+                setToast({ type: 'success', message: 'PDF downloaded successfully' });
+              } catch (error) {
+                setToast({ type: 'danger', message: 'Failed to download candidate details' });
+                console.error('PDF download error:', error);
+              }
+            }}
+            disabled={!selectedCandidateForDownload}
+          >
+            <FaDownload className="me-2" />
+            Download PDF
           </Button>
         </Modal.Footer>
       </Modal>

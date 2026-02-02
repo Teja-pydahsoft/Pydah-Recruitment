@@ -58,6 +58,11 @@ const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignm
     stage = 'awaiting_interview';
     label = 'Awaiting Interview Scheduling';
     nextAction = 'Schedule next interview round';
+  } else if (testsCompleted > 0) {
+    // Tests are completed but none have passed yet - still move to awaiting interview
+    stage = 'awaiting_interview';
+    label = 'Awaiting Interview Scheduling';
+    nextAction = 'Schedule next interview round';
   } else if (testsPending > 0) {
     stage = 'test_in_progress';
     label = 'Test In Progress';
@@ -215,13 +220,305 @@ router.get('/', authenticateToken, requireSuperAdminOrPermission('candidates.man
   }
 });
 
+// Generate PDF export for all candidates (must be before /:id routes)
+router.get('/export/pdf', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
+  try {
+    const campusFilter = getCampusFilter(req.user);
+    let query = {};
+    
+    // If user has campus restriction, filter by form's campus
+    if (campusFilter.campus) {
+      const RecruitmentForm = require('../models/RecruitmentForm');
+      const formsWithCampus = await RecruitmentForm.find({ campus: campusFilter.campus }).select('_id').lean();
+      const formIds = formsWithCampus.map(f => f._id);
+      query.form = { $in: formIds };
+    }
+
+    const candidates = await Candidate.find(query)
+      .populate('user', 'name email profile')
+      .populate('form', 'title position department campus formCategory')
+      .populate('testResults.test', 'title duration passingPercentage cutoffPercentage')
+      .populate('interviewFeedback.interview', 'title round type')
+      .populate('interviewFeedback.panelMember', 'name email')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (candidates.length === 0) {
+      return res.status(404).json({ message: 'No candidates found to export' });
+    }
+
+    const candidateIds = candidates.map(c => c._id);
+    
+    // Fetch test and interview assignments
+    const tests = await Test.find({ 'candidates.candidate': { $in: candidateIds } })
+      .select('title candidates scheduledDate scheduledTime createdAt')
+      .lean();
+
+    const interviews = await Interview.find({ 'candidates.candidate': { $in: candidateIds } })
+      .select('title type round candidates createdAt')
+      .lean();
+
+    // Map tests and interviews to candidates
+    const testsByCandidate = new Map();
+    tests.forEach(test => {
+      test.candidates.forEach(entry => {
+        const candidateId = entry.candidate.toString();
+        if (!testsByCandidate.has(candidateId)) {
+          testsByCandidate.set(candidateId, []);
+        }
+        testsByCandidate.get(candidateId).push({
+          testId: test._id,
+          title: test.title,
+          status: entry.status,
+          invitedAt: entry.invitedAt,
+          startedAt: entry.startedAt,
+          completedAt: entry.completedAt,
+          score: entry.score,
+          percentage: entry.percentage,
+          scheduledDate: test.scheduledDate,
+          scheduledTime: test.scheduledTime
+        });
+      });
+    });
+
+    const interviewsByCandidate = new Map();
+    interviews.forEach(interview => {
+      interview.candidates.forEach(entry => {
+        const candidateId = entry.candidate.toString();
+        if (!interviewsByCandidate.has(candidateId)) {
+          interviewsByCandidate.set(candidateId, []);
+        }
+        interviewsByCandidate.get(candidateId).push({
+          interviewId: interview._id,
+          title: interview.title,
+          round: interview.round,
+          type: interview.type,
+          status: entry.status,
+          scheduledDate: entry.scheduledDate,
+          scheduledTime: entry.scheduledTime
+        });
+      });
+    });
+
+    // Use pdfkit for PDF generation
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=candidates_export_${new Date().toISOString().split('T')[0]}.pdf`);
+    
+    doc.pipe(res);
+
+    // Helper function to add a new page if needed
+    const checkPageBreak = (requiredSpace = 100) => {
+      if (doc.y + requiredSpace > doc.page.height - 50) {
+        doc.addPage();
+        return true;
+      }
+      return false;
+    };
+
+    // PAGE 1: Candidate Details and Current Stage
+    doc.fontSize(20).text('Candidate Management Report', { align: 'center' });
+    doc.fontSize(10).text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
+    doc.moveDown(2);
+
+    candidates.forEach((candidate, index) => {
+      // Check if we need a new page
+      if (index > 0) {
+        checkPageBreak(200);
+      }
+
+      const candidateId = candidate._id.toString();
+      const testAssignments = testsByCandidate.get(candidateId) || [];
+      const interviewAssignments = interviewsByCandidate.get(candidateId) || [];
+      const workflow = buildWorkflowSnapshot(candidate, testAssignments, interviewAssignments);
+
+      try {
+        // Candidate Header
+        const candidateName = candidate.user?.name || candidate.personalDetails?.name || 'Unknown Candidate';
+        doc.fontSize(16).text(`${index + 1}. ${candidateName}`, { underline: true });
+        doc.moveDown(0.5);
+
+        // Current Stage
+        doc.fontSize(14).text('Current Stage:', { continued: true });
+        doc.fontSize(12).text(` ${workflow.label || 'N/A'} (${workflow.stage || 'N/A'})`, { color: '#0066cc' });
+        doc.moveDown(0.5);
+
+        // Personal Information
+        doc.fontSize(12).text('Personal Information:', { underline: true });
+        doc.fontSize(10);
+        doc.text(`  Name: ${candidateName}`);
+        doc.text(`  Email: ${candidate.user?.email || candidate.personalDetails?.email || 'N/A'}`);
+        doc.text(`  Phone: ${candidate.user?.profile?.phone || candidate.personalDetails?.phone || 'N/A'}`);
+        doc.text(`  Candidate Number: ${candidate.candidateNumber || 'N/A'}`);
+        doc.moveDown(0.5);
+
+        // Application Details
+        doc.fontSize(12).text('Application Details:', { underline: true });
+        doc.fontSize(10);
+        doc.text(`  Position: ${candidate.form?.position || candidate.form?.title || 'N/A'}`);
+        doc.text(`  Department: ${candidate.form?.department || 'N/A'}`);
+        doc.text(`  Campus: ${candidate.form?.campus || 'N/A'}`);
+        doc.text(`  Category: ${candidate.form?.formCategory || 'N/A'}`);
+        doc.text(`  Status: ${candidate.status || 'N/A'}`);
+        doc.text(`  Applied Date: ${candidate.createdAt ? new Date(candidate.createdAt).toLocaleDateString() : 'N/A'}`);
+        doc.moveDown(0.5);
+
+        // Next Action
+        doc.fontSize(12).text('Next Action:', { underline: true });
+        doc.fontSize(10).text(`  ${workflow.nextAction || 'N/A'}`);
+        doc.moveDown(1);
+      } catch (candidateError) {
+        console.error(`Error processing candidate ${candidate._id}:`, candidateError);
+        doc.fontSize(12).text(`Error processing candidate ${index + 1}`, { color: '#cc0000' });
+        doc.moveDown(1);
+      }
+
+      // Add separator line
+      doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+      doc.moveDown(1);
+    });
+
+    // PAGE 2: Stages and Results
+    doc.addPage();
+    doc.fontSize(20).text('Stages and Results Summary', { align: 'center' });
+    doc.moveDown(2);
+
+    candidates.forEach((candidate, index) => {
+      // Check if we need a new page
+      if (index > 0) {
+        checkPageBreak(300);
+      }
+
+      const candidateId = candidate._id.toString();
+      const testAssignments = testsByCandidate.get(candidateId) || [];
+      const interviewAssignments = interviewsByCandidate.get(candidateId) || [];
+      const workflow = buildWorkflowSnapshot(candidate, testAssignments, interviewAssignments);
+
+      try {
+        // Candidate Header
+        const candidateName = candidate.user?.name || candidate.personalDetails?.name || 'Unknown Candidate';
+        doc.fontSize(14).text(`${index + 1}. ${candidateName}`, { underline: true });
+        doc.moveDown(0.5);
+
+        // Workflow Summary
+        doc.fontSize(12).text('Workflow Summary:', { underline: true });
+        doc.fontSize(10);
+        doc.text(`  Current Stage: ${workflow.label || 'N/A'}`);
+        doc.text(`  Tests Assigned: ${workflow.tests.assigned || 0}`);
+        doc.text(`  Tests Completed: ${workflow.tests.completed || 0}`);
+        doc.text(`  Tests Passed: ${workflow.tests.passed || 0}`);
+        doc.text(`  Tests Failed: ${workflow.tests.failed || 0}`);
+        doc.text(`  Interviews Scheduled: ${workflow.interviews.scheduled || 0}`);
+        doc.text(`  Interviews Completed: ${workflow.interviews.completed || 0}`);
+        doc.moveDown(0.5);
+
+        // Test Results
+        if (candidate.testResults && candidate.testResults.length > 0) {
+          doc.fontSize(12).text('Test Results:', { underline: true });
+          doc.fontSize(10);
+          candidate.testResults.forEach((testResult, idx) => {
+            doc.text(`  ${idx + 1}. ${testResult.test?.title || 'Test'}:`);
+            doc.text(`     Score: ${testResult.percentage || 0}%`);
+            doc.text(`     Status: ${testResult.status || 'N/A'}`);
+            if (testResult.submittedAt) {
+              doc.text(`     Submitted: ${new Date(testResult.submittedAt).toLocaleString()}`);
+            }
+          });
+          doc.moveDown(0.5);
+        }
+
+        // Interview Feedback
+        if (candidate.interviewFeedback && candidate.interviewFeedback.length > 0) {
+          doc.fontSize(12).text('Interview Feedback:', { underline: true });
+          doc.fontSize(10);
+          candidate.interviewFeedback.forEach((feedback, idx) => {
+            doc.text(`  ${idx + 1}. ${feedback.interview?.title || 'Interview'}:`);
+            doc.text(`     Round: ${feedback.interview?.round || 'N/A'}, Type: ${feedback.interview?.type || 'N/A'}`);
+            if (feedback.ratings?.overallRating) {
+              doc.text(`     Overall Rating: ${feedback.ratings.overallRating}/5`);
+            }
+            if (feedback.recommendation) {
+              doc.text(`     Recommendation: ${feedback.recommendation}`);
+            }
+            if (feedback.comments) {
+              const comments = feedback.comments.length > 100 
+                ? feedback.comments.substring(0, 100) + '...' 
+                : feedback.comments;
+              doc.text(`     Comments: ${comments}`);
+            }
+            if (feedback.panelMember?.name) {
+              doc.text(`     Panel Member: ${feedback.panelMember.name}`);
+            }
+          });
+          doc.moveDown(0.5);
+        }
+
+        // Final Decision
+        if (candidate.finalDecision) {
+          doc.fontSize(12).text('Final Decision:', { underline: true });
+          doc.fontSize(10);
+          doc.text(`  Decision: ${candidate.finalDecision.decision || 'N/A'}`);
+          if (candidate.finalDecision.notes) {
+            const notes = candidate.finalDecision.notes.length > 150 
+              ? candidate.finalDecision.notes.substring(0, 150) + '...' 
+              : candidate.finalDecision.notes;
+            doc.text(`  Notes: ${notes}`);
+          }
+          if (candidate.finalDecision.bond) {
+            doc.text(`  Bond: ${candidate.finalDecision.bond}`);
+          }
+          if (candidate.finalDecision.salary) {
+            doc.text(`  Salary: ${candidate.finalDecision.salary}`);
+          }
+          if (candidate.finalDecision.designation) {
+            doc.text(`  Designation: ${candidate.finalDecision.designation}`);
+          }
+          if (candidate.finalDecision.decidedAt) {
+            doc.text(`  Decided At: ${new Date(candidate.finalDecision.decidedAt).toLocaleString()}`);
+          }
+          doc.moveDown(0.5);
+        }
+
+        // Typing Test Results (if any)
+        if (candidate.typingTestResults && candidate.typingTestResults.length > 0) {
+          doc.fontSize(12).text('Typing Test Results:', { underline: true });
+          doc.fontSize(10);
+          candidate.typingTestResults.forEach((typingResult, idx) => {
+            doc.text(`  ${idx + 1}. WPM: ${typingResult.wpm || 0}, Accuracy: ${typingResult.accuracy || 0}%`);
+            if (typingResult.submittedAt) {
+              doc.text(`     Submitted: ${new Date(typingResult.submittedAt).toLocaleString()}`);
+            }
+          });
+          doc.moveDown(0.5);
+        }
+
+        // Add separator line
+        doc.moveDown(0.5);
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown(1);
+      } catch (candidateError) {
+        console.error(`Error processing candidate ${candidate._id} on page 2:`, candidateError);
+        doc.fontSize(12).text(`Error processing candidate ${index + 1}`, { color: '#cc0000' });
+        doc.moveDown(1);
+      }
+    });
+
+    doc.end();
+  } catch (error) {
+    console.error('PDF export error:', error);
+    res.status(500).json({ message: 'Failed to generate PDF export', error: error.message });
+  }
+});
+
 // Generate PDF for single candidate (must be before /:id route)
 router.get('/:id/pdf', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.params.id)
       .populate('user', 'name email profile')
-      .populate('form', 'title position department campus')
-      .populate('testResults.test', 'title')
+      .populate('form', 'title position department campus formCategory')
+      .populate('testResults.test', 'title duration passingPercentage')
       .populate('interviewFeedback.interview', 'title round type')
       .populate('interviewFeedback.panelMember', 'name email');
 
@@ -229,102 +526,414 @@ router.get('/:id/pdf', authenticateToken, requireSuperAdminOrPermission('candida
       return res.status(404).json({ message: 'Candidate not found' });
     }
 
+    // Fetch test and interview assignments
+    const Test = require('../models/Test');
+    const Interview = require('../models/Interview');
+    
+    const tests = await Test.find({ 'candidates.candidate': candidate._id })
+      .select('title duration totalMarks candidates scheduledDate scheduledTime createdAt questions')
+      .lean();
+
+    const interviews = await Interview.find({ 'candidates.candidate': candidate._id })
+      .select('title type round candidates createdAt')
+      .lean();
+
+    const testAssignments = [];
+    tests.forEach(test => {
+      test.candidates.forEach(entry => {
+        if (entry.candidate.toString() === candidate._id.toString()) {
+          testAssignments.push({
+            testId: test._id,
+            title: test.title,
+            status: entry.status,
+            invitedAt: entry.invitedAt,
+            startedAt: entry.startedAt,
+            completedAt: entry.completedAt,
+            score: entry.score,
+            percentage: entry.percentage
+          });
+        }
+      });
+    });
+
+    const interviewAssignments = [];
+    interviews.forEach(interview => {
+      interview.candidates.forEach(entry => {
+        if (entry.candidate.toString() === candidate._id.toString()) {
+          interviewAssignments.push({
+            interviewId: interview._id,
+            title: interview.title,
+            round: interview.round,
+            type: interview.type,
+            status: entry.status,
+            scheduledDate: entry.scheduledDate,
+            scheduledTime: entry.scheduledTime
+          });
+        }
+      });
+    });
+
+    const workflow = buildWorkflowSnapshot(candidate.toObject(), testAssignments, interviewAssignments);
+
     // Use pdfkit for PDF generation
     const PDFDocument = require('pdfkit');
-    const doc = new PDFDocument({ margin: 50 });
+    const doc = new PDFDocument({ 
+      margin: 50,
+      size: 'A4',
+      info: {
+        Title: `Candidate Report - ${candidate.user?.name || 'Unknown'}`,
+        Author: 'Pydah Recruitment System',
+        Subject: 'Candidate Management Report'
+      }
+    });
     
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=candidate_${candidate.user?.name || candidate._id}.pdf`);
+    const candidateName = (candidate.user?.name || candidate.personalDetails?.name || 'candidate').replace(/[^a-z0-9]/gi, '_');
+    res.setHeader('Content-Disposition', `attachment; filename=candidate_${candidateName}_${new Date().toISOString().split('T')[0]}.pdf`);
     
     doc.pipe(res);
+
+    // Helper function to add section header
+    const addSectionHeader = (text, fontSize = 14) => {
+      doc.fontSize(fontSize).font('Helvetica-Bold').text(text, { underline: true });
+      doc.font('Helvetica').moveDown(0.5);
+    };
+
+    // Helper function to add field
+    const addField = (label, value, indent = 0) => {
+      const indentStr = '  '.repeat(indent);
+      doc.fontSize(10).text(`${indentStr}${label}: ${value || 'N/A'}`);
+    };
+
+    // Helper function to check page break
+    const checkPageBreak = (requiredSpace = 100) => {
+      if (doc.y + requiredSpace > doc.page.height - 50) {
+        doc.addPage();
+        return true;
+      }
+      return false;
+    };
+
+    // ========== PAGE 1: COMPLETE CANDIDATE DETAILS ==========
+    doc.fontSize(20).font('Helvetica-Bold').text('Candidate Management Report', { align: 'center' });
+    doc.fontSize(10).font('Helvetica').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
+    doc.moveDown(2);
+
+    const candidateDisplayName = candidate.user?.name || candidate.personalDetails?.name || 'Unknown Candidate';
     
-    // Header
-    doc.fontSize(20).text('Candidate Profile', { align: 'center' });
-    doc.moveDown();
-    
+    // Candidate Header
+    doc.fontSize(16).font('Helvetica-Bold').text(`1. ${candidateDisplayName}`, { underline: true });
+    doc.moveDown(0.5);
+
+    // Current Stage
+    doc.fontSize(12).font('Helvetica-Bold').text('Current Stage:', { continued: true });
+    doc.fontSize(11).font('Helvetica').fillColor('#0066cc').text(` ${workflow.label || 'N/A'} (${workflow.stage || 'N/A'})`);
+    doc.fillColor('black').moveDown(0.5);
+
     // Personal Information
-    doc.fontSize(16).text('Personal Information', { underline: true });
-    doc.fontSize(12);
-    doc.text(`Name: ${candidate.personalDetails?.name || candidate.user?.name || 'N/A'}`);
-    doc.text(`Email: ${candidate.personalDetails?.email || candidate.user?.email || 'N/A'}`);
-    doc.text(`Phone: ${candidate.personalDetails?.phone || candidate.user?.profile?.phone || 'N/A'}`);
-    doc.moveDown();
-    
+    addSectionHeader('Personal Information:', 12);
+    doc.fontSize(10);
+    addField('Name', candidateDisplayName);
+    addField('Email', candidate.user?.email || candidate.personalDetails?.email);
+    addField('Phone', candidate.user?.profile?.phone || candidate.personalDetails?.phone);
+    addField('Candidate Number', candidate.candidateNumber);
+    doc.moveDown(0.5);
+
     // Application Details
-    doc.fontSize(16).text('Application Details', { underline: true });
-    doc.fontSize(12);
-    doc.text(`Position: ${candidate.form?.position || candidate.form?.title || 'N/A'}`);
-    doc.text(`Department: ${candidate.form?.department || 'N/A'}`);
-    doc.text(`Campus: ${candidate.form?.campus || 'N/A'}`);
-    doc.text(`Status: ${candidate.status || 'N/A'}`);
-    doc.moveDown();
-    
-    // Application Data
+    addSectionHeader('Application Details:', 12);
+    doc.fontSize(10);
+    addField('Position', candidate.form?.position || candidate.form?.title);
+    addField('Department', candidate.form?.department);
+    addField('Campus', candidate.form?.campus);
+    addField('Category', candidate.form?.formCategory);
+    addField('Status', candidate.status);
+    addField('Applied Date', candidate.createdAt ? new Date(candidate.createdAt).toLocaleDateString() : 'N/A');
+    doc.moveDown(0.5);
+
+    // Application Form Data
     const appData = candidate.applicationData instanceof Map 
       ? Object.fromEntries(candidate.applicationData)
       : candidate.applicationData || {};
     
-    if (Object.keys(appData).length > 0) {
-      doc.fontSize(16).text('Application Form Data', { underline: true });
-      doc.fontSize(12);
-      Object.entries(appData).forEach(([key, value]) => {
-        if (key !== 'passportPhoto' && typeof value !== 'object' && value !== null && value !== '') {
+    const excludedFields = ['name', 'fullName', 'email', 'phone', 'mobileNumber', 'mobile', 'passportPhoto'];
+    const filteredAppData = Object.entries(appData).filter(([key]) => {
+      const lowerKey = key.toLowerCase();
+      return !excludedFields.some(excluded => lowerKey.includes(excluded.toLowerCase()));
+    });
+
+    if (filteredAppData.length > 0) {
+      checkPageBreak(100);
+      addSectionHeader('Application Form Details:', 12);
+      doc.fontSize(10);
+      filteredAppData.forEach(([key, value]) => {
+        if (typeof value !== 'object' && value !== null && value !== '' && !String(value).startsWith('http')) {
           const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-          const displayValue = String(value).substring(0, 100); // Limit length
-          doc.text(`${displayKey}: ${displayValue}`);
+          const displayValue = String(value).substring(0, 150);
+          addField(displayKey, displayValue);
         }
       });
-      doc.moveDown();
+      doc.moveDown(0.5);
     }
-    
-    // Test Results
-    if (candidate.testResults && candidate.testResults.length > 0) {
-      doc.fontSize(16).text('Test Results', { underline: true });
-      doc.fontSize(12);
-      candidate.testResults.forEach((test, index) => {
-        doc.text(`${index + 1}. ${test.test?.title || 'Test'}: ${test.percentage || 0}% (${test.status || 'N/A'})`);
-      });
-      doc.moveDown();
-    }
-    
-    // Interview Feedback
-    if (candidate.interviewFeedback && candidate.interviewFeedback.length > 0) {
-      doc.fontSize(16).text('Interview Feedback', { underline: true });
-      doc.fontSize(12);
-      candidate.interviewFeedback.forEach((feedback, index) => {
-        doc.text(`${index + 1}. ${feedback.interview?.title || 'Interview'}`);
-        doc.text(`   Round: ${feedback.interview?.round || 'N/A'}, Type: ${feedback.interview?.type || 'N/A'}`);
-        if (feedback.ratings?.overallRating) {
-          doc.text(`   Overall Rating: ${feedback.ratings.overallRating}`);
-        }
-        if (feedback.recommendation) {
-          doc.text(`   Recommendation: ${feedback.recommendation}`);
-        }
-        doc.moveDown(0.5);
-      });
-      doc.moveDown();
-    }
-    
-    // Final Decision
+
+    // Final Decision (if exists)
     if (candidate.finalDecision) {
-      doc.fontSize(16).text('Final Decision', { underline: true });
-      doc.fontSize(12);
-      doc.text(`Decision: ${candidate.finalDecision.decision || 'N/A'}`);
-      doc.text(`Notes: ${candidate.finalDecision.notes || 'N/A'}`);
-      if (candidate.finalDecision.bond) {
-        doc.text(`Bond: ${candidate.finalDecision.bond}`);
-        doc.text(`Conditions: ${candidate.finalDecision.conditions}`);
-        doc.text(`Salary: ${candidate.finalDecision.salary}`);
-        doc.text(`Designation: ${candidate.finalDecision.designation}`);
+      checkPageBreak(80);
+      addSectionHeader('Final Decision:', 12);
+      doc.fontSize(10);
+      addField('Decision', candidate.finalDecision.decision);
+      if (candidate.finalDecision.notes) {
+        addField('Notes', candidate.finalDecision.notes);
       }
-      doc.text(`Decided At: ${candidate.finalDecision.decidedAt ? new Date(candidate.finalDecision.decidedAt).toLocaleString() : 'N/A'}`);
-      doc.moveDown();
+      if (candidate.finalDecision.bond) {
+        addField('Bond', candidate.finalDecision.bond);
+        addField('Conditions', candidate.finalDecision.conditions);
+        addField('Salary', candidate.finalDecision.salary);
+        addField('Designation', candidate.finalDecision.designation);
+      }
+      if (candidate.finalDecision.decidedAt) {
+        addField('Decided At', new Date(candidate.finalDecision.decidedAt).toLocaleString());
+      }
+      doc.moveDown(0.5);
+    }
+
+    // Next Action
+    checkPageBreak(50);
+    addSectionHeader('Next Action:', 12);
+    doc.fontSize(10).text(`  ${workflow.nextAction || 'N/A'}`);
+    doc.moveDown(1);
+
+    // ========== PAGE 2: TEST RESULTS ==========
+    const hasTestResults = candidate.testResults && candidate.testResults.length > 0;
+    const hasTestAssignments = testAssignments.length > 0;
+    const hasTypingTests = candidate.typingTestResults && candidate.typingTestResults.length > 0;
+
+    if (hasTestResults || hasTestAssignments || hasTypingTests) {
+      doc.addPage();
+      doc.fontSize(20).font('Helvetica-Bold').text('Test Results', { align: 'center' });
+      doc.font('Helvetica').moveDown(2);
+
+      // Test Summary
+      const totalTests = candidate.testResults.length;
+      const passedTests = candidate.testResults.filter(t => t.status === 'passed').length;
+      const averageScore = totalTests > 0
+        ? candidate.testResults.reduce((sum, t) => sum + (t.percentage || 0), 0) / totalTests
+        : 0;
+
+      addSectionHeader('Test Summary:', 14);
+      doc.fontSize(10);
+      addField('Total Tests', totalTests.toString());
+      addField('Passed Tests', passedTests.toString());
+      addField('Average Score', `${averageScore.toFixed(1)}%`);
+      doc.moveDown(1);
+
+      // Test Results Details
+      if (hasTestResults) {
+        checkPageBreak(100);
+        addSectionHeader('Test Results:', 14);
+        doc.fontSize(10);
+        candidate.testResults.forEach((testResult, index) => {
+          checkPageBreak(80);
+          doc.font('Helvetica-Bold').text(`${index + 1}. ${testResult.test?.title || 'Test'}`);
+          doc.font('Helvetica');
+          addField('Score', `${testResult.score || 0}/${testResult.totalScore || 0}`, 1);
+          addField('Percentage', `${(testResult.percentage || 0).toFixed(1)}%`, 1);
+          addField('Status', testResult.status || 'N/A', 1);
+          if (testResult.submittedAt) {
+            addField('Submitted At', new Date(testResult.submittedAt).toLocaleString(), 1);
+          }
+          if (testResult.startedAt) {
+            addField('Started At', new Date(testResult.startedAt).toLocaleString(), 1);
+          }
+          doc.moveDown(0.5);
+        });
+        doc.moveDown(0.5);
+      }
+
+      // Test Assignments
+      if (hasTestAssignments) {
+        checkPageBreak(100);
+        addSectionHeader('Test Assignments:', 14);
+        doc.fontSize(10);
+        testAssignments.forEach((assignment, index) => {
+          checkPageBreak(80);
+          doc.font('Helvetica-Bold').text(`${index + 1}. ${assignment.title}`);
+          doc.font('Helvetica');
+          addField('Status', assignment.status || 'N/A', 1);
+          if (assignment.invitedAt) {
+            addField('Invited', new Date(assignment.invitedAt).toLocaleString(), 1);
+          }
+          if (assignment.completedAt) {
+            addField('Completed', new Date(assignment.completedAt).toLocaleString(), 1);
+          }
+          if (assignment.percentage !== undefined && assignment.percentage !== null) {
+            addField('Score', `${assignment.percentage.toFixed(1)}%`, 1);
+          }
+          doc.moveDown(0.5);
+        });
+        doc.moveDown(0.5);
+      }
+
+      // Typing Test Results
+      if (hasTypingTests) {
+        checkPageBreak(100);
+        addSectionHeader('Typing Test Results:', 14);
+        doc.fontSize(10);
+        candidate.typingTestResults.forEach((typingResult, index) => {
+          checkPageBreak(80);
+          doc.font('Helvetica-Bold').text(`${index + 1}. Typing Test`);
+          doc.font('Helvetica');
+          addField('WPM', (typingResult.wpm || 0).toString(), 1);
+          addField('Accuracy', `${(typingResult.accuracy || 0).toFixed(1)}%`, 1);
+          addField('Total Errors', (typingResult.totalErrors || 0).toString(), 1);
+          addField('Time Taken', `${typingResult.timeTaken || 0}s`, 1);
+          addField('Duration', `${typingResult.duration || 0} min`, 1);
+          if (typingResult.submittedAt) {
+            addField('Submitted At', new Date(typingResult.submittedAt).toLocaleString(), 1);
+          }
+          doc.moveDown(0.5);
+        });
+      }
+    }
+
+    // ========== PAGE 3: INTERVIEW RESPONSES ==========
+    const hasInterviewFeedback = candidate.interviewFeedback && candidate.interviewFeedback.length > 0;
+    const hasInterviewAssignments = interviewAssignments.length > 0;
+
+    if (hasInterviewFeedback || hasInterviewAssignments) {
+      doc.addPage();
+      doc.fontSize(20).font('Helvetica-Bold').text('Interview Feedback', { align: 'center' });
+      doc.font('Helvetica').moveDown(2);
+
+      // Interview Summary
+      const totalInterviews = candidate.interviewFeedback.length;
+      const averageRating = candidate.interviewFeedback.length > 0
+        ? candidate.interviewFeedback.reduce((sum, f) => {
+            const rating = f.ratings?.overallRating || 0;
+            return sum + (typeof rating === 'number' ? rating : 0);
+          }, 0) / candidate.interviewFeedback.length
+        : 0;
+
+      addSectionHeader('Interview Summary:', 14);
+      doc.fontSize(10);
+      addField('Total Interviews', totalInterviews.toString());
+      addField('Average Rating', `${averageRating.toFixed(1)}/5`);
+      doc.moveDown(1);
+
+      // Interview Feedback Details
+      if (hasInterviewFeedback) {
+        candidate.interviewFeedback.forEach((feedback, index) => {
+          checkPageBreak(150);
+          addSectionHeader(`${index + 1}. ${feedback.interview?.title || 'Interview'}`, 12);
+          doc.fontSize(10);
+          addField('Round', feedback.interview?.round?.toString() || 'N/A');
+          addField('Type', feedback.interview?.type || 'N/A');
+          if (feedback.panelMember?.name) {
+            addField('Panel Member', feedback.panelMember.name);
+          }
+          if (feedback.panelMember?.email) {
+            addField('Panel Member Email', feedback.panelMember.email);
+          }
+          if (feedback.submittedAt) {
+            addField('Submitted At', new Date(feedback.submittedAt).toLocaleString());
+          }
+          doc.moveDown(0.5);
+
+          // Ratings
+          if (feedback.ratings) {
+            doc.font('Helvetica-Bold').fontSize(10).text('  Ratings:');
+            doc.font('Helvetica');
+            if (feedback.ratings.technicalSkills !== undefined) {
+              addField('Technical Skills', `${feedback.ratings.technicalSkills}/5`, 2);
+            }
+            if (feedback.ratings.communication !== undefined) {
+              addField('Communication', `${feedback.ratings.communication}/5`, 2);
+            }
+            if (feedback.ratings.problemSolving !== undefined) {
+              addField('Problem Solving', `${feedback.ratings.problemSolving}/5`, 2);
+            }
+            if (feedback.ratings.overallRating !== undefined) {
+              doc.font('Helvetica-Bold');
+              addField('Overall Rating', `${feedback.ratings.overallRating}/5`, 2);
+              doc.font('Helvetica');
+            }
+            doc.moveDown(0.5);
+          }
+
+          // Comments
+          if (feedback.comments) {
+            doc.font('Helvetica-Bold').fontSize(10).text('  Comments:');
+            doc.font('Helvetica').fontSize(9);
+            const comments = feedback.comments.length > 500 
+              ? feedback.comments.substring(0, 500) + '...' 
+              : feedback.comments;
+            doc.text(`    ${comments}`, { align: 'left' });
+            doc.moveDown(0.5);
+          }
+
+          // Question Answers
+          if (feedback.questionAnswers && feedback.questionAnswers.length > 0) {
+            doc.font('Helvetica-Bold').fontSize(10).text('  Feedback Form Responses:');
+            doc.font('Helvetica').fontSize(9);
+            feedback.questionAnswers
+              .filter(answer => {
+                const questionText = (answer.question || '').toLowerCase();
+                return !questionText.includes('recommend');
+              })
+              .forEach((answer, answerIdx) => {
+                checkPageBreak(40);
+                doc.font('Helvetica-Bold').text(`    Q${answerIdx + 1}. ${answer.question || 'Question'}`);
+                doc.font('Helvetica');
+                const displayAnswer = answer.type === 'rating' && typeof answer.displayAnswer === 'number'
+                  ? `${answer.displayAnswer}/5`
+                  : (answer.displayAnswer ?? answer.answer ?? '—');
+                doc.text(`    A: ${displayAnswer}`, { indent: 20 });
+                doc.moveDown(0.3);
+              });
+            doc.moveDown(0.5);
+          }
+
+          // Recommendation
+          if (feedback.recommendation) {
+            doc.font('Helvetica-Bold').fontSize(10).text('  Recommendation:');
+            doc.font('Helvetica').fontSize(9).text(`    ${feedback.recommendation}`);
+            doc.moveDown(0.5);
+          }
+
+          doc.moveDown(0.5);
+          if (index < candidate.interviewFeedback.length - 1) {
+            doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+            doc.moveDown(1);
+          }
+        });
+      }
+
+      // Interview Assignments
+      if (hasInterviewAssignments) {
+        checkPageBreak(100);
+        addSectionHeader('Interview Assignments:', 14);
+        doc.fontSize(10);
+        interviewAssignments.forEach((assignment, index) => {
+          checkPageBreak(60);
+          doc.font('Helvetica-Bold').text(`${index + 1}. ${assignment.title}`);
+          doc.font('Helvetica');
+          addField('Round', assignment.round?.toString() || 'N/A', 1);
+          addField('Type', assignment.type || 'N/A', 1);
+          addField('Status', assignment.status || 'N/A', 1);
+          if (assignment.scheduledDate) {
+            const scheduledStr = assignment.scheduledTime 
+              ? `${new Date(assignment.scheduledDate).toLocaleDateString()} ${assignment.scheduledTime}`
+              : new Date(assignment.scheduledDate).toLocaleDateString();
+            addField('Scheduled', scheduledStr, 1);
+          }
+          doc.moveDown(0.5);
+        });
+      }
     }
     
     doc.end();
   } catch (error) {
     console.error('PDF generation error:', error);
-    res.status(500).json({ message: 'Failed to generate PDF' });
+    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
   }
 });
 
