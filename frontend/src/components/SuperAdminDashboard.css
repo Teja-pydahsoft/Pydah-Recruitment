@@ -230,42 +230,110 @@
 .stats-card:nth-child(6) { animation-delay: 0.6s; }
 
 /* Responsive Design */
+@media (max-width: 1200px) {
+  .dashboard-container {
+    padding: clamp(1rem, 2vw, 1.5rem) 0;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: clamp(0.75rem, 1.5vw, 1rem);
+  }
+}
+
 @media (max-width: 768px) {
   .dashboard-container {
     padding: 1rem 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .dashboard-header {
+    margin-bottom: 2rem;
+    padding: 0 0.5rem;
   }
 
   .dashboard-title {
-    font-size: 2rem;
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   .dashboard-subtitle {
-    font-size: 1rem;
+    font-size: clamp(0.9rem, 2.5vw, 1rem);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   .stats-grid {
     grid-template-columns: 1fr;
     gap: 1rem;
     margin-bottom: 2rem;
+    width: 100%;
+    max-width: 100%;
   }
 
   .stats-card {
     padding: 1.5rem 1rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .stats-number {
-    font-size: 2rem;
+    font-size: clamp(1.75rem, 5vw, 2rem);
+  }
+
+  .stats-label {
+    font-size: clamp(0.8rem, 2vw, 0.95rem);
   }
 
   .dashboard-content {
-    padding: 1.5rem 1rem;
+    padding: clamp(1rem, 2vw, 1.5rem);
     margin-top: 1rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .create-button {
+    min-height: 120px;
+    padding: 1rem;
+  }
+
+  .create-icon {
+    font-size: 1.5rem;
+  }
+
+  .create-text {
+    font-size: 1rem;
   }
 }
 
 @media (max-width: 480px) {
+  .dashboard-container {
+    padding: 0.75rem 0;
+  }
+
+  .dashboard-header {
+    margin-bottom: 1.5rem;
+    padding: 0 0.5rem;
+  }
+
   .dashboard-title {
-    font-size: 1.75rem;
+    font-size: clamp(1.25rem, 5vw, 1.75rem);
+    line-height: 1.3;
+  }
+
+  .dashboard-subtitle {
+    font-size: clamp(0.85rem, 3vw, 0.95rem);
+    line-height: 1.5;
+  }
+
+  .stats-grid {
+    gap: 0.75rem;
   }
 
   .stats-card {
@@ -273,10 +341,42 @@
   }
 
   .stats-number {
-    font-size: 1.75rem;
+    font-size: clamp(1.5rem, 6vw, 1.75rem);
   }
 
   .stats-label {
-    font-size: 0.85rem;
+    font-size: clamp(0.75rem, 2.5vw, 0.85rem);
   }
+
+  .stats-card-icon {
+    font-size: 2rem;
+  }
+
+  .dashboard-content {
+    padding: 1rem 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .create-button {
+    min-height: 100px;
+    padding: 0.75rem;
+  }
+
+  .create-icon {
+    font-size: 1.25rem;
+  }
+
+  .create-text {
+    font-size: 0.95rem;
+  }
+}
+
+/* Ensure no horizontal overflow */
+.dashboard-container,
+.dashboard-header,
+.stats-grid,
+.dashboard-content {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }

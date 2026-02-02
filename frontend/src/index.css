@@ -140,6 +140,12 @@ code {
 }
 
 /* Responsive Design */
+@media (max-width: 1200px) {
+  body {
+    font-size: 15px;
+  }
+}
+
 @media (max-width: 768px) {
   body {
     font-size: 14px;
@@ -148,5 +154,62 @@ code {
   .container {
     padding-left: 15px;
     padding-right: 15px;
+    max-width: 100%;
+    overflow-x: hidden;
   }
+
+  /* Make all containers responsive */
+  .container-fluid {
+    padding-left: 15px;
+    padding-right: 15px;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 13px;
+  }
+
+  .container,
+  .container-fluid {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+/* Global responsive utilities */
+@media (max-width: 768px) {
+  /* Hide on mobile if needed */
+  .d-mobile-none {
+    display: none !important;
+  }
+
+  /* Show only on mobile */
+  .d-mobile-block {
+    display: block !important;
+  }
+
+  /* Full width on mobile */
+  .w-mobile-100 {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Prevent text overflow */
+* {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+p, span, div {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }

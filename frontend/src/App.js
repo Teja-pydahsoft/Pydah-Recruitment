@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -39,6 +39,23 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 const AppLayout = ({ children, showSidebar = true }) => {
   const { isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Handle responsive behavior
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth <= 768) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
+    };
+    
+    checkMobile(); // Set initial state
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -52,27 +69,52 @@ const AppLayout = ({ children, showSidebar = true }) => {
     );
   }
 
+  // Calculate responsive margins and widths based on screen size
+  const getMainContentStyle = () => {
+    if (isMobile) {
+      // On mobile, sidebar overlays when open
+      return {
+        marginLeft: sidebarOpen ? '0' : '60px',
+        width: sidebarOpen ? '100%' : 'calc(100% - 60px)',
+      };
+    } else {
+      // On desktop, sidebar pushes content
+      return {
+        marginLeft: sidebarOpen ? '300px' : '70px',
+        width: sidebarOpen ? 'calc(100% - 300px)' : 'calc(100% - 70px)',
+      };
+    }
+  };
+
+  const mainStyle = getMainContentStyle();
+
   return (
     <div className="App">
       <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
       <main
         style={{
-          marginLeft: sidebarOpen ? '300px' : '70px',
-          padding: 'clamp(1.25rem, 2.5vw, 3rem)',
+          ...mainStyle,
+          padding: 'clamp(0.75rem, 2vw, 2rem)',
           minHeight: '100vh',
           background: '#f8fafc',
           display: 'flex',
           flexDirection: 'column',
-          width: `calc(100% - ${sidebarOpen ? '300px' : '70px'})`
+          transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflowX: 'hidden',
+          maxWidth: '100%',
+          boxSizing: 'border-box'
         }}
         className="main-content"
       >
         <div
           style={{
             width: '100%',
+            maxWidth: '100%',
             display: 'flex',
             flexDirection: 'column',
-            gap: 'clamp(1.5rem, 2.5vw, 2.75rem)'
+            gap: 'clamp(1rem, 2vw, 2rem)',
+            boxSizing: 'border-box',
+            overflowX: 'hidden'
           }}
         >
           {children}

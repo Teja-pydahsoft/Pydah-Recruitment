@@ -27,20 +27,40 @@ const SidebarContainer = styled.div`
   width: ${props => props.$isOpen ? '300px' : '70px'};
   background: linear-gradient(180deg, #7f1d1d 0%, #431407 100%);
   color: white;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
   box-shadow: 6px 0 24px rgba(127, 29, 29, 0.3);
   overflow: hidden;
   overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-y: auto;
 
   @media (max-width: 768px) {
     width: ${props => props.$isOpen ? '280px' : '60px'};
-    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: ${props => props.$isOpen ? 'translateX(0)' : 'translateX(0)'};
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   @media (max-width: 480px) {
     width: ${props => props.$isOpen ? '100%' : '60px'};
+    transform: ${props => props.$isOpen ? 'translateX(0)' : 'translateX(0)'};
+  }
+
+  /* Custom scrollbar for sidebar */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
   }
 `;
 
@@ -170,19 +190,26 @@ const SidebarContent = styled.div`
   width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 `;
 
 const Navigation = styled.nav`
   flex: 1;
   padding: ${props => props.$isOpen ? '0 1rem' : '0 0.5rem'};
-  overflow-y: hidden;
+  overflow-y: auto;
   overflow-x: hidden;
   transition: padding 0.3s ease;
   width: 100%;
   box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 
   @media (max-width: 768px) {
-    padding: ${props => props.$isOpen ? '0 1rem' : '0 0.5rem'};
+    padding: ${props => props.$isOpen ? '0 0.75rem' : '0 0.5rem'};
+  }
+
+  @media (max-width: 480px) {
+    padding: ${props => props.$isOpen ? '0 0.75rem' : '0 0.5rem'};
   }
 `;
 

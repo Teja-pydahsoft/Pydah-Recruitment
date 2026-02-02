@@ -1,12 +1,200 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Modal, Form, Alert } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash, FaTag } from 'react-icons/fa';
+import styled from 'styled-components';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
 // Permanent campuses - these are fixed and cannot be added/removed, only renamed
 const PERMANENT_CAMPUSES = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
+
+// Styled Components for better responsive design
+const PageContainer = styled(Container)`
+  padding: clamp(1rem, 2vw, 2rem);
+  max-width: 100%;
+  overflow-x: hidden;
+`;
+
+const PageHeader = styled.div`
+  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+  
+  h2 {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+  }
+  
+  p {
+    font-size: clamp(0.9rem, 2vw, 1rem);
+    color: #64748b;
+    margin: 0;
+  }
+`;
+
+const CardsRow = styled(Row)`
+  margin: 0;
+  gap: clamp(1rem, 2vw, 1.5rem);
+  
+  @media (max-width: 576px) {
+    margin: 0;
+  }
+`;
+
+const CampusCard = styled(Card)`
+  height: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  
+  &:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+  }
+`;
+
+const CardHeaderStyled = styled(Card.Header)`
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 2px solid #e2e8f0;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  
+  span {
+    font-size: clamp(1rem, 2.5vw, 1.1rem);
+    font-weight: 700;
+    color: #1e293b;
+    flex: 1;
+    min-width: 120px;
+  }
+  
+  div {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+`;
+
+const CardBodyStyled = styled(Card.Body)`
+  padding: clamp(1rem, 2vw, 1.25rem);
+  flex: 1;
+  overflow-y: auto;
+  max-height: 500px;
+  
+  @media (max-width: 768px) {
+    max-height: 400px;
+  }
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+`;
+
+const DepartmentList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const DepartmentItem = styled.li`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: clamp(0.75rem, 1.5vw, 1rem);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+  }
+  
+  span {
+    font-weight: 500;
+    color: #334155;
+    font-size: clamp(0.9rem, 2vw, 1rem);
+    flex: 1;
+    word-break: break-word;
+    margin-right: 0.75rem;
+  }
+  
+  div {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+`;
+
+const ActionButton = styled(Button)`
+  min-width: ${props => props.$iconOnly ? '36px' : 'auto'};
+  height: ${props => props.$iconOnly ? '36px' : 'auto'};
+  padding: ${props => props.$iconOnly ? '0' : '0.5rem 1rem'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${props => props.$iconOnly ? '50%' : '6px'};
+  font-size: ${props => props.$iconOnly ? '0.875rem' : '0.875rem'};
+  transition: all 0.2s ease;
+  
+  @media (max-width: 576px) {
+    min-width: ${props => props.$iconOnly ? '40px' : 'auto'};
+    height: ${props => props.$iconOnly ? '40px' : 'auto'};
+    padding: ${props => props.$iconOnly ? '0' : '0.625rem 1.25rem'};
+  }
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: clamp(2rem, 4vw, 3rem) 1rem;
+  
+  p {
+    color: #64748b;
+    font-size: clamp(0.9rem, 2vw, 1rem);
+    margin-bottom: 1.5rem;
+  }
+`;
+
+const StyledCol = styled(Col)`
+  margin-bottom: clamp(1rem, 2vw, 1.5rem);
+  
+  @media (max-width: 576px) {
+    margin-bottom: 1.5rem;
+  }
+`;
 
 const CourseManagement = () => {
   
@@ -268,20 +456,13 @@ const CourseManagement = () => {
   }
 
   return (
-    <Container fluid>
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <div>
-              <h2>Campus Management</h2>
-              <p className="text-muted">Manage campuses and their departments</p>
-            </div>
-          </div>
-        </Col>
-      </Row>
+    <PageContainer fluid>
+      <PageHeader>
+        <h2>Campus Management</h2>
+        <p>Manage campuses and their departments</p>
+      </PageHeader>
 
-
-      <Row>
+      <CardsRow>
         {PERMANENT_CAMPUSES.map((permanentCampus, index) => {
           // Get actual campus name (handles renamed campuses)
           const actualCampusName = getActualCampusName(permanentCampus);
@@ -292,101 +473,84 @@ const CourseManagement = () => {
           }));
 
           return (
-            <Col md={6} lg={3} key={permanentCampus} className="mb-4">
-              <Card className="h-100 shadow-sm">
-                <Card.Header 
-                  style={{ 
-                    backgroundColor: '#f8f9fa', 
-                    fontWeight: 'bold',
-                    fontSize: '1.1rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}
-                >
+            <StyledCol xs={12} sm={6} md={6} lg={3} xl={3} key={permanentCampus}>
+              <CampusCard>
+                <CardHeaderStyled>
                   <span>{actualCampusName}</span>
                   <div>
-                    <Button
+                    <ActionButton
                       variant="outline-secondary"
                       size="sm"
                       onClick={() => handleRenameCampus(actualCampusName)}
-                      className="me-1"
-                      style={{ padding: '0.25rem 0.5rem' }}
                       title="Rename Campus"
+                      $iconOnly
                     >
                       <FaTag />
-                    </Button>
-                    <Button
+                    </ActionButton>
+                    <ActionButton
                       variant="primary"
                       size="sm"
                       onClick={() => handleAddDepartment(actualCampusName)}
-                      style={{ borderRadius: '50%', width: '32px', height: '32px', padding: 0 }}
                       title="Add Department"
+                      $iconOnly
                     >
                       <FaPlus />
-                    </Button>
+                    </ActionButton>
                   </div>
-                </Card.Header>
-                <Card.Body>
+                </CardHeaderStyled>
+                <CardBodyStyled>
                   {allDepartments.length > 0 ? (
-                    <ul className="list-unstyled mb-0">
+                    <DepartmentList>
                       {allDepartments.map((item) => (
-                        <li 
-                          key={item.courseId} 
-                          className="mb-2 d-flex justify-content-between align-items-center"
-                          style={{ 
-                            padding: '0.5rem',
-                            backgroundColor: '#f8f9fa',
-                            borderRadius: '6px'
-                          }}
-                        >
-                          <span style={{ fontWeight: 500 }}>{item.dept}</span>
+                        <DepartmentItem key={item.courseId}>
+                          <span>{item.dept}</span>
                           <div>
-                            <Button
+                            <ActionButton
                               variant="outline-primary"
                               size="sm"
-                              className="me-1"
                               onClick={() => {
                                 const course = courses.find(c => c._id === item.courseId);
                                 if (course) {
                                   handleEditDepartment(course);
                                 }
                               }}
-                              style={{ padding: '0.25rem 0.5rem' }}
+                              title="Edit Department"
+                              $iconOnly
                             >
                               <FaEdit />
-                            </Button>
-                            <Button
+                            </ActionButton>
+                            <ActionButton
                               variant="outline-danger"
                               size="sm"
                               onClick={() => handleDeleteDepartment(item.courseId)}
-                              style={{ padding: '0.25rem 0.5rem' }}
+                              title="Delete Department"
+                              $iconOnly
                             >
                               <FaTrash />
-                            </Button>
+                            </ActionButton>
                           </div>
-                        </li>
+                        </DepartmentItem>
                       ))}
-                    </ul>
+                    </DepartmentList>
                   ) : (
-                    <div className="text-center py-3">
-                      <p className="text-muted mb-3">No departments added</p>
-                      <Button
+                    <EmptyState>
+                      <p>No departments added</p>
+                      <ActionButton
                         variant="outline-primary"
                         size="sm"
                         onClick={() => handleAddDepartment(actualCampusName)}
                       >
-                        <FaPlus className="me-1" />
+                        <FaPlus style={{ marginRight: '0.5rem' }} />
                         Add Department
-                      </Button>
-                    </div>
+                      </ActionButton>
+                    </EmptyState>
                   )}
-                </Card.Body>
-              </Card>
-            </Col>
+                </CardBodyStyled>
+              </CampusCard>
+            </StyledCol>
           );
         })}
-      </Row>
+      </CardsRow>
 
       {/* Add Department Modal */}
       <Modal show={showAddDeptModal} onHide={handleCloseModal} centered>
@@ -511,7 +675,7 @@ const CourseManagement = () => {
         toast={toast} 
         onClose={() => setToast({ type: '', message: '' })} 
       />
-    </Container>
+    </PageContainer>
   );
 };
 
