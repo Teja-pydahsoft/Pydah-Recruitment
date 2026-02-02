@@ -1,35 +1,80 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import './CareersPage.css';
 
 const HERO_IMAGE = 'https://static.wixstatic.com/media/9d31c9_33551de5580a4b118328c6368cfe0c6f~mv2.jpg/v1/fill/w_1340,h_656,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/9d31c9_33551de5580a4b118328c6368cfe0c6f~mv2.jpg';
 
+const CACHE_KEY = 'pydah_careers_openings';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Load cached data immediately
+const loadCachedData = () => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      const now = Date.now();
+      // Return cached data if it's less than 5 minutes old
+      if (now - timestamp < CACHE_DURATION) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.error('Error loading cached data:', err);
+  }
+  return null;
+};
+
+// Save data to cache
+const saveToCache = (data) => {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
+  } catch (err) {
+    console.error('Error saving to cache:', err);
+  }
+};
+
 const CareersPage = () => {
-  const [forms, setForms] = useState({ teaching: [], nonTeaching: [] });
+  // Initialize with cached data if available for instant display
+  const cachedData = useMemo(() => loadCachedData(), []);
+  const [forms, setForms] = useState(cachedData || { teaching: [], nonTeaching: [] });
   const [activeTab, setActiveTab] = useState('teaching');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedData); // Only show loading if no cache
   const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchForms = async () => {
       try {
         const response = await api.get('/forms/public/active');
-        setForms({
+        const newForms = {
           teaching: response.data?.teaching || [],
           nonTeaching: response.data?.nonTeaching || []
-        });
+        };
+        setForms(newForms);
+        saveToCache(newForms); // Cache the fresh data
+        setError(''); // Clear any previous errors
       } catch (err) {
-        setError('Unable to load current openings. Please try again later.');
+        console.error('Error fetching forms:', err);
+        // Only set error if we don't have cached data to show
+        if (!cachedData) {
+          setError('Unable to load current openings. Please try again later.');
+        }
       } finally {
         setLoading(false);
       }
     };
 
+    // Always fetch fresh data, but don't block UI if we have cache
     fetchForms();
-  }, []);
+  }, [cachedData]);
 
-  const currentForms = activeTab === 'teaching' ? forms.teaching : forms.nonTeaching;
+  const currentForms = useMemo(() => {
+    return activeTab === 'teaching' ? forms.teaching : forms.nonTeaching;
+  }, [activeTab, forms.teaching, forms.nonTeaching]);
 
   const formatDate = (value) => {
     if (!value) return 'Open until filled';

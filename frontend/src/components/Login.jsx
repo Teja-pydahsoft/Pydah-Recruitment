@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 // Modern Color Palette
 const colors = {
@@ -410,6 +410,64 @@ const Button = styled.button`
   }
 `;
 
+const HomeIconButton = styled(Link)`
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: ${borderRadius.lg};
+  color: ${colors.surface};
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  z-index: 10;
+
+  svg {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+    svg {
+      transform: scale(1.1);
+    }
+  }
+
+  &:focus {
+    outline: 2px solid rgba(255, 255, 255, 0.5);
+    outline-offset: 2px;
+  }
+
+  &:active {
+    transform: translateY(0) scale(1);
+  }
+
+  @media (max-width: 640px) {
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 36px;
+    height: 36px;
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+`;
+
 const ButtonIcon = styled.div`
   width: 16px;
   height: 16px;
@@ -527,6 +585,13 @@ const AlertIcon = ({ className }) => (
   </svg>
 );
 
+const HomeIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <polyline points="9 22 9 12 15 12 15 22" />
+  </svg>
+);
+
 // Main Component
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -583,6 +648,9 @@ const Login = () => {
 
       <Card>
         <Header>
+          <HomeIconButton to="/careers" aria-label="Go to Home">
+            <HomeIcon />
+          </HomeIconButton>
           <Logo>
             <UserIcon />
           </Logo>

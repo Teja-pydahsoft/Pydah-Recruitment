@@ -128,6 +128,11 @@ const recruitmentFormSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Add indexes for optimized queries
+recruitmentFormSchema.index({ formType: 1, isActive: 1, formCategory: 1, closingDate: 1, createdAt: -1 });
+recruitmentFormSchema.index({ formType: 1, isActive: 1, formCategory: 1 });
+recruitmentFormSchema.index({ uniqueLink: 1 });
+
 // Generate unique link before saving
 recruitmentFormSchema.pre('save', function(next) {
   if (!this.uniqueLink) {
