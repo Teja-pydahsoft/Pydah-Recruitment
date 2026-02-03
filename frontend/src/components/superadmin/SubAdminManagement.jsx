@@ -172,40 +172,41 @@ const Modal = styled.div`
 
 const ModalContent = styled.div`
   background: white;
-  border-radius: 24px;
+  border-radius: 20px;
   width: 100%;
-  max-width: 1400px;
-  max-height: calc(100vh - 3rem);
-  padding: 2.5rem 3rem;
+  max-width: 1200px;
+  max-height: 95vh;
+  padding: 1.5rem 2rem;
   box-shadow: 0 25px 60px rgba(15, 23, 42, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   margin: auto;
+  overflow: hidden;
   
   @media (max-width: 1200px) {
     max-width: 95vw;
-    max-height: calc(100vh - 2rem);
+    padding: 1.25rem 1.5rem;
   }
   
   @media (max-width: 768px) {
-    padding: 2rem 1.5rem;
-    border-radius: 20px;
-    max-height: calc(100vh - 1rem);
+    padding: 1rem;
+    max-height: 98vh;
   }
 `;
 
 const SectionsContainer = styled.div`
   display: grid;
-  grid-template-columns: 0.4fr 1.6fr;
-  gap: 2.5rem;
-  margin-bottom: 2rem;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  flex: 1;
   min-height: 0;
+  overflow: hidden;
   
   @media (max-width: 1200px) {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: 1.5rem;
   }
 `;
 
@@ -220,22 +221,42 @@ const SectionContent = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.875rem;
   overflow-y: auto;
   min-height: 0;
+  padding-right: 0.5rem;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
 `;
 
 const ModalHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
+  flex-shrink: 0;
 `;
 
 const ModalTitle = styled.h3`
   margin: 0;
   color: #0f172a;
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 `;
@@ -256,34 +277,36 @@ const CloseButton = styled.button`
 const Form = styled.form`
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0;
+  height: 100%;
+  overflow: hidden;
 `;
 
 const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 `;
 
 const Label = styled.label`
   font-weight: 600;
   color: #1e293b;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   letter-spacing: -0.01em;
 `;
 
 const Input = styled.input`
-  padding: 0.875rem 1.125rem;
+  padding: 0.625rem 0.875rem;
   border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
   transition: all 0.2s ease;
   background: #ffffff;
 
   &:focus {
     outline: none;
     border-color: #f97316;
-    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
     background: #fff;
   }
 
@@ -294,22 +317,22 @@ const Input = styled.input`
 
 const PermissionsGrid = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.875rem;
-  
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
 `;
 
 const PermissionCard = styled.div`
   border: 2px solid ${({ enabled }) => (enabled ? 'rgba(249, 115, 22, 0.4)' : '#e2e8f0')};
-  border-radius: 12px;
-  padding: 1rem;
+  border-radius: 8px;
+  padding: 0.75rem;
   background: ${({ enabled }) => (enabled ? 'linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(249, 115, 22, 0.03) 100%)' : 'white')};
   transition: all 0.2s ease;
   position: relative;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   
   &::before {
     content: '';
@@ -317,50 +340,58 @@ const PermissionCard = styled.div`
     top: 0;
     left: 0;
     right: 0;
-    height: ${({ enabled }) => (enabled ? '3px' : '0')};
+    height: ${({ enabled }) => (enabled ? '2px' : '0')};
     background: linear-gradient(90deg, #f97316, #fb923c);
     transition: height 0.2s ease;
-    border-radius: 12px 12px 0 0;
+    border-radius: 8px 8px 0 0;
   }
 
   &:hover {
     border-color: ${({ enabled }) => (enabled ? 'rgba(249, 115, 22, 0.5)' : '#cbd5e1')};
     transform: translateY(-1px);
-    box-shadow: ${({ enabled }) => (enabled ? '0 4px 12px rgba(249, 115, 22, 0.12)' : '0 2px 8px rgba(15, 23, 42, 0.06)')};
+    box-shadow: ${({ enabled }) => (enabled ? '0 2px 8px rgba(249, 115, 22, 0.12)' : '0 1px 4px rgba(15, 23, 42, 0.06)')};
   }
 `;
 
 const PermissionHeader = styled.div`
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.625rem;
+  flex: 1;
 `;
 
 const PermissionCheckbox = styled.input`
-  margin-top: 0.2rem;
   cursor: pointer;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   accent-color: #f97316;
   flex-shrink: 0;
+  margin: 0;
   
   &:checked {
-    filter: drop-shadow(0 2px 4px rgba(249, 115, 22, 0.3));
+    filter: drop-shadow(0 1px 3px rgba(249, 115, 22, 0.3));
   }
 `;
 
 const PermissionDetails = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0;
   flex: 1;
 `;
 
 const PermissionLabel = styled.span`
-  font-weight: 700;
+  font-weight: 600;
   color: #1e293b;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   line-height: 1.3;
+`;
+
+const PermissionAccessControl = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
 `;
 
 const AccessLevelGroup = styled.div`
@@ -535,28 +566,29 @@ const AccessLevelCardTitle = styled.span`
 
 const ButtonRow = styled.div`
   display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
+  gap: 0.875rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
   border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
 `;
 
 const SubmitButton = styled.button`
   flex: 1;
   border: none;
-  border-radius: 12px;
-  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.9rem;
   cursor: pointer;
   background: linear-gradient(135deg, #10b981, #059669);
   color: white;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
 
   &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
     background: linear-gradient(135deg, #059669, #047857);
   }
 
@@ -575,10 +607,10 @@ const SubmitButton = styled.button`
 const CancelButton = styled.button`
   flex: 1;
   border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.9rem;
   cursor: pointer;
   background: white;
   color: #475569;
@@ -930,37 +962,60 @@ const SubAdminManagement = () => {
               <Td>{subAdmin.email}</Td>
               <Td>
                 {subAdmin.campus ? (
-                  <div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                     <span style={{ 
-                      padding: '0.25rem 0.75rem', 
+                      padding: '0.25rem 0.625rem', 
                       borderRadius: '6px', 
                       backgroundColor: '#dbeafe', 
                       color: '#1e40af',
                       fontSize: '0.875rem',
                       fontWeight: 600,
                       display: 'inline-block',
-                      marginBottom: '0.5rem'
+                      width: 'fit-content'
                     }}>
                       {subAdmin.campus}
                     </span>
-                    {subAdmin.courses && subAdmin.courses.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.5rem' }}>
-                        {subAdmin.courses.map((course, idx) => (
+                    {subAdmin.courses && subAdmin.courses.length > 0 ? (
+                      <div style={{ 
+                        display: 'flex', 
+                        flexWrap: 'wrap', 
+                        gap: '0.25rem',
+                        fontSize: '0.75rem',
+                        color: '#64748b'
+                      }}>
+                        <span style={{ fontWeight: 500 }}>Depts:</span>
+                        {subAdmin.courses.slice(0, 3).map((course, idx) => (
                           <span
                             key={typeof course === 'object' ? course._id : course}
                             style={{
                               background: '#e0e7ff',
                               color: '#3730a3',
-                              padding: '0.25rem 0.5rem',
+                              padding: '0.15rem 0.4rem',
                               borderRadius: '4px',
-                              fontSize: '0.75rem',
                               fontWeight: '500'
                             }}
                           >
                             {typeof course === 'object' ? course.department : 'N/A'}
                           </span>
                         ))}
+                        {subAdmin.courses.length > 3 && (
+                          <span style={{ 
+                            color: '#64748b',
+                            fontWeight: 500,
+                            padding: '0.15rem 0.4rem'
+                          }}>
+                            +{subAdmin.courses.length - 3} more
+                          </span>
+                        )}
                       </div>
+                    ) : (
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        color: '#94a3b8',
+                        fontStyle: 'italic'
+                      }}>
+                        All departments
+                      </span>
                     )}
                   </div>
                 ) : (
@@ -1062,17 +1117,17 @@ const SubAdminManagement = () => {
                         onChange={handleInputChange}
                         style={{
                           width: '100%',
-                          padding: '0.875rem 1.125rem',
+                          padding: '0.625rem 0.875rem',
                           border: '2px solid #e2e8f0',
-                          borderRadius: '12px',
-                          fontSize: '1rem',
+                          borderRadius: '8px',
+                          fontSize: '0.9rem',
                           transition: 'all 0.2s ease',
                           background: '#ffffff',
                           cursor: 'pointer'
                         }}
                         onFocus={(e) => {
                           e.target.style.borderColor = '#f97316';
-                          e.target.style.boxShadow = '0 0 0 4px rgba(249, 115, 22, 0.1)';
+                          e.target.style.boxShadow = '0 0 0 3px rgba(249, 115, 22, 0.1)';
                         }}
                         onBlur={(e) => {
                           e.target.style.borderColor = '#e2e8f0';
@@ -1090,171 +1145,188 @@ const SubAdminManagement = () => {
                       </select>
                     </FormGroup>
 
-                    {formState.campus && (
+                    {formState.campus && courses.length > 0 && (
                       <FormGroup>
-                        <Label htmlFor="courses">Courses (Departments) - Optional</Label>
-                        <select
-                          id="courses"
-                          name="courses"
-                          multiple
-                          value={formState.courses}
-                          onChange={handleCourseChange}
-                          style={{
-                            width: '100%',
-                            padding: '0.875rem 1.125rem',
-                            border: '2px solid #e2e8f0',
-                            borderRadius: '12px',
-                            fontSize: '1rem',
-                            transition: 'all 0.2s ease',
-                            background: '#ffffff',
-                            cursor: 'pointer',
-                            minHeight: '120px'
-                          }}
-                          onFocus={(e) => {
-                            e.target.style.borderColor = '#f97316';
-                            e.target.style.boxShadow = '0 0 0 4px rgba(249, 115, 22, 0.1)';
-                          }}
-                          onBlur={(e) => {
-                            e.target.style.borderColor = '#e2e8f0';
-                            e.target.style.boxShadow = 'none';
-                          }}
-                        >
-                          {courses.map(course => (
-                            <option key={course._id} value={course._id}>
-                              {course.department}
-                            </option>
-                          ))}
-                        </select>
+                        <Label>Department Restriction (Optional)</Label>
+                        <div style={{
+                          border: '2px solid #e2e8f0',
+                          borderRadius: '8px',
+                          padding: '0.75rem',
+                          background: '#ffffff',
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem'
+                        }}>
+                          {courses.map(course => {
+                            const isSelected = formState.courses.includes(course._id);
+                            return (
+                              <label
+                                key={course._id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.625rem',
+                                  padding: '0.5rem',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
+                                  background: isSelected ? 'rgba(249, 115, 22, 0.05)' : 'transparent',
+                                  border: `1px solid ${isSelected ? 'rgba(249, 115, 22, 0.2)' : 'transparent'}`,
+                                  fontSize: '0.875rem',
+                                  color: '#1e293b',
+                                  fontWeight: isSelected ? 500 : 400
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.background = '#f8fafc';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.background = 'transparent';
+                                  }
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormState((prev) => ({
+                                        ...prev,
+                                        courses: [...prev.courses, course._id]
+                                      }));
+                                    } else {
+                                      setFormState((prev) => ({
+                                        ...prev,
+                                        courses: prev.courses.filter(id => id !== course._id)
+                                      }));
+                                    }
+                                  }}
+                                  style={{
+                                    cursor: 'pointer',
+                                    width: '16px',
+                                    height: '16px',
+                                    accentColor: '#f97316',
+                                    flexShrink: 0
+                                  }}
+                                />
+                                <span>{course.department}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       </FormGroup>
                     )}
 
-                    <FormGroup>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', cursor: 'pointer' }}>
+                  </SectionContent>
+                </SectionWrapper>
+
+                {/* Section 2: Permissions & Access Levels */}
+                <SectionWrapper>
+                  <SectionTitle>Permissions & Access Levels</SectionTitle>
+                  <PermissionsSection>
+                    {availablePermissions.map((permission) => {
+                      const isEnabled = !!formState.permissions[permission.key];
+                      const accessLevel = formState.permissions[permission.key] || 'view_only';
+                      return (
+                        <PermissionCard 
+                          key={permission.key} 
+                          enabled={isEnabled}
+                          onClick={() => !isEnabled && togglePermission(permission.key)}
+                        >
+                          <PermissionHeader>
+                            <PermissionCheckbox
+                              type="checkbox"
+                              checked={isEnabled}
+                              onChange={() => togglePermission(permission.key)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <PermissionDetails>
+                              <PermissionLabel>{permission.label}</PermissionLabel>
+                            </PermissionDetails>
+                          </PermissionHeader>
+                          {isEnabled && (
+                            <PermissionAccessControl onClick={(e) => e.stopPropagation()}>
+                              <AccessLevelGroup>
+                                <AccessLevelOption selected={accessLevel === 'view_only'}>
+                                  <input
+                                    type="radio"
+                                    name={`access-${permission.key}`}
+                                    value="view_only"
+                                    checked={accessLevel === 'view_only'}
+                                    onChange={() => setPermissionAccess(permission.key, 'view_only')}
+                                  />
+                                  <span>View Only</span>
+                                </AccessLevelOption>
+                                <AccessLevelOption selected={accessLevel === 'full_access'}>
+                                  <input
+                                    type="radio"
+                                    name={`access-${permission.key}`}
+                                    value="full_access"
+                                    checked={accessLevel === 'full_access'}
+                                    onChange={() => setPermissionAccess(permission.key, 'full_access')}
+                                  />
+                                  <span>Full Access</span>
+                                </AccessLevelOption>
+                              </AccessLevelGroup>
+                            </PermissionAccessControl>
+                          )}
+                        </PermissionCard>
+                      );
+                    })}
+                  </PermissionsSection>
+                  
+                  {/* Panel Member Access - Below Permissions */}
+                  <div style={{ 
+                    marginTop: '1rem', 
+                    paddingTop: '1rem',
+                    borderTop: '1px solid #e2e8f0'
+                  }}>
+                    <div style={{
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      border: `2px solid ${formState.hasPanelMemberAccess ? 'rgba(249, 115, 22, 0.3)' : '#e2e8f0'}`,
+                      background: formState.hasPanelMemberAccess ? 'rgba(249, 115, 22, 0.05)' : 'white',
+                      transition: 'all 0.2s ease'
+                    }}>
+                      <label style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.625rem', 
+                        color: '#1e293b', 
+                        cursor: 'pointer', 
+                        fontSize: '0.875rem',
+                        fontWeight: 600
+                      }}>
                         <input
                           type="checkbox"
                           checked={!!formState.hasPanelMemberAccess}
                           onChange={(event) =>
                             setFormState((prev) => ({ ...prev, hasPanelMemberAccess: event.target.checked }))
                           }
-                          style={{ cursor: 'pointer' }}
+                          style={{ 
+                            cursor: 'pointer', 
+                            width: '18px', 
+                            height: '18px',
+                            accentColor: '#f97316'
+                          }}
                         />
                         <span>Grant Panel Member Access</span>
-                        <span style={{ fontSize: '0.8rem', color: '#64748b', marginLeft: '0.5rem' }}>
-                          (Allows access to panel member features with same credentials)
-                        </span>
                       </label>
-                    </FormGroup>
-
-                    {editingSubAdmin && (
-                      <FormGroup>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={!!formState.isActive}
-                            onChange={(event) =>
-                              setFormState((prev) => ({ ...prev, isActive: event.target.checked }))
-                            }
-                            style={{ cursor: 'pointer' }}
-                          />
-                          <span>Active Account</span>
-                        </label>
-                      </FormGroup>
-                    )}
-                  </SectionContent>
-                </SectionWrapper>
-
-                {/* Section 2: Permissions & Access Levels */}
-                <SectionWrapper>
-                  <PermissionsAndAccessSection>
-                    {/* Permissions Section */}
-                    <div>
-                      <SectionTitle>Permissions</SectionTitle>
-                      <PermissionsSection>
-                        <PermissionsGrid>
-                          {availablePermissions.map((permission) => {
-                            const isEnabled = !!formState.permissions[permission.key];
-                            return (
-                              <PermissionCard 
-                                key={permission.key} 
-                                enabled={isEnabled}
-                                onClick={() => togglePermission(permission.key)}
-                              >
-                                <PermissionHeader>
-                                  <PermissionCheckbox
-                                    type="checkbox"
-                                    checked={isEnabled}
-                                    onChange={() => togglePermission(permission.key)}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  <PermissionDetails>
-                                    <PermissionLabel>{permission.label}</PermissionLabel>
-                                  </PermissionDetails>
-                                </PermissionHeader>
-                              </PermissionCard>
-                            );
-                          })}
-                        </PermissionsGrid>
-                      </PermissionsSection>
+                      <div style={{ 
+                        fontSize: '0.75rem', 
+                        color: '#64748b', 
+                        marginTop: '0.25rem',
+                        marginLeft: '1.75rem',
+                        lineHeight: '1.4'
+                      }}>
+                        Allows access to panel member features with same credentials
+                      </div>
                     </div>
-
-                    {/* Access Levels Section */}
-                    <div>
-                      <SectionTitle>Access Levels</SectionTitle>
-                      {Object.keys(formState.permissions).length > 0 ? (
-                        <AccessLevelsSection>
-                          {availablePermissions
-                            .filter(permission => formState.permissions[permission.key])
-                            .map((permission) => {
-                              const accessLevel = formState.permissions[permission.key] || 'view_only';
-                              return (
-                                <AccessLevelCard key={permission.key}>
-                                  <AccessLevelCardHeader>
-                                    <AccessLevelCardTitle>{permission.label}</AccessLevelCardTitle>
-                                  </AccessLevelCardHeader>
-                                  <AccessLevelGroup enabled={true}>
-                                    <AccessLevelOption selected={accessLevel === 'view_only'}>
-                                      <input
-                                        type="radio"
-                                        name={`access-${permission.key}`}
-                                        value="view_only"
-                                        checked={accessLevel === 'view_only'}
-                                        onChange={() => setPermissionAccess(permission.key, 'view_only')}
-                                      />
-                                      <span>View Only</span>
-                                    </AccessLevelOption>
-                                    <AccessLevelOption selected={accessLevel === 'full_access'}>
-                                      <input
-                                        type="radio"
-                                        name={`access-${permission.key}`}
-                                        value="full_access"
-                                        checked={accessLevel === 'full_access'}
-                                        onChange={() => setPermissionAccess(permission.key, 'full_access')}
-                                      />
-                                      <span>Full Access</span>
-                                    </AccessLevelOption>
-                                  </AccessLevelGroup>
-                                </AccessLevelCard>
-                              );
-                            })}
-                        </AccessLevelsSection>
-                      ) : (
-                        <div style={{ 
-                          padding: '2rem', 
-                          textAlign: 'center', 
-                          color: '#94a3b8',
-                          backgroundColor: '#f8fafc',
-                          borderRadius: '12px',
-                          border: '2px dashed #e2e8f0',
-                          marginTop: '1rem'
-                        }}>
-                          <p style={{ margin: 0, fontSize: '0.9rem' }}>
-                            No permissions selected yet.<br />
-                            Select modules in the Permissions section.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </PermissionsAndAccessSection>
+                  </div>
                 </SectionWrapper>
               </SectionsContainer>
 

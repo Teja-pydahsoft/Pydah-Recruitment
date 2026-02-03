@@ -246,63 +246,63 @@ router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, asyn
         let shouldInclude = isSuperAdmin;
         
         if (!isSuperAdmin) {
-          // Check if this panel member is assigned to this specific candidate
-          let isAssignedToCandidate = false;
-          if (candidateEntry.panelMembers && candidateEntry.panelMembers.length > 0) {
-            console.log(`📅 [PANEL MEMBER UPCOMING] Candidate ${candidateEntry.candidate?._id || candidateEntry.candidate} has ${candidateEntry.panelMembers.length} panel member(s)`);
-            isAssignedToCandidate = candidateEntry.panelMembers.some(pm => {
-              // Handle both ObjectId and populated object cases
-              let pmId = null;
-              if (pm.panelMember) {
-                if (pm.panelMember._id) {
-                  pmId = pm.panelMember._id.toString();
-                } else if (typeof pm.panelMember.toString === 'function') {
-                  pmId = pm.panelMember.toString();
-                } else {
-                  pmId = String(pm.panelMember);
-                }
+        // Check if this panel member is assigned to this specific candidate
+        let isAssignedToCandidate = false;
+        if (candidateEntry.panelMembers && candidateEntry.panelMembers.length > 0) {
+          console.log(`📅 [PANEL MEMBER UPCOMING] Candidate ${candidateEntry.candidate?._id || candidateEntry.candidate} has ${candidateEntry.panelMembers.length} panel member(s)`);
+          isAssignedToCandidate = candidateEntry.panelMembers.some(pm => {
+            // Handle both ObjectId and populated object cases
+            let pmId = null;
+            if (pm.panelMember) {
+              if (pm.panelMember._id) {
+                pmId = pm.panelMember._id.toString();
+              } else if (typeof pm.panelMember.toString === 'function') {
+                pmId = pm.panelMember.toString();
+              } else {
+                pmId = String(pm.panelMember);
               }
-              const matches = pmId === panelMemberId;
-              if (pmId) {
-                console.log(`📅 [PANEL MEMBER UPCOMING] Comparing panel member ID: ${pmId} with ${panelMemberId} - ${matches ? 'MATCH' : 'NO MATCH'}`);
-              }
-              return matches;
-            });
-            if (isAssignedToCandidate) {
-              console.log(`✅ [PANEL MEMBER UPCOMING] Found assignment for candidate ${candidateEntry.candidate?._id || candidateEntry.candidate}`);
             }
-          } else {
-            console.log(`📅 [PANEL MEMBER UPCOMING] Candidate ${candidateEntry.candidate?._id || candidateEntry.candidate} has no panel members assigned`);
-          }
-          
-          // Also check legacy interview-level assignment for backward compatibility
-          let isAssignedToInterview = false;
-          if (interview.panelMembers && interview.panelMembers.length > 0) {
-            console.log(`📅 [PANEL MEMBER UPCOMING] Interview ${interview._id} has ${interview.panelMembers.length} panel member(s) at interview level`);
-            isAssignedToInterview = interview.panelMembers.some(pm => {
-              // Handle both ObjectId and populated object cases
-              let pmId = null;
-              if (pm.panelMember) {
-                if (pm.panelMember._id) {
-                  pmId = pm.panelMember._id.toString();
-                } else if (typeof pm.panelMember.toString === 'function') {
-                  pmId = pm.panelMember.toString();
-                } else {
-                  pmId = String(pm.panelMember);
-                }
-              }
-              const matches = pmId === panelMemberId;
-              if (pmId) {
-                console.log(`📅 [PANEL MEMBER UPCOMING] Comparing interview-level panel member ID: ${pmId} with ${panelMemberId} - ${matches ? 'MATCH' : 'NO MATCH'}`);
-              }
-              return matches;
-            });
-            if (isAssignedToInterview) {
-              console.log(`✅ [PANEL MEMBER UPCOMING] Found legacy interview-level assignment for interview ${interview._id}`);
+            const matches = pmId === panelMemberId;
+            if (pmId) {
+              console.log(`📅 [PANEL MEMBER UPCOMING] Comparing panel member ID: ${pmId} with ${panelMemberId} - ${matches ? 'MATCH' : 'NO MATCH'}`);
             }
+            return matches;
+          });
+          if (isAssignedToCandidate) {
+            console.log(`✅ [PANEL MEMBER UPCOMING] Found assignment for candidate ${candidateEntry.candidate?._id || candidateEntry.candidate}`);
           }
-          
-          // Only include if assigned to this candidate OR assigned at interview level (legacy)
+        } else {
+          console.log(`📅 [PANEL MEMBER UPCOMING] Candidate ${candidateEntry.candidate?._id || candidateEntry.candidate} has no panel members assigned`);
+        }
+        
+        // Also check legacy interview-level assignment for backward compatibility
+        let isAssignedToInterview = false;
+        if (interview.panelMembers && interview.panelMembers.length > 0) {
+          console.log(`📅 [PANEL MEMBER UPCOMING] Interview ${interview._id} has ${interview.panelMembers.length} panel member(s) at interview level`);
+          isAssignedToInterview = interview.panelMembers.some(pm => {
+            // Handle both ObjectId and populated object cases
+            let pmId = null;
+            if (pm.panelMember) {
+              if (pm.panelMember._id) {
+                pmId = pm.panelMember._id.toString();
+              } else if (typeof pm.panelMember.toString === 'function') {
+                pmId = pm.panelMember.toString();
+              } else {
+                pmId = String(pm.panelMember);
+              }
+            }
+            const matches = pmId === panelMemberId;
+            if (pmId) {
+              console.log(`📅 [PANEL MEMBER UPCOMING] Comparing interview-level panel member ID: ${pmId} with ${panelMemberId} - ${matches ? 'MATCH' : 'NO MATCH'}`);
+            }
+            return matches;
+          });
+          if (isAssignedToInterview) {
+            console.log(`✅ [PANEL MEMBER UPCOMING] Found legacy interview-level assignment for interview ${interview._id}`);
+          }
+        }
+        
+        // Only include if assigned to this candidate OR assigned at interview level (legacy)
           shouldInclude = isAssignedToCandidate || isAssignedToInterview;
         }
         
