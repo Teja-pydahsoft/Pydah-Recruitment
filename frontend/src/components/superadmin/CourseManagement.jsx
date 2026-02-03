@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Container, Row, Col, Card, Button, Modal, Form, Alert } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaTrash, FaTag } from 'react-icons/fa';
 import styled from 'styled-components';
+import { FaPlus, FaEdit, FaTrash, FaTag, FaBuilding } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import ToastNotificationContainer from '../ToastNotificationContainer';
@@ -9,89 +8,165 @@ import ToastNotificationContainer from '../ToastNotificationContainer';
 // Permanent campuses - these are fixed and cannot be added/removed, only renamed
 const PERMANENT_CAMPUSES = ['Btech', 'Degree', 'Pharmacy', 'Diploma'];
 
-// Styled Components for better responsive design
-const PageContainer = styled(Container)`
-  padding: clamp(1rem, 2vw, 2rem);
-  max-width: 100%;
-  overflow-x: hidden;
+const Container = styled.div`
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 2vw, 2.5rem);
 `;
 
-const PageHeader = styled.div`
-  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
-  
-  h2 {
-    font-size: clamp(1.5rem, 4vw, 2rem);
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 0.5rem;
-  }
-  
-  p {
-    font-size: clamp(0.9rem, 2vw, 1rem);
-    color: #64748b;
-    margin: 0;
-  }
+const Header = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 `;
 
-const CardsRow = styled(Row)`
+const Title = styled.h2`
+  color: #1e293b;
   margin: 0;
-  gap: clamp(1rem, 2vw, 1.5rem);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+`;
+
+const Subtitle = styled.p`
+  margin: 0;
+  color: #6b7280;
+  font-size: 1rem;
+`;
+
+const CampusGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
   
-  @media (max-width: 576px) {
-    margin: 0;
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
   }
 `;
 
-const CampusCard = styled(Card)`
-  height: 100%;
+const CampusCard = styled.div`
+  background: white;
+  border-radius: 16px;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: all 0.3s ease;
   
   &:hover {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
     transform: translateY(-2px);
   }
 `;
 
-const CardHeaderStyled = styled(Card.Header)`
+const CampusHeader = styled.div`
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-bottom: 2px solid #e2e8f0;
-  padding: clamp(1rem, 2vw, 1.25rem);
+  padding: 1.25rem 1.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem;
+`;
+
+const CampusTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+`;
+
+const CampusIcon = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f97316, #fb923c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+`;
+
+const CampusName = styled.h3`
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const HeaderActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+`;
+
+const ActionButton = styled.button`
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+  flex-shrink: 0;
   
-  span {
-    font-size: clamp(1rem, 2.5vw, 1.1rem);
-    font-weight: 700;
-    color: #1e293b;
-    flex: 1;
-    min-width: 120px;
+  background: ${({ variant }) => {
+    switch (variant) {
+      case 'primary':
+        return '#3b82f6';
+      case 'danger':
+        return '#ef4444';
+      case 'secondary':
+        return '#6b7280';
+      default:
+        return '#e2e8f0';
+    }
+  }};
+  color: white;
+  
+  &:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
   
-  div {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
+  &:active {
+    transform: scale(0.95);
   }
 `;
 
-const CardBodyStyled = styled(Card.Body)`
-  padding: clamp(1rem, 2vw, 1.25rem);
+const CampusBody = styled.div`
+  padding: 1.25rem 1.5rem;
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+`;
+
+const DepartmentsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  max-height: 400px;
   overflow-y: auto;
-  max-height: 500px;
-  
-  @media (max-width: 768px) {
-    max-height: 400px;
-  }
+  padding-right: 0.5rem;
   
   &::-webkit-scrollbar {
     width: 6px;
@@ -99,6 +174,7 @@ const CardBodyStyled = styled(Card.Body)`
   
   &::-webkit-scrollbar-track {
     background: #f1f5f9;
+    border-radius: 3px;
   }
   
   &::-webkit-scrollbar-thumb {
@@ -111,20 +187,11 @@ const CardBodyStyled = styled(Card.Body)`
   }
 `;
 
-const DepartmentList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-`;
-
-const DepartmentItem = styled.li`
+const DepartmentItem = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: clamp(0.75rem, 1.5vw, 1rem);
+  padding: 0.75rem 1rem;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -133,43 +200,72 @@ const DepartmentItem = styled.li`
   &:hover {
     background: #f1f5f9;
     border-color: #cbd5e1;
-  }
-  
-  span {
-    font-weight: 500;
-    color: #334155;
-    font-size: clamp(0.9rem, 2vw, 1rem);
-    flex: 1;
-    word-break: break-word;
-    margin-right: 0.75rem;
-  }
-  
-  div {
-    display: flex;
-    gap: 0.5rem;
-    flex-shrink: 0;
+    transform: translateX(2px);
   }
 `;
 
-const ActionButton = styled(Button)`
-  min-width: ${props => props.$iconOnly ? '36px' : 'auto'};
-  height: ${props => props.$iconOnly ? '36px' : 'auto'};
-  padding: ${props => props.$iconOnly ? '0' : '0.5rem 1rem'};
+const DepartmentName = styled.span`
+  font-weight: 500;
+  color: #334155;
+  font-size: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 0.75rem;
+`;
+
+const DepartmentActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+`;
+
+const IconButton = styled.button`
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: ${props => props.$iconOnly ? '50%' : '6px'};
-  font-size: ${props => props.$iconOnly ? '0.875rem' : '0.875rem'};
+  cursor: pointer;
   transition: all 0.2s ease;
-  
-  @media (max-width: 576px) {
-    min-width: ${props => props.$iconOnly ? '40px' : 'auto'};
-    height: ${props => props.$iconOnly ? '40px' : 'auto'};
-    padding: ${props => props.$iconOnly ? '0' : '0.625rem 1.25rem'};
-  }
+  font-size: 0.8rem;
+  background: ${({ variant }) => {
+    switch (variant) {
+      case 'primary':
+        return '#dbeafe';
+      case 'danger':
+        return '#fee2e2';
+      default:
+        return '#f1f5f9';
+    }
+  }};
+  color: ${({ variant }) => {
+    switch (variant) {
+      case 'primary':
+        return '#1e40af';
+      case 'danger':
+        return '#b91c1c';
+      default:
+        return '#475569';
+    }
+  }};
   
   &:hover {
-    transform: scale(1.05);
+    transform: scale(1.1);
+    background: ${({ variant }) => {
+      switch (variant) {
+        case 'primary':
+          return '#bfdbfe';
+        case 'danger':
+          return '#fecaca';
+        default:
+          return '#e2e8f0';
+      }
+    }};
   }
   
   &:active {
@@ -179,25 +275,211 @@ const ActionButton = styled(Button)`
 
 const EmptyState = styled.div`
   text-align: center;
-  padding: clamp(2rem, 4vw, 3rem) 1rem;
+  padding: 2rem 1rem;
+  color: #64748b;
   
   p {
-    color: #64748b;
-    font-size: clamp(0.9rem, 2vw, 1rem);
-    margin-bottom: 1.5rem;
+    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
   }
 `;
 
-const StyledCol = styled(Col)`
-  margin-bottom: clamp(1rem, 2vw, 1.5rem);
+const AddButton = styled.button`
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   
-  @media (max-width: 576px) {
-    margin-bottom: 1.5rem;
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
   }
+  
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+const Modal = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+  overflow-y: auto;
+`;
+
+const ModalContent = styled.div`
+  background: white;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 500px;
+  padding: 2rem;
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #94a3b8;
+  
+  &:hover {
+    color: #475569;
+  }
+`;
+
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const Label = styled.label`
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.875rem;
+`;
+
+const Input = styled.input`
+  padding: 0.75rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  }
+  
+  &:disabled {
+    background: #f8fafc;
+    cursor: not-allowed;
+  }
+`;
+
+const ButtonRow = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+`;
+
+const Button = styled.button`
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  ${({ variant }) => {
+    if (variant === 'primary') {
+      return `
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+        &:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+      `;
+    }
+    return `
+      background: white;
+      color: #475569;
+      border: 2px solid #e2e8f0;
+      &:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+      }
+    `;
+  }}
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+`;
+
+const Alert = styled.div`
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  background: ${({ variant }) => {
+    switch (variant) {
+      case 'info':
+        return '#dbeafe';
+      case 'warning':
+        return '#fef3c7';
+      default:
+        return '#f1f5f9';
+    }
+  }};
+  color: ${({ variant }) => {
+    switch (variant) {
+      case 'info':
+        return '#1e40af';
+      case 'warning':
+        return '#92400e';
+      default:
+        return '#475569';
+    }
+  }};
+  border-left: 3px solid ${({ variant }) => {
+    switch (variant) {
+      case 'info':
+        return '#3b82f6';
+      case 'warning':
+        return '#f59e0b';
+      default:
+        return '#94a3b8';
+    }
+  }};
 `;
 
 const CourseManagement = () => {
-  
   const [courses, setCourses] = useState([]);
   const [showAddDeptModal, setShowAddDeptModal] = useState(false);
   const [showEditDeptModal, setShowEditDeptModal] = useState(false);
@@ -228,22 +510,18 @@ const CourseManagement = () => {
   };
 
   // Create a mapping from permanent campus names to actual campus names
-  // This handles renamed campuses by maintaining a consistent mapping
   const campusMapping = useMemo(() => {
     const mapping = {};
     const actualCampusNames = [...new Set(courses.map(c => c.campus))];
     const usedActualNames = new Set();
     
-    // First pass: exact and case-insensitive matches
     PERMANENT_CAMPUSES.forEach((permanentCampus, index) => {
-      // Try exact match first
       if (actualCampusNames.includes(permanentCampus)) {
         mapping[permanentCampus] = permanentCampus;
         usedActualNames.add(permanentCampus);
         return;
       }
       
-      // Try case-insensitive match
       const caseInsensitiveMatch = actualCampusNames.find(actual => 
         actual.toLowerCase() === permanentCampus.toLowerCase() && !usedActualNames.has(actual)
       );
@@ -255,18 +533,15 @@ const CourseManagement = () => {
       }
     });
     
-    // Second pass: map remaining permanent campuses to remaining actual campuses by index
     const sortedUnusedActual = actualCampusNames
       .filter(name => !usedActualNames.has(name))
       .sort();
     
     PERMANENT_CAMPUSES.forEach((permanentCampus, index) => {
       if (!mapping[permanentCampus]) {
-        // If we have an unused actual campus at this index, use it
         if (index < sortedUnusedActual.length) {
           mapping[permanentCampus] = sortedUnusedActual[index];
         } else {
-          // No matching actual campus found, use permanent name
           mapping[permanentCampus] = permanentCampus;
         }
       }
@@ -275,13 +550,11 @@ const CourseManagement = () => {
     return mapping;
   }, [courses]);
 
-  // Get the actual campus name from database (in case it was renamed)
   const getActualCampusName = (permanentCampus) => {
     return campusMapping[permanentCampus] || permanentCampus;
   };
 
   const getDepartmentsForCampus = (permanentCampus) => {
-    // Get the actual campus name (handles renamed campuses)
     const actualCampusName = getActualCampusName(permanentCampus);
     return courses.filter(course => course.campus === actualCampusName);
   };
@@ -309,7 +582,6 @@ const CourseManagement = () => {
     setSubmitting(true);
 
     try {
-      // Check if this campus-department combination already exists
       const existingCourse = courses.find(c => 
         c.campus === selectedCampus && c.department === newDepartment.trim()
       );
@@ -320,7 +592,6 @@ const CourseManagement = () => {
         return;
       }
       
-      // Create new course (campus-department combination)
       await api.post('/courses', {
         campus: selectedCampus,
         department: newDepartment.trim()
@@ -349,7 +620,6 @@ const CourseManagement = () => {
     setSubmitting(true);
 
     try {
-      // Check if new name already exists for this campus
       const existingCourse = courses.find(c => 
         c._id !== selectedDepartment._id &&
         c.campus === selectedCampus && 
@@ -429,7 +699,6 @@ const CourseManagement = () => {
       setShowRenameCampusModal(false);
       setCampusToRename('');
       setNewCampusName('');
-      // Refresh courses to show updated campus names and departments
       await fetchCourses();
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Failed to rename campus';
@@ -456,226 +725,214 @@ const CourseManagement = () => {
   }
 
   return (
-    <PageContainer fluid>
-      <PageHeader>
-        <h2>Campus Management</h2>
-        <p>Manage campuses and their departments</p>
-      </PageHeader>
+    <Container>
+      <Header>
+        <Title>Campus Management</Title>
+        <Subtitle>Manage campuses and their departments</Subtitle>
+      </Header>
 
-      <CardsRow>
-        {PERMANENT_CAMPUSES.map((permanentCampus, index) => {
-          // Get actual campus name (handles renamed campuses)
+      <CampusGrid>
+        {PERMANENT_CAMPUSES.map((permanentCampus) => {
           const actualCampusName = getActualCampusName(permanentCampus);
           const campusCourses = getDepartmentsForCampus(permanentCampus);
-          const allDepartments = campusCourses.map(course => ({
-            dept: course.department,
-            courseId: course._id
-          }));
 
           return (
-            <StyledCol xs={12} sm={6} md={6} lg={3} xl={3} key={permanentCampus}>
-              <CampusCard>
-                <CardHeaderStyled>
-                  <span>{actualCampusName}</span>
-                  <div>
-                    <ActionButton
-                      variant="outline-secondary"
-                      size="sm"
-                      onClick={() => handleRenameCampus(actualCampusName)}
-                      title="Rename Campus"
-                      $iconOnly
-                    >
-                      <FaTag />
-                    </ActionButton>
-                    <ActionButton
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleAddDepartment(actualCampusName)}
-                      title="Add Department"
-                      $iconOnly
-                    >
+            <CampusCard key={permanentCampus}>
+              <CampusHeader>
+                <CampusTitle>
+                  <CampusIcon>
+                    <FaBuilding />
+                  </CampusIcon>
+                  <CampusName>{actualCampusName}</CampusName>
+                </CampusTitle>
+                <HeaderActions>
+                  <ActionButton
+                    variant="secondary"
+                    onClick={() => handleRenameCampus(actualCampusName)}
+                    title="Rename Campus"
+                  >
+                    <FaTag />
+                  </ActionButton>
+                  <ActionButton
+                    variant="primary"
+                    onClick={() => handleAddDepartment(actualCampusName)}
+                    title="Add Department"
+                  >
+                    <FaPlus />
+                  </ActionButton>
+                </HeaderActions>
+              </CampusHeader>
+              <CampusBody>
+                {campusCourses.length > 0 ? (
+                  <DepartmentsList>
+                    {campusCourses.map((course) => (
+                      <DepartmentItem key={course._id}>
+                        <DepartmentName>{course.department}</DepartmentName>
+                        <DepartmentActions>
+                          <IconButton
+                            variant="primary"
+                            onClick={() => handleEditDepartment(course)}
+                            title="Edit Department"
+                          >
+                            <FaEdit />
+                          </IconButton>
+                          <IconButton
+                            variant="danger"
+                            onClick={() => handleDeleteDepartment(course._id)}
+                            title="Delete Department"
+                          >
+                            <FaTrash />
+                          </IconButton>
+                        </DepartmentActions>
+                      </DepartmentItem>
+                    ))}
+                  </DepartmentsList>
+                ) : (
+                  <EmptyState>
+                    <p>No departments added</p>
+                    <AddButton onClick={() => handleAddDepartment(actualCampusName)}>
                       <FaPlus />
-                    </ActionButton>
-                  </div>
-                </CardHeaderStyled>
-                <CardBodyStyled>
-                  {allDepartments.length > 0 ? (
-                    <DepartmentList>
-                      {allDepartments.map((item) => (
-                        <DepartmentItem key={item.courseId}>
-                          <span>{item.dept}</span>
-                          <div>
-                            <ActionButton
-                              variant="outline-primary"
-                              size="sm"
-                              onClick={() => {
-                                const course = courses.find(c => c._id === item.courseId);
-                                if (course) {
-                                  handleEditDepartment(course);
-                                }
-                              }}
-                              title="Edit Department"
-                              $iconOnly
-                            >
-                              <FaEdit />
-                            </ActionButton>
-                            <ActionButton
-                              variant="outline-danger"
-                              size="sm"
-                              onClick={() => handleDeleteDepartment(item.courseId)}
-                              title="Delete Department"
-                              $iconOnly
-                            >
-                              <FaTrash />
-                            </ActionButton>
-                          </div>
-                        </DepartmentItem>
-                      ))}
-                    </DepartmentList>
-                  ) : (
-                    <EmptyState>
-                      <p>No departments added</p>
-                      <ActionButton
-                        variant="outline-primary"
-                        size="sm"
-                        onClick={() => handleAddDepartment(actualCampusName)}
-                      >
-                        <FaPlus style={{ marginRight: '0.5rem' }} />
-                        Add Department
-                      </ActionButton>
-                    </EmptyState>
-                  )}
-                </CardBodyStyled>
-              </CampusCard>
-            </StyledCol>
+                      Add Department
+                    </AddButton>
+                  </EmptyState>
+                )}
+              </CampusBody>
+            </CampusCard>
           );
         })}
-      </CardsRow>
+      </CampusGrid>
 
       {/* Add Department Modal */}
-      <Modal show={showAddDeptModal} onHide={handleCloseModal} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Add Department to {selectedCampus}</Modal.Title>
-        </Modal.Header>
-        <Form onSubmit={handleSaveDepartment}>
-          <Modal.Body>
-            <Form.Group className="mb-3">
-              <Form.Label>Campus</Form.Label>
-              <Form.Control
-                type="text"
-                value={selectedCampus}
-                disabled
-                style={{ backgroundColor: '#f8f9fa' }}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Department Name *</Form.Label>
-              <Form.Control
-                type="text"
-                value={newDepartment}
-                onChange={(e) => setNewDepartment(e.target.value)}
-                required
-                placeholder="Enter department name (e.g., CSE, ECE, Mechanical)"
-                autoFocus
-              />
-            </Form.Group>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleCloseModal} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button variant="primary" type="submit" disabled={submitting}>
-              {submitting ? 'Adding...' : 'Add Department'}
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
+      {showAddDeptModal && (
+        <Modal onClick={(e) => e.target === e.currentTarget && handleCloseModal()}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Add Department</ModalTitle>
+              <CloseButton onClick={handleCloseModal}>&times;</CloseButton>
+            </ModalHeader>
+            <Form onSubmit={handleSaveDepartment}>
+              <FormGroup>
+                <Label>Campus</Label>
+                <Input
+                  type="text"
+                  value={selectedCampus}
+                  disabled
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>Department Name *</Label>
+                <Input
+                  type="text"
+                  value={newDepartment}
+                  onChange={(e) => setNewDepartment(e.target.value)}
+                  required
+                  placeholder="Enter department name (e.g., CSE, ECE, Mechanical)"
+                  autoFocus
+                />
+              </FormGroup>
+              <ButtonRow>
+                <Button type="button" onClick={handleCloseModal} disabled={submitting}>
+                  Cancel
+                </Button>
+                <Button variant="primary" type="submit" disabled={submitting}>
+                  {submitting ? 'Adding...' : 'Add Department'}
+                </Button>
+              </ButtonRow>
+            </Form>
+          </ModalContent>
+        </Modal>
+      )}
 
       {/* Edit Department Modal */}
-      <Modal show={showEditDeptModal} onHide={handleCloseModal} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Edit Department in {selectedCampus}</Modal.Title>
-        </Modal.Header>
-        <Form onSubmit={handleUpdateDepartment}>
-          <Modal.Body>
-            <Form.Group className="mb-3">
-              <Form.Label>Campus</Form.Label>
-              <Form.Control
-                type="text"
-                value={selectedCampus}
-                disabled
-                style={{ backgroundColor: '#f8f9fa' }}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Department Name *</Form.Label>
-              <Form.Control
-                type="text"
-                value={newDepartment}
-                onChange={(e) => setNewDepartment(e.target.value)}
-                required
-                placeholder="Enter department name"
-                autoFocus
-              />
-            </Form.Group>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleCloseModal} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button variant="primary" type="submit" disabled={submitting}>
-              {submitting ? 'Updating...' : 'Update Department'}
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
+      {showEditDeptModal && (
+        <Modal onClick={(e) => e.target === e.currentTarget && handleCloseModal()}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Edit Department</ModalTitle>
+              <CloseButton onClick={handleCloseModal}>&times;</CloseButton>
+            </ModalHeader>
+            <Form onSubmit={handleUpdateDepartment}>
+              <FormGroup>
+                <Label>Campus</Label>
+                <Input
+                  type="text"
+                  value={selectedCampus}
+                  disabled
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>Department Name *</Label>
+                <Input
+                  type="text"
+                  value={newDepartment}
+                  onChange={(e) => setNewDepartment(e.target.value)}
+                  required
+                  placeholder="Enter department name"
+                  autoFocus
+                />
+              </FormGroup>
+              <ButtonRow>
+                <Button type="button" onClick={handleCloseModal} disabled={submitting}>
+                  Cancel
+                </Button>
+                <Button variant="primary" type="submit" disabled={submitting}>
+                  {submitting ? 'Updating...' : 'Update Department'}
+                </Button>
+              </ButtonRow>
+            </Form>
+          </ModalContent>
+        </Modal>
+      )}
 
       {/* Rename Campus Modal */}
-      <Modal show={showRenameCampusModal} onHide={handleCloseModal} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Rename Campus</Modal.Title>
-        </Modal.Header>
-        <Form onSubmit={handleSaveCampusRename}>
-          <Modal.Body>
-            <Alert variant="info" className="mb-3">
-              <strong>Note:</strong> Renaming a campus will update all departments under this campus. This action cannot be undone easily.
-            </Alert>
-            <Form.Group className="mb-3">
-              <Form.Label>Current Campus Name</Form.Label>
-              <Form.Control
-                type="text"
-                value={campusToRename}
-                disabled
-                style={{ backgroundColor: '#f8f9fa' }}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>New Campus Name *</Form.Label>
-              <Form.Control
-                type="text"
-                value={newCampusName}
-                onChange={(e) => setNewCampusName(e.target.value)}
-                required
-                placeholder="Enter new campus name"
-                autoFocus
-              />
-            </Form.Group>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleCloseModal} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button variant="primary" type="submit" disabled={submitting}>
-              {submitting ? 'Renaming...' : 'Rename Campus'}
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
+      {showRenameCampusModal && (
+        <Modal onClick={(e) => e.target === e.currentTarget && handleCloseModal()}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Rename Campus</ModalTitle>
+              <CloseButton onClick={handleCloseModal}>&times;</CloseButton>
+            </ModalHeader>
+            <Form onSubmit={handleSaveCampusRename}>
+              <Alert variant="info">
+                <strong>Note:</strong> Renaming a campus will update all departments under this campus. This action cannot be undone easily.
+              </Alert>
+              <FormGroup>
+                <Label>Current Campus Name</Label>
+                <Input
+                  type="text"
+                  value={campusToRename}
+                  disabled
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>New Campus Name *</Label>
+                <Input
+                  type="text"
+                  value={newCampusName}
+                  onChange={(e) => setNewCampusName(e.target.value)}
+                  required
+                  placeholder="Enter new campus name"
+                  autoFocus
+                />
+              </FormGroup>
+              <ButtonRow>
+                <Button type="button" onClick={handleCloseModal} disabled={submitting}>
+                  Cancel
+                </Button>
+                <Button variant="primary" type="submit" disabled={submitting}>
+                  {submitting ? 'Renaming...' : 'Rename Campus'}
+                </Button>
+              </ButtonRow>
+            </Form>
+          </ModalContent>
+        </Modal>
+      )}
+
       <ToastNotificationContainer 
         toast={toast} 
         onClose={() => setToast({ type: '', message: '' })} 
       />
-    </PageContainer>
+    </Container>
   );
 };
 
