@@ -363,7 +363,8 @@ router.post('/login', async (req, res) => {
         role: user.role,
         campus: user.campus,
         profile: user.profile,
-        permissions: user.permissions || []
+        permissions: user.permissions || [],
+        hasPanelMemberAccess: user.hasPanelMemberAccess || false
       }
     });
   } catch (error) {
@@ -615,9 +616,15 @@ router.delete('/panel-members/:userId', authenticateToken, requireSuperAdminOrPe
 });
 
 // Get all panel members (super admin only)
+// Includes users with role 'panel_member' OR sub_admins with hasPanelMemberAccess
 router.get('/panel-members', authenticateToken, requireSuperAdminOrPermission('panel_members.manage'), async (req, res) => {
   try {
-    const panelMembers = await User.find({ role: 'panel_member' })
+    const panelMembers = await User.find({
+      $or: [
+        { role: 'panel_member' },
+        { role: 'sub_admin', hasPanelMemberAccess: true }
+      ]
+    })
       .select('-password')
       .populate('courses', 'campus department')
       .sort({ createdAt: -1 });
@@ -695,7 +702,8 @@ router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res
       campus: campus || undefined,
       courses: courseIds.length > 0 ? courseIds : undefined,
       profile: Object.keys(cleanedProfile).length > 0 ? cleanedProfile : undefined,
-      permissions: normalizedPermissions
+      permissions: normalizedPermissions,
+      hasPanelMemberAccess: req.body.hasPanelMemberAccess === true
     });
 
     await subAdmin.save();
@@ -810,7 +818,7 @@ router.post('/sub-admins', authenticateToken, requireSuperAdmin, async (req, res
 
 router.put('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, email, password, profile, permissions, isActive, campus, courses } = req.body;
+    const { name, email, password, profile, permissions, isActive, campus, courses, hasPanelMemberAccess } = req.body;
     const subAdmin = await User.findById(req.params.userId);
 
     if (!subAdmin) {
@@ -825,6 +833,7 @@ router.put('/sub-admins/:userId', authenticateToken, requireSuperAdmin, async (r
     if (email !== undefined) subAdmin.email = email;
     if (typeof isActive === 'boolean') subAdmin.isActive = isActive;
     if (campus !== undefined) subAdmin.campus = campus || undefined;
+    if (typeof hasPanelMemberAccess === 'boolean') subAdmin.hasPanelMemberAccess = hasPanelMemberAccess;
 
     if (profile !== undefined) {
       const cleanedProfile = profile ? Object.fromEntries(

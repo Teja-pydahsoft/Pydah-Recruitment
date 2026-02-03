@@ -464,7 +464,22 @@ const UsersManagement = () => {
             <tbody>
               {panelMembers.map(member => (
                 <tr key={member._id}>
-                  <Td>{member.name}</Td>
+                  <Td>
+                    {member.name}
+                    {member.role === 'sub_admin' && (
+                      <span style={{ 
+                        marginLeft: '0.5rem',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '4px',
+                        backgroundColor: '#dbeafe',
+                        color: '#1e40af',
+                        fontSize: '0.75rem',
+                        fontWeight: 600
+                      }}>
+                        (Sub Admin)
+                      </span>
+                    )}
+                  </Td>
                   <Td>{member.email}</Td>
                   <Td>{member.campus || 'N/A'}</Td>
                   <Td>

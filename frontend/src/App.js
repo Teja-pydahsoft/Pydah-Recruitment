@@ -28,8 +28,19 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/unauthorized" replace />;
+  if (allowedRoles.length > 0) {
+    // Check if user role is allowed
+    const roleAllowed = allowedRoles.includes(user.role);
+    
+    // For panel member routes, also check if sub_admin has panel member access
+    if (!roleAllowed && user.role === 'sub_admin' && allowedRoles.includes('sub_admin')) {
+      const hasPanelAccess = user.hasPanelMemberAccess === true;
+      if (!hasPanelAccess) {
+        return <Navigate to="/unauthorized" replace />;
+      }
+    } else if (!roleAllowed) {
+      return <Navigate to="/unauthorized" replace />;
+    }
   }
 
   return children;
@@ -179,7 +190,7 @@ function App() {
             path="/panel-member/*"
             element={
               <AppLayout>
-                <ProtectedRoute allowedRoles={['panel_member', 'super_admin']}>
+                <ProtectedRoute allowedRoles={['panel_member', 'super_admin', 'sub_admin']}>
                   <PanelMemberDashboard />
                 </ProtectedRoute>
               </AppLayout>

@@ -163,7 +163,28 @@ const requireSuperAdminOrWritePermission = (permission) => {
 
 // Specific role middlewares
 const requireSuperAdmin = authorizeRoles('super_admin');
-const requirePanelMember = authorizeRoles('panel_member', 'super_admin');
+const requirePanelMember = (req, res, next) => {
+  if (!req.user) {
+    console.log('❌ [AUTHORIZATION] No user in request');
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  // Allow panel_member, super_admin, or sub_admin with panel member access
+  const hasAccess = req.user.role === 'panel_member' || 
+                    req.user.role === 'super_admin' || 
+                    (req.user.role === 'sub_admin' && req.user.hasPanelMemberAccess === true);
+
+  if (!hasAccess) {
+    console.error('❌ [AUTHORIZATION] Access denied. User role:', req.user.role, 'hasPanelMemberAccess:', req.user.hasPanelMemberAccess);
+    return res.status(403).json({
+      message: 'Access denied. Panel member access required',
+      userRole: req.user.role
+    });
+  }
+
+  console.log('✅ [AUTHORIZATION] Panel member access granted');
+  next();
+};
 const requireCandidate = authorizeRoles('candidate', 'super_admin');
 
 // Middleware to check if user owns the resource or is super admin

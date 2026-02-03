@@ -44,6 +44,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  hasPanelMemberAccess: {
+    type: Boolean,
+    default: false
+  },
   profile: {
     phone: String,
     department: String,

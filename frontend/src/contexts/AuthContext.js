@@ -43,7 +43,8 @@ export const AuthProvider = ({ children }) => {
       const { token, user: userData } = response.data;
       const normalizedUser = {
         ...userData,
-        permissions: userData.permissions || []
+        permissions: userData.permissions || [],
+        hasPanelMemberAccess: userData.hasPanelMemberAccess || false
       };
 
       localStorage.setItem('token', token);

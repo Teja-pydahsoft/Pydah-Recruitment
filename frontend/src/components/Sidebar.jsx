@@ -575,8 +575,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       return () => clearInterval(interval);
     }
     
-    // Also fetch notifications for super_admin when viewing panel member pages
-    if (user?.role === 'super_admin' && location.pathname.startsWith('/panel-member')) {
+    // Also fetch notifications for super_admin or sub_admin with panel access when viewing panel member pages
+    if ((user?.role === 'super_admin' || (user?.role === 'sub_admin' && user?.hasPanelMemberAccess)) && location.pathname.startsWith('/panel-member')) {
       fetchNotifications();
     }
   }, [user, location.pathname]);
@@ -680,11 +680,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     currentNavItems = subAdminNavigation.filter(item => !item.permission || hasPermission(item.permission));
   }
 
-  // If super_admin is viewing panel member pages, show panel member navigation
-  if (user?.role === 'super_admin' && location.pathname.startsWith('/panel-member')) {
+  // If super_admin or sub_admin with panel access is viewing panel member pages, show panel member navigation
+  if ((user?.role === 'super_admin' || (user?.role === 'sub_admin' && user?.hasPanelMemberAccess)) && location.pathname.startsWith('/panel-member')) {
     currentNavItems = [
       ...navigationItems.panel_member,
-      { path: '/super-admin', icon: FaUserShield, label: 'Back to Admin View', divider: true }
+      { path: user?.role === 'super_admin' ? '/super-admin' : '/sub-admin', icon: FaUserShield, label: `Back to ${user?.role === 'super_admin' ? 'Admin' : 'Sub Admin'} View`, divider: true }
     ];
   }
 

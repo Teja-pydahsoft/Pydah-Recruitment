@@ -17,7 +17,8 @@ const Header = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
+  margin-top: 1rem;
 `;
 
 const Title = styled.h2`
@@ -362,12 +363,6 @@ const PermissionLabel = styled.span`
   line-height: 1.3;
 `;
 
-const PermissionHint = styled.span`
-  font-size: 0.8rem;
-  color: #64748b;
-  line-height: 1.4;
-`;
-
 const AccessLevelGroup = styled.div`
   display: flex;
   gap: 0.75rem;
@@ -537,13 +532,6 @@ const AccessLevelCardTitle = styled.span`
   line-height: 1.3;
 `;
 
-const AccessLevelCardDescription = styled.span`
-  font-size: 0.7rem;
-  color: #64748b;
-  margin-bottom: 0.75rem;
-  display: block;
-  line-height: 1.3;
-`;
 
 const ButtonRow = styled.div`
   display: flex;
@@ -630,6 +618,8 @@ const SubAdminManagement = () => {
   const [availablePermissions, setAvailablePermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [viewingPermissions, setViewingPermissions] = useState(null);
   const [saving, setSaving] = useState(false);
   const [editingSubAdmin, setEditingSubAdmin] = useState(null);
   const [toast, setToast] = useState({ type: '', message: '' });
@@ -641,7 +631,8 @@ const SubAdminManagement = () => {
     password: '',
     campus: '',
     courses: [],
-    permissions: {} // Object: { 'forms.manage': 'read_only' | 'full_access', ... }
+    permissions: {}, // Object: { 'forms.manage': 'read_only' | 'full_access', ... }
+    hasPanelMemberAccess: false
   });
 
   const permissionDetails = useMemo(() => {
@@ -702,7 +693,8 @@ const SubAdminManagement = () => {
       password: '',
       campus: '',
       courses: [],
-      permissions: {}
+      permissions: {},
+      hasPanelMemberAccess: false
     });
     setEditingSubAdmin(null);
     setCourses([]);
@@ -745,7 +737,8 @@ const SubAdminManagement = () => {
       campus: subAdmin.campus || '',
       courses: subAdminCourses,
       permissions: permissionsObj,
-      isActive: subAdmin.isActive
+      isActive: subAdmin.isActive,
+      hasPanelMemberAccess: subAdmin.hasPanelMemberAccess === true
     });
     
     // Fetch courses for the sub-admin's campus
@@ -832,7 +825,8 @@ const SubAdminManagement = () => {
         email: formState.email,
         campus: formState.campus || null,
         courses: formState.courses && formState.courses.length > 0 ? formState.courses : undefined,
-        permissions: formState.permissions
+        permissions: formState.permissions,
+        hasPanelMemberAccess: formState.hasPanelMemberAccess
       };
 
       if (!editingSubAdmin) {
@@ -908,8 +902,7 @@ const SubAdminManagement = () => {
             <Th>Email</Th>
             <Th>Campus</Th>
             <Th>Status</Th>
-            <Th>Permissions</Th>
-            <Th style={{ width: '200px' }}>Actions</Th>
+            <Th style={{ width: '220px' }}>Actions</Th>
           </tr>
         </thead>
         <tbody>
@@ -917,7 +910,22 @@ const SubAdminManagement = () => {
             <tr key={subAdmin._id}>
               <Td>
                 <div style={{ fontWeight: 600, color: '#0f172a' }}>{subAdmin.name}</div>
-                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>User Management</div>
+                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  User Management
+                  {subAdmin.hasPanelMemberAccess && (
+                    <span style={{ 
+                      marginLeft: '0.5rem',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '4px',
+                      backgroundColor: '#dbeafe',
+                      color: '#1e40af',
+                      fontSize: '0.75rem',
+                      fontWeight: 600
+                    }}>
+                      + Panel Member
+                    </span>
+                  )}
+                </div>
               </Td>
               <Td>{subAdmin.email}</Td>
               <Td>
@@ -965,46 +973,17 @@ const SubAdminManagement = () => {
                 </StatusPill>
               </Td>
               <Td>
-                {(() => {
-                  // Handle both old format (array) and new format (object)
-                  let permissionsList = [];
-                  if (Array.isArray(subAdmin.permissions)) {
-                    // Old format: convert to display format
-                    permissionsList = subAdmin.permissions.map(key => ({
-                      key,
-                      accessLevel: 'full_access'
-                    }));
-                  } else if (typeof subAdmin.permissions === 'object' && subAdmin.permissions !== null) {
-                    // New format: convert object to array
-                    permissionsList = Object.entries(subAdmin.permissions).map(([key, accessLevel]) => ({
-                      key,
-                      accessLevel
-                    }));
-                  }
-                  
-                  return permissionsList.length > 0 ? (
-                    <PermissionList>
-                      {permissionsList.map(({ key, accessLevel }) => (
-                        <li key={key}>
-                          {permissionDetails[key]?.label || key}
-                          <span style={{ 
-                            marginLeft: '0.5rem', 
-                            fontSize: '0.75rem',
-                            color: accessLevel === 'full_access' ? '#059669' : '#f59e0b',
-                            fontWeight: 600
-                          }}>
-                            ({accessLevel === 'full_access' ? 'Full Access' : 'View Only'})
-                          </span>
-                        </li>
-                      ))}
-                    </PermissionList>
-                  ) : (
-                    <span style={{ color: '#ef4444', fontWeight: 600 }}>No permissions assigned</span>
-                  );
-                })()}
-              </Td>
-              <Td>
                 <Actions>
+                  <ActionButton 
+                    variant="secondary" 
+                    onClick={() => {
+                      setViewingPermissions(subAdmin);
+                      setShowPermissionsModal(true);
+                    }}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                  >
+                    View
+                  </ActionButton>
                   <ActionButton onClick={() => openEditModal(subAdmin)}>Edit</ActionButton>
                   <ActionButton variant="secondary" onClick={() => handleStatusToggle(subAdmin)}>
                     {subAdmin.isActive ? 'Deactivate' : 'Activate'}
@@ -1149,6 +1128,23 @@ const SubAdminManagement = () => {
                       </FormGroup>
                     )}
 
+                    <FormGroup>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!formState.hasPanelMemberAccess}
+                          onChange={(event) =>
+                            setFormState((prev) => ({ ...prev, hasPanelMemberAccess: event.target.checked }))
+                          }
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span>Grant Panel Member Access</span>
+                        <span style={{ fontSize: '0.8rem', color: '#64748b', marginLeft: '0.5rem' }}>
+                          (Allows access to panel member features with same credentials)
+                        </span>
+                      </label>
+                    </FormGroup>
+
                     {editingSubAdmin && (
                       <FormGroup>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', cursor: 'pointer' }}>
@@ -1192,7 +1188,6 @@ const SubAdminManagement = () => {
                                   />
                                   <PermissionDetails>
                                     <PermissionLabel>{permission.label}</PermissionLabel>
-                                    <PermissionHint>{permission.description || permission.key}</PermissionHint>
                                   </PermissionDetails>
                                 </PermissionHeader>
                               </PermissionCard>
@@ -1216,7 +1211,6 @@ const SubAdminManagement = () => {
                                   <AccessLevelCardHeader>
                                     <AccessLevelCardTitle>{permission.label}</AccessLevelCardTitle>
                                   </AccessLevelCardHeader>
-                                  <AccessLevelCardDescription>{permission.description || permission.key}</AccessLevelCardDescription>
                                   <AccessLevelGroup enabled={true}>
                                     <AccessLevelOption selected={accessLevel === 'view_only'}>
                                       <input
@@ -1276,6 +1270,80 @@ const SubAdminManagement = () => {
           </ModalContent>
         </Modal>
       )}
+      {/* Permissions View Modal */}
+      {showPermissionsModal && viewingPermissions && (
+        <Modal>
+          <ModalContent style={{ maxWidth: '600px' }}>
+            <ModalHeader>
+              <ModalTitle>Permissions - {viewingPermissions.name}</ModalTitle>
+              <CloseButton onClick={() => {
+                setShowPermissionsModal(false);
+                setViewingPermissions(null);
+              }}>&times;</CloseButton>
+            </ModalHeader>
+            
+            <div style={{ marginTop: '1rem' }}>
+              {(() => {
+                let permissionsList = [];
+                if (Array.isArray(viewingPermissions.permissions)) {
+                  permissionsList = viewingPermissions.permissions.map(key => ({
+                    key,
+                    accessLevel: 'full_access'
+                  }));
+                } else if (typeof viewingPermissions.permissions === 'object' && viewingPermissions.permissions !== null) {
+                  permissionsList = Object.entries(viewingPermissions.permissions).map(([key, accessLevel]) => ({
+                    key,
+                    accessLevel
+                  }));
+                }
+                
+                return permissionsList.length > 0 ? (
+                  <PermissionList style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    {permissionsList.map(({ key, accessLevel }) => (
+                      <li key={key} style={{ marginBottom: '0.75rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px' }}>
+                        <div style={{ fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{permissionDetails[key]?.label || key}</span>
+                          <span style={{ 
+                            fontSize: '0.8rem',
+                            color: accessLevel === 'full_access' ? '#059669' : '#f59e0b',
+                            fontWeight: 600,
+                            padding: '0.25rem 0.5rem',
+                            background: accessLevel === 'full_access' ? '#d1fae5' : '#fef3c7',
+                            borderRadius: '4px'
+                          }}>
+                            {accessLevel === 'full_access' ? 'Full Access' : 'View Only'}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </PermissionList>
+                ) : (
+                  <div style={{ 
+                    padding: '2rem', 
+                    textAlign: 'center', 
+                    color: '#94a3b8',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '12px',
+                    border: '2px dashed #e2e8f0'
+                  }}>
+                    <p style={{ margin: 0, fontSize: '0.9rem' }}>No permissions assigned</p>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <ButtonRow>
+              <CancelButton type="button" onClick={() => {
+                setShowPermissionsModal(false);
+                setViewingPermissions(null);
+              }}>
+                Close
+              </CancelButton>
+            </ButtonRow>
+          </ModalContent>
+        </Modal>
+      )}
+
       <ToastNotificationContainer 
         toast={toast} 
         onClose={() => setToast({ type: '', message: '' })} 
