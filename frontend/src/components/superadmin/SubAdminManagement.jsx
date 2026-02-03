@@ -315,12 +315,6 @@ const Input = styled.input`
   }
 `;
 
-const PermissionsGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.5rem;
-`;
-
 const PermissionCard = styled.div`
   border: 2px solid ${({ enabled }) => (enabled ? 'rgba(249, 115, 22, 0.4)' : '#e2e8f0')};
   border-radius: 8px;
@@ -463,17 +457,6 @@ const SectionTitle = styled.h4`
   }
 `;
 
-const PermissionsAndAccessSection = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  
-  @media (max-width: 1400px) {
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }
-`;
-
 const PermissionsSection = styled.div`
   display: flex;
   flex-direction: column;
@@ -499,70 +482,6 @@ const PermissionsSection = styled.div`
     background: #94a3b8;
   }
 `;
-
-const AccessLevelsSection = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  max-height: 500px;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-  
-  @media (max-width: 1400px) {
-    grid-template-columns: 1fr;
-  }
-  
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: #f1f5f9;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-  }
-`;
-
-const AccessLevelCard = styled.div`
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1rem;
-  background: white;
-  transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  
-  &:hover {
-    border-color: #cbd5e1;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
-    transform: translateY(-1px);
-  }
-`;
-
-const AccessLevelCardHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #e2e8f0;
-`;
-
-const AccessLevelCardTitle = styled.span`
-  font-weight: 700;
-  color: #1e293b;
-  font-size: 0.8rem;
-  flex: 1;
-  line-height: 1.3;
-`;
-
 
 const ButtonRow = styled.div`
   display: flex;
@@ -804,14 +723,6 @@ const SubAdminManagement = () => {
         [name]: value
       }));
     }
-  };
-
-  const handleCourseChange = (e) => {
-    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
-    setFormState((prev) => ({
-      ...prev,
-      courses: selectedOptions
-    }));
   };
 
   const togglePermission = (permissionKey) => {
