@@ -110,7 +110,10 @@ app.use('/api/push', require('./routes/pushNotifications'));
 
 // Root endpoint
 app.get('/', (req, res) => {
-  res.send('Staff Recruitment API is running correctly');
+  res.json({
+    message: 'API is running correctly',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Health check endpoint
