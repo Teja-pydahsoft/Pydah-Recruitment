@@ -39,17 +39,18 @@ jobs:
           username: ${{ secrets.LIGHTSAIL_USER }}
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           port: ${{ secrets.LIGHTSAIL_SSH_PORT || 22 }}
-          script_stderr: true
           command_timeout: 5m
+          request_pty: false
           script: |
             set -e
+            export GIT_TERMINAL_PROMPT=0
+            export CI=true
             APP_PATH="${{ secrets.LIGHTSAIL_APP_PATH }}"
             cd "$APP_PATH" || { echo "Invalid LIGHTSAIL_APP_PATH"; exit 1; }
             git fetch origin main
             git reset --hard origin/main
             cd backend
-            # Reuse node_modules when possible (faster); full install when deps change
-            npm install --omit=dev --prefer-offline --no-audit
+            npm install --omit=dev --prefer-offline --no-audit --no-fund
             if systemctl is-active --quiet pydah-backend 2>/dev/null; then
               sudo systemctl restart pydah-backend
             elif command -v pm2 >/dev/null 2>&1; then
