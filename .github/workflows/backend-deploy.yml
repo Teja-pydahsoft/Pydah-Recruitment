@@ -1,0 +1,59 @@
+# Backend deploy to AWS Lightsail (SSH)
+# Runs on push to main when backend changes, or manual dispatch.
+
+name: Backend Deploy to Lightsail
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  deploy:
+    name: Deploy to Lightsail
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies and verify
+        working-directory: backend
+        run: npm ci
+
+      - name: Deploy to Lightsail via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: ${{ secrets.LIGHTSAIL_SSH_PORT || 22 }}
+          script_stderr: true
+          script: |
+            set -e
+            APP_PATH="${{ secrets.LIGHTSAIL_APP_PATH }}"
+            cd "$APP_PATH" || { echo "Invalid LIGHTSAIL_APP_PATH"; exit 1; }
+            git fetch origin
+            git reset --hard origin/main
+            git pull origin main
+            cd backend
+            npm ci --only=production
+            if systemctl is-active --quiet pydah-backend 2>/dev/null; then
+              sudo systemctl restart pydah-backend
+            elif command -v pm2 >/dev/null 2>&1; then
+              pm2 restart pydah-backend 2>/dev/null || (cd "$APP_PATH/backend" && pm2 start server.js --name pydah-backend)
+            else
+              echo "No systemd or PM2 found. Restart your app manually."
+            fi
+            echo "Deploy completed."
