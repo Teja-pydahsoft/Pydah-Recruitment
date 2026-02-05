@@ -108,6 +108,11 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/push', require('./routes/pushNotifications'));
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.send('Staff Recruitment API is running correctly');
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
