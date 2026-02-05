@@ -49,7 +49,7 @@ const Toast = styled.div`
       case 'warning':
         return 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
       case 'info':
-        return 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+        return 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)';
       default:
         return 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)';
     }

@@ -11,12 +11,12 @@ const PageWrapper = styled.div`
 `;
 
 const EmptyState = styled.div`
-  background: rgba(248, 113, 113, 0.08);
-  border: 1px dashed rgba(248, 113, 113, 0.4);
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px dashed rgba(6, 182, 212, 0.4);
   padding: clamp(2rem, 3vw, 2.75rem);
   border-radius: 18px;
   text-align: center;
-  color: #991b1b;
+  color: #0891b2;
   font-weight: 600;
   max-width: 760px;
   margin: 0 auto;

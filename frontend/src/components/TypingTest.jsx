@@ -276,12 +276,12 @@ const CharacterSpan = styled.span`
   `}
   
   ${props => props.$isCurrent && css`
-    background: #667eea;
+    background: #06b6d4;
     color: white;
     padding: 2px 4px;
     border-radius: 4px;
     animation: ${pulse} 1s ease-in-out infinite;
-    box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
   `}
   
   ${props => props.$isPending && css`
@@ -301,7 +301,7 @@ const HiddenTextarea = styled.textarea`
   border: none;
   background: transparent;
   color: transparent;
-  caret-color: #667eea;
+  caret-color: #06b6d4;
   resize: none;
   font-family: inherit;
   z-index: 10;

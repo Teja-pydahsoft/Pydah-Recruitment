@@ -91,7 +91,7 @@ const DashboardTitle = styled.h1`
   font-weight: 800;
   color: #1e293b;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, #ea580c, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -173,7 +173,7 @@ const StatCard = styled.div`
 const StatNumber = styled.div`
   font-size: 2rem;
   font-weight: 800;
-  color: ${props => props.error ? '#dc2626' : '#ea580c'};
+  color: ${props => props.error ? '#dc2626' : '#06b6d4'};
   margin-bottom: 0.5rem;
 
   @media (max-width: 768px) {
@@ -225,7 +225,7 @@ const ErrorMessage = styled.div`
 `;
 
 const RetryButton = styled.button`
-  background: #ea580c;
+  background: #06b6d4;
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
@@ -279,7 +279,7 @@ const MainCard = styled.div`
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #ea580c, #f97316);
+    background: linear-gradient(90deg, #06b6d4, #22d3ee);
   }
 
   &:hover {
@@ -301,7 +301,7 @@ const MainCard = styled.div`
 
 const CardIcon = styled.div`
   font-size: 3rem;
-  color: #ea580c;
+  color: #06b6d4;
   margin-bottom: 1.5rem;
   opacity: 0.8;
 
@@ -353,7 +353,7 @@ const CardDescription = styled.p`
 `;
 
 const ActionButton = styled.button`
-  background: linear-gradient(135deg, #ea580c, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   color: white;
   border: none;
   border-radius: 8px;
@@ -492,7 +492,7 @@ const InterviewDetails = styled.p`
 `;
 
 const InterviewTime = styled.div`
-  color: ${props => props.completed ? '#10b981' : '#ea580c'};
+  color: ${props => props.completed ? '#10b981' : '#06b6d4'};
   font-weight: 600;
   font-size: 0.9rem;
 `;

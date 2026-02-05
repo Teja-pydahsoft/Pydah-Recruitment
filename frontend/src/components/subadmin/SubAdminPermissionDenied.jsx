@@ -14,7 +14,7 @@ const Wrapper = styled.div`
 `;
 
 const Title = styled.h3`
-  color: #b91c1c;
+  color: #0891b2;
   font-size: 1.5rem;
   margin-bottom: 1rem;
 `;
@@ -33,7 +33,7 @@ const BackLink = styled(Link)`
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
   border-radius: 999px;
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   color: white;
   font-weight: 600;
   text-decoration: none;

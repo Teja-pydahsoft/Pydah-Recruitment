@@ -87,7 +87,7 @@ const CampusIcon = styled.div`
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #f97316, #fb923c);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -132,7 +132,7 @@ const ActionButton = styled.button`
       case 'primary':
         return '#3b82f6';
       case 'danger':
-        return '#ef4444';
+        return '#06b6d4';
       case 'secondary':
         return '#6b7280';
       default:
@@ -248,7 +248,7 @@ const IconButton = styled.button`
       case 'primary':
         return '#1e40af';
       case 'danger':
-        return '#b91c1c';
+        return '#0891b2';
       default:
         return '#475569';
     }

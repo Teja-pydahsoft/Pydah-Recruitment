@@ -40,7 +40,7 @@ const STAGE_META = {
   test_in_progress: { label: 'Test In Progress', color: '#f59e0b' },
   awaiting_interview: { label: 'Awaiting Interview', color: '#0ea5e9' },
   interview_scheduled: { label: 'Interview Scheduled', color: '#14b8a6' },
-  awaiting_decision: { label: 'Awaiting Decision', color: '#f97316' },
+  awaiting_decision: { label: 'Awaiting Decision', color: '#06b6d4' },
   selected: { label: 'Selected', color: '#0f766e' },
   on_hold: { label: 'On Hold', color: '#64748b' },
   rejected: { label: 'Rejected', color: '#dc2626' }
@@ -205,8 +205,8 @@ const StatsCard = styled.div`
           return 'linear-gradient(90deg, #06b6d4, #0891b2)';
         case 'warning':
           return 'linear-gradient(90deg, #f59e0b, #d97706)';
-        case 'danger':
-          return 'linear-gradient(90deg, #ef4444, #dc2626)';
+      case 'danger':
+        return 'linear-gradient(90deg, #dc2626, #b91c1c)';
         default:
           return 'linear-gradient(90deg, #6b7280, #4b5563)';
       }
@@ -240,7 +240,7 @@ const StatsIcon = styled.div`
       case 'warning':
         return '#b45309';
       case 'danger':
-        return '#b91c1c';
+        return '#dc2626';
       default:
         return '#475569';
     }
@@ -263,7 +263,7 @@ const StatsCountBadge = styled.div`
       case 'warning':
         return '#f59e0b';
       case 'danger':
-        return '#ef4444';
+        return '#dc2626';
       default:
         return '#6b7280';
     }
@@ -299,7 +299,7 @@ const StatsMeta = styled.span`
 const ErrorBanner = styled.div`
   background: #fee2e2;
   border: 1px solid #fecaca;
-  color: #b91c1c;
+  color: #dc2626;
   padding: 0.75rem 1rem;
   border-radius: 10px;
   font-weight: 500;

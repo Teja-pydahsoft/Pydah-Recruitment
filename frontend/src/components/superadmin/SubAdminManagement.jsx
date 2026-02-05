@@ -43,7 +43,7 @@ const Toolbar = styled.div`
 `;
 
 const AddButton = styled.button`
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   color: white;
   border: none;
   padding: 0.875rem 2rem;
@@ -118,7 +118,7 @@ const ActionButton = styled.button`
   color: ${({ variant }) => {
     switch (variant) {
       case 'danger':
-        return '#b91c1c';
+        return '#0891b2';
       case 'secondary':
         return '#475569';
       default:
@@ -305,7 +305,7 @@ const Input = styled.input`
 
   &:focus {
     outline: none;
-    border-color: #f97316;
+    border-color: #06b6d4;
     box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
     background: #fff;
   }
@@ -335,7 +335,7 @@ const PermissionCard = styled.div`
     left: 0;
     right: 0;
     height: ${({ enabled }) => (enabled ? '2px' : '0')};
-    background: linear-gradient(90deg, #f97316, #fb923c);
+    background: linear-gradient(90deg, #06b6d4, #22d3ee);
     transition: height 0.2s ease;
     border-radius: 8px 8px 0 0;
   }
@@ -358,7 +358,7 @@ const PermissionCheckbox = styled.input`
   cursor: pointer;
   width: 16px;
   height: 16px;
-  accent-color: #f97316;
+  accent-color: #06b6d4;
   flex-shrink: 0;
   margin: 0;
   
@@ -419,7 +419,7 @@ const AccessLevelOption = styled.label`
     cursor: pointer;
     width: 16px;
     height: 16px;
-    accent-color: #f97316;
+    accent-color: #06b6d4;
     margin: 0;
     flex-shrink: 0;
   }
@@ -551,7 +551,7 @@ const StatusPill = styled.span`
   font-weight: 600;
   font-size: 0.85rem;
   background: ${({ active }) => (active ? 'rgba(16, 185, 129, 0.15)' : 'rgba(248, 113, 113, 0.15)')};
-  color: ${({ active }) => (active ? '#047857' : '#b91c1c')};
+  color: ${({ active }) => (active ? '#047857' : '#0891b2')};
 `;
 
 const PermissionList = styled.ul`
@@ -1037,7 +1037,7 @@ const SubAdminManagement = () => {
                           cursor: 'pointer'
                         }}
                         onFocus={(e) => {
-                          e.target.style.borderColor = '#f97316';
+                          e.target.style.borderColor = '#06b6d4';
                           e.target.style.boxShadow = '0 0 0 3px rgba(249, 115, 22, 0.1)';
                         }}
                         onBlur={(e) => {
@@ -1120,7 +1120,7 @@ const SubAdminManagement = () => {
                                     cursor: 'pointer',
                                     width: '16px',
                                     height: '16px',
-                                    accentColor: '#f97316',
+                                    accentColor: '#06b6d4',
                                     flexShrink: 0
                                   }}
                                 />

@@ -58,7 +58,7 @@ const Title = styled.h1`
   font-weight: 800;
   color: #1e293b;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, #ea580c, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -111,7 +111,7 @@ const ErrorMessage = styled.div`
 `;
 
 const RetryButton = styled.button`
-  background: #ea580c;
+  background: #06b6d4;
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
@@ -260,7 +260,7 @@ const DetailRow = styled.div`
 `;
 
 const DetailIcon = styled.span`
-  color: #ea580c;
+  color: #06b6d4;
   font-size: 1rem;
 `;
 
@@ -292,7 +292,7 @@ const EmptyText = styled.p`
 const ActionButton = styled.button`
   background: ${props => {
     if (props.submitted) return '#10b981';
-    return props.variant === 'primary' ? '#ea580c' : '#3b82f6';
+    return props.variant === 'primary' ? '#06b6d4' : '#3b82f6';
   }};
   color: white;
   border: none;

@@ -4,9 +4,9 @@ import { FaEnvelope, FaSms, FaWhatsapp, FaInfoCircle } from 'react-icons/fa';
 import api from '../../services/api';
 
 const themeColors = {
-  primary: '#7f1d1d',
-  secondary: '#431407',
-  accent: '#f97316',
+  primary: '#164e63',
+  secondary: '#0e7490',
+  accent: '#06b6d4',
 };
 
 const defaultTemplateSettings = {

@@ -30,7 +30,7 @@ const slideIn = keyframes`
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%);
   padding: 2rem 0;
 `;
 
@@ -189,7 +189,7 @@ const TestCard = styled(Card)`
 `;
 
 const TestCardHeader = styled(Card.Header)`
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%);
   border-bottom: 2px solid #cbd5e1;
   padding: 1.25rem;
 `;
@@ -216,7 +216,7 @@ const TestInfo = styled.div`
   gap: 1rem;
   margin-bottom: 1rem;
   padding: 1rem;
-  background: #f8fafc;
+  background: #ecfeff;
   border-radius: 8px;
 `;
 

@@ -57,7 +57,7 @@ const Title = styled.h1`
   font-weight: 800;
   color: #1e293b;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, #ea580c, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -183,7 +183,7 @@ const Input = styled.input`
 
   &:focus {
     outline: none;
-    border-color: #ea580c;
+    border-color: #06b6d4;
     box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.1);
   }
 
@@ -195,7 +195,7 @@ const Input = styled.input`
 `;
 
 const Button = styled.button`
-  background: linear-gradient(135deg, #ea580c, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   color: white;
   border: none;
   padding: 0.75rem 2rem;
@@ -297,8 +297,8 @@ const Alert = styled.div`
 
 const EditButton = styled.button`
   background: transparent;
-  border: 2px solid #ea580c;
-  color: #ea580c;
+  border: 2px solid #06b6d4;
+  color: #06b6d4;
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-weight: 600;
@@ -310,7 +310,7 @@ const EditButton = styled.button`
   gap: 0.5rem;
 
   &:hover {
-    background: #ea580c;
+    background: #06b6d4;
     color: white;
   }
 `;

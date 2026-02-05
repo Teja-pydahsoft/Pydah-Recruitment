@@ -1377,10 +1377,10 @@ const CandidateManagement = () => {
                             <FaUser style={{ color: '#64748b', fontSize: '18px' }} />
                           </div>
                         </td>
-                        <td>{candidate.user.name}</td>
-                        <td>{candidate.user.email}</td>
-                        <td>{candidate.form.position}</td>
-                        <td>{candidate.form.department}</td>
+                        <td>{candidate.user?.name || 'N/A'}</td>
+                        <td>{candidate.user?.email || 'N/A'}</td>
+                        <td>{candidate.form?.position || 'N/A'}</td>
+                        <td>{candidate.form?.department || 'N/A'}</td>
                         <td>
                           {candidate.finalDecision?.decision === 'selected' 
                             ? <Badge bg="success">finalized</Badge>

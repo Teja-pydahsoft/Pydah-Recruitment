@@ -731,7 +731,7 @@ const PublicForm = () => {
         </header>
         <div className={styles.centeredPanel}>
           <FaExclamationTriangle style={{ fontSize: '3rem', color: '#dc2626' }} />
-          <h2 className={styles.successTitle} style={{ color: '#b91c1c' }}>We’re Sorry</h2>
+          <h2 className={styles.successTitle} style={{ color: '#0891b2' }}>We're Sorry</h2>
           <p className={styles.successText}>{error}</p>
           <button className={styles.backButton} onClick={() => navigate('/')}>Back to Home</button>
         </div>
@@ -1014,19 +1014,19 @@ const PublicForm = () => {
                 <>
                   {submissionState === 'pending' && (
                     <>
-                      <FaSpinner className={styles.spin} style={{ color: '#b91c1c' }} />
+                      <FaSpinner className={styles.spin} style={{ color: '#06b6d4' }} />
                       Preparing...
                     </>
                   )}
                   {submissionState === 'processing' && (
                     <>
-                      <FaSpinner className={styles.spin} style={{ color: '#b91c1c' }} />
+                      <FaSpinner className={styles.spin} style={{ color: '#06b6d4' }} />
                       Processing...
                     </>
                   )}
                   {submissionState === 'uploading' && (
                     <>
-                      <FaCloudUploadAlt className={styles.bounce} style={{ color: '#f97316' }} />
+                      <FaCloudUploadAlt className={styles.bounce} style={{ color: '#06b6d4' }} />
                       Uploading... {uploadProgress}%
                     </>
                   )}
@@ -1038,7 +1038,7 @@ const PublicForm = () => {
                   )}
                   {(!submissionState || submissionState === 'idle') && (
                     <>
-                      <FaSpinner className={styles.spin} style={{ color: '#b91c1c' }} />
+                      <FaSpinner className={styles.spin} style={{ color: '#06b6d4' }} />
                       Submitting Application...
                     </>
                   )}
@@ -1088,9 +1088,9 @@ const PublicForm = () => {
                   )}
                 >
                   <div className={cx(styles.statusIcon, submissionState === 'pending' && styles.pulse)}>
-                    {submissionState === 'pending' && <FaSpinner className={styles.spin} color="#b91c1c" />}
-                    {submissionState === 'processing' && <FaSpinner className={styles.spin} color="#b91c1c" />}
-                    {submissionState === 'uploading' && <FaCloudUploadAlt color="#f97316" />}
+                    {submissionState === 'pending' && <FaSpinner className={styles.spin} color="#06b6d4" />}
+                    {submissionState === 'processing' && <FaSpinner className={styles.spin} color="#06b6d4" />}
+                    {submissionState === 'uploading' && <FaCloudUploadAlt color="#06b6d4" />}
                   </div>
                   <div className={styles.statusText}>
                     <p className={styles.statusTitle}>
@@ -1113,7 +1113,7 @@ const PublicForm = () => {
                   style={{ background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderColor: '#f59e0b' }}
                 >
                   <div className={styles.statusIcon} style={{ animation: 'none' }}>
-                    <FaCheckCircle style={{ color: '#f97316', fontSize: '2rem' }} />
+                    <FaCheckCircle style={{ color: '#06b6d4', fontSize: '2rem' }} />
                   </div>
                   <div className={styles.statusText}>
                     <p className={styles.statusTitle} style={{ color: '#92400e' }}>Application Submitted Successfully!</p>

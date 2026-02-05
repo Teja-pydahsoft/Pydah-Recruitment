@@ -62,7 +62,7 @@
 }
 
 .headerBar {
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   border-radius: 16px;
   padding: clamp(1rem, 2.4vw, 1.6rem) clamp(1.25rem, 3vw, 2.25rem);
   color: #fff7ed;
@@ -129,7 +129,7 @@
 .jobSummaryTitle {
   font-size: clamp(1.05rem, 2vw, 1.35rem);
   font-weight: 700;
-  color: #b91c1c;
+  color: #0891b2;
   margin: 0;
 }
 
@@ -141,7 +141,7 @@
 
 .jobTag {
   background: rgba(239, 68, 68, 0.1);
-  color: #7f1d1d;
+  color: #164e63;
   border-radius: 999px;
   padding: 0.45rem 0.8rem;
   font-size: 0.85rem;
@@ -172,7 +172,7 @@
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #b91c1c;
+  color: #0891b2;
   font-weight: 700;
   margin: 0;
 }
@@ -209,7 +209,7 @@
   content: '•';
   position: absolute;
   left: 0;
-  color: #ef4444;
+  color: #06b6d4;
   font-weight: 700;
   font-size: 1.2rem;
 }
@@ -229,7 +229,7 @@
 .closingBadgeUrgent {
   background: #fee2e2;
   border-color: #fca5a5;
-  color: #b91c1c;
+  color: #0891b2;
 }
 
 .formWorkspace {
@@ -264,7 +264,7 @@
 .sectionTitle {
   font-size: clamp(1.05rem, 2.2vw, 1.3rem);
   font-weight: 700;
-  color: #b91c1c;
+  color: #0891b2;
   margin: 0;
   display: flex;
   align-items: center;
@@ -351,16 +351,16 @@
 .radioOption input[type="radio"]:checked + .radioLabel,
 .radioOption input[type="radio"]:checked ~ .radioLabel,
 .checkboxOption input[type="checkbox"]:checked {
-  color: #b91c1c;
+  color: #0891b2;
 }
 
 .radioOption input[type="radio"]:checked {
-  accent-color: #ef4444;
+  accent-color: #06b6d4;
 }
 
 .radioOption input[type="radio"]:checked ~ span,
 .radioOption:has(input[type="radio"]:checked) {
-  border-color: #ef4444;
+  border-color: #06b6d4;
   background: rgba(239, 68, 68, 0.08);
 }
 
@@ -370,7 +370,7 @@
 }
 
 .checkboxOption input[type="checkbox"] {
-  accent-color: #ef4444;
+  accent-color: #06b6d4;
   width: 18px;
   height: 18px;
   cursor: pointer;
@@ -396,7 +396,7 @@
 }
 
 .fieldLabel span {
-  color: #b91c1c;
+  color: #0891b2;
   margin-left: 0.25rem;
 }
 
@@ -430,7 +430,7 @@
 .select:focus,
 .fileInput:focus {
   outline: none;
-  border-color: #ef4444;
+  border-color: #06b6d4;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 }
 
@@ -469,7 +469,7 @@
   gap: 0.35rem;
   align-items: flex-start;
   transition: border-color 0.3s ease, background 0.3s ease, transform 0.2s ease;
-  color: #7f1d1d;
+  color: #164e63;
 }
 
 .fileInputWrapper:hover .fileInputVisual {
@@ -480,7 +480,7 @@
 
 .fileInputVisual svg {
   font-size: 1.1rem;
-  color: #ef4444;
+  color: #06b6d4;
 }
 
 .fileInputPrimary {
@@ -496,7 +496,7 @@
 
 .submitButton {
   width: 100%;
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   color: white;
   border: none;
   border-radius: 12px;
@@ -540,12 +540,12 @@
 }
 
 .submitButton.processing {
-  background: linear-gradient(135deg, #fb923c, #ea580c);
+  background: linear-gradient(135deg, #67e8f9, #06b6d4);
   animation: pf-pulse 2s ease-in-out infinite;
 }
 
 .submitButton.uploading {
-  background: linear-gradient(135deg, #f97316, #ea580c);
+  background: linear-gradient(135deg, #22d3ee, #06b6d4);
 }
 
 .centeredPanel {
@@ -577,12 +577,12 @@
 
 .successText {
   font-size: 1.05rem;
-  color: #b75b1f;
+  color: #0891b2;
   margin: 0;
 }
 
 .backButton {
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   color: white;
   border: none;
   border-radius: 8px;
@@ -698,7 +698,7 @@
   align-items: center;
   justify-content: center;
   font-size: 1.25rem;
-  color: #b91c1c;
+  color: #0891b2;
 }
 
 .pulse {
@@ -716,7 +716,7 @@
   margin: 0;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #b91c1c;
+  color: #0891b2;
 }
 
 .statusDescription {
@@ -841,7 +841,7 @@
 
 .statusBadge.pending {
   background: rgba(239, 68, 68, 0.12);
-  color: #b91c1c;
+  color: #0891b2;
 }
 
 .statusBadge.uploading {
@@ -901,7 +901,7 @@
 
 .entryType {
   font-weight: 600;
-  color: #b91c1c;
+  color: #0891b2;
   font-size: 1rem;
 }
 
@@ -931,7 +931,7 @@
 
 .entryDeleteButton:hover {
   background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  color: #06b6d4;
 }
 
 .entryDetails {
@@ -947,7 +947,7 @@
 }
 
 .addEntryButton {
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   color: white;
   border: none;
   border-radius: 10px;
@@ -1005,7 +1005,7 @@
 }
 
 .modalSaveButton {
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   color: white;
   border: none;
   border-radius: 8px;

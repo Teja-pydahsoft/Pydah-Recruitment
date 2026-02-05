@@ -107,7 +107,7 @@ const AppLayout = ({ children, showSidebar = true }) => {
           ...mainStyle,
           padding: 'clamp(0.75rem, 2vw, 2rem)',
           minHeight: '100vh',
-          background: '#f8fafc',
+          background: '#ecfeff',
           display: 'flex',
           flexDirection: 'column',
           transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',

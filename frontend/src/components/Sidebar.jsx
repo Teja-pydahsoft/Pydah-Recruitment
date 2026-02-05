@@ -26,11 +26,11 @@ const SidebarContainer = styled.div`
   left: 0;
   height: 100vh;
   width: ${props => props.$isOpen ? '300px' : '70px'};
-  background: linear-gradient(180deg, #7f1d1d 0%, #431407 100%);
+  background: linear-gradient(180deg, #164e63 0%, #0e7490 100%);
   color: white;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
-  box-shadow: 6px 0 24px rgba(127, 29, 29, 0.3);
+  box-shadow: 6px 0 24px rgba(6, 182, 212, 0.3);
   overflow: hidden;
   overflow-x: hidden;
   overflow-y: auto;
@@ -122,8 +122,8 @@ const Logo = styled.div`
 
 const LogoIcon = styled(FaUserTie)`
   font-size: 1.5rem;
-  color: #f97316;
-  filter: drop-shadow(0 2px 6px rgba(249, 115, 22, 0.35));
+  color: #22d3ee;
+  filter: drop-shadow(0 2px 6px rgba(6, 182, 212, 0.35));
 `;
 
 const LogoText = styled.span`
@@ -134,7 +134,7 @@ const LogoText = styled.span`
   width: ${props => props.$isOpen ? 'auto' : '0'};
   overflow: hidden;
   transition: opacity 0.3s ease, width 0.3s ease;
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -287,7 +287,7 @@ const NavLink = styled(Link)`
 
   &:hover {
     background: rgba(255, 255, 255, 0.18);
-    color: #fff7ed;
+    color: #ecfeff;
     transform: ${props => props.$isOpen ? 'translateX(4px)' : 'scale(1.05)'};
   }
 
@@ -296,10 +296,10 @@ const NavLink = styled(Link)`
   }
 
   &.active {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.35), rgba(249, 115, 22, 0.3));
-    color: #fff7ed;
-    border-left: ${props => props.$isOpen ? '3px solid #f97316' : 'none'};
-    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.35), rgba(34, 211, 238, 0.3));
+    color: #ecfeff;
+    border-left: ${props => props.$isOpen ? '3px solid #22d3ee' : 'none'};
+    box-shadow: 0 6px 16px rgba(6, 182, 212, 0.3);
   }
 
   svg {
@@ -318,7 +318,7 @@ const NavLink = styled(Link)`
 
   &:hover svg {
     transform: scale(1.15);
-    color: #f97316;
+    color: #22d3ee;
   }
 `;
 
@@ -370,7 +370,7 @@ const NotificationBadge = styled.div`
   position: absolute;
   top: 6px;
   right: ${props => props.$isOpen ? '8px' : '6px'};
-  background: #ef4444;
+  background: #06b6d4;
   color: white;
   font-size: 0.65rem;
   font-weight: 700;
@@ -384,7 +384,7 @@ const NotificationBadge = styled.div`
   justify-content: center;
   opacity: ${props => props.count > 0 ? 1 : 0};
   transition: opacity 0.3s ease;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 2px 4px rgba(6, 182, 212, 0.4);
   line-height: 1;
 `;
 
@@ -421,13 +421,13 @@ const UserAvatar = styled.div`
   width: ${props => props.$isOpen ? '45px' : '40px'};
   height: ${props => props.$isOpen ? '45px' : '40px'};
   border-radius: 50%;
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: ${props => props.$isOpen ? '1.2rem' : '1rem'};
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.35);
   position: relative;
   flex-shrink: 0;
   transition: all 0.3s ease;
@@ -440,7 +440,7 @@ const UserAvatar = styled.div`
     width: ${props => props.$isOpen ? '12px' : '10px'};
     height: ${props => props.$isOpen ? '12px' : '10px'};
     background: #16a34a;
-    border: 2px solid #431407;
+    border: 2px solid #164e63;
     border-radius: 50%;
     transition: all 0.3s ease;
   }
@@ -476,8 +476,8 @@ const LogoutButton = styled.button`
   align-items: center;
   justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
   padding: ${props => props.$isOpen ? '0.875rem 1rem' : '0.875rem 0'};
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.25);
   color: #fecaca;
   text-decoration: none;
   border-radius: 12px;
@@ -494,15 +494,15 @@ const LogoutButton = styled.button`
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.1), transparent);
     transition: left 0.5s ease;
   }
 
   &:hover {
-    background: rgba(239, 68, 68, 0.25);
+    background: rgba(220, 38, 38, 0.25);
     color: #fff5f5;
     transform: ${props => props.$isOpen ? 'translateX(4px)' : 'scale(1.05)'};
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
   }
 
   &:hover::before {
