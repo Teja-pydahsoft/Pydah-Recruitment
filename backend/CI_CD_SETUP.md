@@ -129,3 +129,14 @@ In the repo: **Settings → Secrets and variables → Actions → New repository
 | SSH port (optional) | GitHub Secrets | `LIGHTSAIL_SSH_PORT` | `22` |
 
 Your app’s own env (e.g. `MONGODB_URI`, `JWT_SECRET`) stays in `.env` on the Lightsail instance; the workflow only needs the five entries above (four required + one optional port) to connect the repo to the instance.
+
+---
+
+## Why deploys can take time (and how to speed them up)
+
+- **GitHub runner:** Checkout + Node setup + `npm ci` on the runner usually takes 1–2 minutes.
+- **SSH + script on instance:** Most time is spent on the server running `npm install`. Small Lightsail instances (e.g. 512 MB RAM) are slow at installing packages.
+
+**What the workflow does to help:** It uses `npm install --omit=dev --prefer-offline --no-audit` instead of `npm ci`, so when only your code (e.g. `server.js`) changes and not `package.json`, dependencies are reused and the step is much faster.
+
+**On the instance:** npm keeps a cache in `~/.npm` by default, so repeated installs reuse downloaded packages. Code-only changes should be noticeably faster; when you change `package.json` or `package-lock.json`, that deploy will be slower once.
