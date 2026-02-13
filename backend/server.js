@@ -28,6 +28,7 @@ const allowedOrigins = [
   'https://pydah-recruitment.vercel.app',
   'https://pydah-recruitment-git-main.vercel.app', // Vercel preview deployments
   'https://pydah-recruitment-*.vercel.app', // All Vercel preview URLs
+  'https://srs-backend.pydah.edu.in',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3000',
@@ -46,22 +47,22 @@ const corsOptions = {
     if (!origin) {
       return callback(null, true);
     }
-    
+
     // Check if origin matches any allowed origin (including wildcards)
     const isAllowed = allowedOrigins.some(allowedOrigin => {
       // Exact match
       if (origin === allowedOrigin) return true;
-      
+
       // Wildcard match for Vercel preview URLs
       if (allowedOrigin.includes('*')) {
         const pattern = allowedOrigin.replace(/\*/g, '.*');
         const regex = new RegExp(`^${pattern}$`);
         return regex.test(origin);
       }
-      
+
       return false;
     });
-    
+
     if (isAllowed) {
       callback(null, true);
     } else {
