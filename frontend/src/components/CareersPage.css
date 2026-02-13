@@ -323,17 +323,45 @@
 
   .careers-tabs {
     width: 100%;
+    display: flex;
     justify-content: center;
+    padding: 0.25rem;
   }
 
   .careers-tab {
     flex: 1;
     text-align: center;
+    padding: 0.6rem 0.5rem;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .careers-openings header {
     flex-direction: column;
     align-items: flex-start;
+  }
+  
+  .careers-job-list {
+     grid-template-columns: 1fr; 
+  }
+
+  .careers-job {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1.5rem;
+  }
+
+  .careers-job-actions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 1rem;
+  }
+  
+  .careers-apply-button {
+    width: 100%;
+    justify-content: center;
   }
 }
 

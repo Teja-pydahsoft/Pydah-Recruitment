@@ -192,12 +192,12 @@ const CareersPage = () => {
                     </div>
                   </div>
                   <div className="careers-job-actions">
-                    <a
+                    <Link
                       className="careers-apply-button"
-                      href={`/form/${form.uniqueLink}`}
+                      to={`/form/${form.uniqueLink}`}
                     >
                       Apply Now
-                    </a>
+                    </Link>
                   </div>
                 </article>
               );
