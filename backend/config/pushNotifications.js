@@ -36,7 +36,7 @@ function getVAPIDKeys() {
     if (fs.existsSync(VAPID_KEYS_PATH)) {
       const keysData = fs.readFileSync(VAPID_KEYS_PATH, 'utf8');
       const keys = JSON.parse(keysData);
-      
+
       // Validate keys exist
       if (keys.publicKey && keys.privateKey) {
         console.log('✅ Loaded existing VAPID keys');
@@ -50,14 +50,14 @@ function getVAPIDKeys() {
   // Generate new keys if they don't exist or are invalid
   console.log('🔑 Generating new VAPID keys...');
   const newKeys = generateVAPIDKeys();
-  
+
   // Save keys to file
   try {
     fs.writeFileSync(VAPID_KEYS_PATH, JSON.stringify(newKeys, null, 2), 'utf8');
     console.log('✅ VAPID keys generated and saved to:', VAPID_KEYS_PATH);
   } catch (error) {
-    console.error('❌ Failed to save VAPID keys:', error.message);
-    throw error;
+    console.warn('⚠️  Failed to save VAPID keys (non-critical):', error.message);
+    // Continue with new keys even if they weren't saved
   }
 
   return newKeys;
@@ -70,23 +70,23 @@ function getVAPIDKeys() {
 function initializePushNotifications() {
   try {
     const keys = getVAPIDKeys();
-    
+
     // Get contact information from environment or use default
-    const contactEmail = process.env.PUSH_NOTIFICATION_CONTACT_EMAIL || 
-                        process.env.ADMIN_EMAIL || 
-                        'admin@example.com';
-    
+    const contactEmail = process.env.PUSH_NOTIFICATION_CONTACT_EMAIL ||
+      process.env.ADMIN_EMAIL ||
+      'admin@example.com';
+
     // Set VAPID details for web-push
     webpush.setVapidDetails(
       `mailto:${contactEmail}`, // Contact email for the application
       keys.publicKey,            // Public VAPID key
       keys.privateKey            // Private VAPID key
     );
-    
+
     console.log('✅ Web Push Notifications initialized');
     console.log('📧 Contact email:', contactEmail);
     console.log('🔑 Public key:', keys.publicKey.substring(0, 20) + '...');
-    
+
     return keys;
   } catch (error) {
     console.error('❌ Failed to initialize push notifications:', error);

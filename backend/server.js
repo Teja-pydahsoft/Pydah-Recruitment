@@ -13,7 +13,11 @@ connectDB()
   .then(() => ensureSuperAdmin())
   .then(() => {
     // Initialize Web Push Notifications
-    initializePushNotifications();
+    try {
+      initializePushNotifications();
+    } catch (pushError) {
+      console.warn('⚠️ Web Push Notifications failed to initialize (non-critical):', pushError.message);
+    }
   })
   .catch((error) => {
     console.error('❌ Failed to initialize application:', error);
