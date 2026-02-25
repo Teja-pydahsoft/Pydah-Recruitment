@@ -1,7 +1,31 @@
 import axios from 'axios';
 
 const getBaseUrl = () => {
-  let url = process.env.REACT_APP_API_URL || 'https://srs-backend.pydah.edu.in/api';
+  // Check for env variable from CRA (process.env) or Vite (import.meta.env)
+  let envUrl = '';
+  if (typeof process !== 'undefined' && process.env) {
+    envUrl = process.env.REACT_APP_API_URL || process.env.VITE_API_URL || process.env.VITE_API_BASE_URL;
+  }
+  try {
+    if (!envUrl && typeof import.meta !== 'undefined' && import.meta.env) {
+      envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || import.meta.env.REACT_APP_API_URL;
+    }
+  } catch (e) {
+    // Ignore error if import.meta is not available
+  }
+
+  let url = envUrl || 'https://srs-backend.pydah.edu.in/api';
+
+  // Fix: If user strictly provides a domain without http:// or https:// in env file,
+  // Axios will treat it as a relative path resulting in a 404/403.
+  if (url && !/^https?:\/\//i.test(url)) {
+    if (url.includes('localhost') || url.includes('127.0.0.1')) {
+      url = 'http://' + url;
+    } else {
+      url = 'https://' + url;
+    }
+  }
+
   if (url.endsWith('/')) {
     url = url.slice(0, -1);
   }
