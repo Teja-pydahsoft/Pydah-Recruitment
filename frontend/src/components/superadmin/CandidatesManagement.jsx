@@ -4,6 +4,7 @@ import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaCopy }
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import SkeletonLoader from '../SkeletonLoader';
+import DataValueRenderer from '../DataValueRenderer';
 
 const CandidatesManagement = () => {
   // const { user } = useAuth(); // Temporarily unused for ESLint compliance
@@ -72,9 +73,9 @@ const CandidatesManagement = () => {
 
   const copyTestLink = () => {
     if (!assignmentDetails) return;
-    
+
     const textToCopy = `Candidate Name: ${assignmentDetails.candidateName}\nTest Name: ${assignmentDetails.testName}\nTime Duration: ${assignmentDetails.duration} minutes\nTest Link: ${assignmentDetails.testLink}`;
-    
+
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 3000);
@@ -141,16 +142,16 @@ const CandidatesManagement = () => {
     const applicationData = candidate.personalDetails?.applicationData || {};
     const documents = candidate.personalDetails?.documents || [];
     const passportPhoto = candidate.personalDetails?.passportPhoto;
-    
+
     // Separate documents by type
     const resume = documents.find(d => d.name?.toLowerCase().includes('resume') || d.name?.toLowerCase().includes('cv'));
-    const certificates = documents.filter(d => 
-      d.name?.toLowerCase().includes('certificate') || 
+    const certificates = documents.filter(d =>
+      d.name?.toLowerCase().includes('certificate') ||
       d.name?.toLowerCase().includes('certification')
     );
-    const otherDocs = documents.filter(d => 
-      !d.name?.toLowerCase().includes('resume') && 
-      !d.name?.toLowerCase().includes('cv') && 
+    const otherDocs = documents.filter(d =>
+      !d.name?.toLowerCase().includes('resume') &&
+      !d.name?.toLowerCase().includes('cv') &&
       !d.name?.toLowerCase().includes('certificate') &&
       !d.name?.toLowerCase().includes('certification') &&
       !d.name?.toLowerCase().includes('photo') &&
@@ -168,10 +169,10 @@ const CandidatesManagement = () => {
               <Card.Body>
                 {passportPhoto && (
                   <div className="text-center mb-3">
-                    <Image 
-                      src={passportPhoto} 
-                      alt="Profile Photo" 
-                      rounded 
+                    <Image
+                      src={passportPhoto}
+                      alt="Profile Photo"
+                      rounded
                       style={{ maxWidth: '150px', maxHeight: '150px', objectFit: 'cover' }}
                       onError={(e) => {
                         e.target.style.display = 'none';
@@ -200,7 +201,7 @@ const CandidatesManagement = () => {
                     return (
                       <p key={key}>
                         <strong>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong>{' '}
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        <DataValueRenderer value={value} />
                       </p>
                     );
                   })
@@ -226,20 +227,20 @@ const CandidatesManagement = () => {
                     <h6><FaFilePdf className="me-2" />Resume</h6>
                     <div className="d-flex align-items-center gap-2">
                       <span>{resume.name}</span>
-                      <Button 
-                        variant="outline-primary" 
+                      <Button
+                        variant="outline-primary"
                         size="sm"
-                        href={resume.url} 
+                        href={resume.url}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
                         <FaExternalLinkAlt className="me-1" />
                         View
                       </Button>
-                      <Button 
-                        variant="outline-secondary" 
+                      <Button
+                        variant="outline-secondary"
                         size="sm"
-                        href={resume.url} 
+                        href={resume.url}
                         download
                       >
                         <FaDownload className="me-1" />
@@ -259,20 +260,20 @@ const CandidatesManagement = () => {
                           <div className="d-flex align-items-center justify-content-between">
                             <span className="text-truncate" style={{ maxWidth: '150px' }}>{cert.name}</span>
                             <div>
-                              <Button 
-                                variant="outline-primary" 
+                              <Button
+                                variant="outline-primary"
                                 size="sm"
-                                href={cert.url} 
+                                href={cert.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="me-1"
                               >
                                 <FaExternalLinkAlt />
                               </Button>
-                              <Button 
-                                variant="outline-secondary" 
+                              <Button
+                                variant="outline-secondary"
                                 size="sm"
-                                href={cert.url} 
+                                href={cert.url}
                                 download
                               >
                                 <FaDownload />
@@ -295,20 +296,20 @@ const CandidatesManagement = () => {
                           <div className="d-flex align-items-center justify-content-between">
                             <span className="text-truncate" style={{ maxWidth: '150px' }}>{doc.name}</span>
                             <div>
-                              <Button 
-                                variant="outline-primary" 
+                              <Button
+                                variant="outline-primary"
                                 size="sm"
-                                href={doc.url} 
+                                href={doc.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="me-1"
                               >
                                 <FaExternalLinkAlt />
                               </Button>
-                              <Button 
-                                variant="outline-secondary" 
+                              <Button
+                                variant="outline-secondary"
                                 size="sm"
-                                href={doc.url} 
+                                href={doc.url}
                                 download
                               >
                                 <FaDownload />
@@ -516,11 +517,11 @@ const CandidatesManagement = () => {
                             }}
                           />
                         ) : null}
-                        <div 
-                          style={{ 
-                            width: '40px', 
-                            height: '40px', 
-                            borderRadius: '50%', 
+                        <div
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
                             background: '#e2e8f0',
                             display: candidate.passportPhotoUrl ? 'none' : 'flex',
                             alignItems: 'center',
@@ -664,8 +665,8 @@ const CandidatesManagement = () => {
                 <strong>Test:</strong> {assignmentDetails.testName}<br />
                 <strong>Duration:</strong> {assignmentDetails.duration} minutes
               </p>
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 onClick={copyTestLink}
                 className="mt-2"
               >

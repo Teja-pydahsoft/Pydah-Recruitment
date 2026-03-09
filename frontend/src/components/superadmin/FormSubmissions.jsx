@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import SkeletonLoader from '../SkeletonLoader';
 import ToastNotificationContainer from '../ToastNotificationContainer';
+import DataValueRenderer from '../DataValueRenderer';
 
 const PAGE_SIZE = 12;
 
@@ -292,7 +293,7 @@ const FormSubmissions = () => {
                     {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                   </div>
                   <div>
-                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                    <DataValueRenderer value={value} />
                   </div>
                 </Card.Body>
               </Card>
@@ -457,7 +458,7 @@ const FormSubmissions = () => {
               onClick={() => {
                 setQuickSearch(searchInput);
               }}
-              style={{ 
+              style={{
                 borderRadius: '0 8px 8px 0',
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: 'none'
@@ -466,8 +467,8 @@ const FormSubmissions = () => {
               <FaSearch />
             </Button>
             {(quickSearch || searchInput) && (
-              <Button 
-                variant="outline-secondary" 
+              <Button
+                variant="outline-secondary"
                 onClick={() => {
                   setSearchInput('');
                   setQuickSearch('');
@@ -547,91 +548,91 @@ const FormSubmissions = () => {
         <>
           <Row className="g-3">
             {paginatedPendingCandidates.map(candidate => (
-            <Col xs={12} md={6} lg={4} key={candidate._id}>
-              <Card className="h-100 shadow-sm border-0">
-                <Card.Body className="d-flex flex-column">
-                  <div className="d-flex align-items-start justify-content-between mb-2">
-                    <div className="d-flex align-items-center gap-2">
-                      {candidate.passportPhotoUrl ? (
-                        <Image
-                          src={candidate.passportPhotoUrl}
-                          alt={candidate.user?.name}
-                          roundedCircle
-                          style={{ width: '42px', height: '42px', objectFit: 'cover' }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '50%',
-                            background: '#e2e8f0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <FaUser style={{ color: '#64748b' }} />
+              <Col xs={12} md={6} lg={4} key={candidate._id}>
+                <Card className="h-100 shadow-sm border-0">
+                  <Card.Body className="d-flex flex-column">
+                    <div className="d-flex align-items-start justify-content-between mb-2">
+                      <div className="d-flex align-items-center gap-2">
+                        {candidate.passportPhotoUrl ? (
+                          <Image
+                            src={candidate.passportPhotoUrl}
+                            alt={candidate.user?.name}
+                            roundedCircle
+                            style={{ width: '42px', height: '42px', objectFit: 'cover' }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '50%',
+                              background: '#e2e8f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <FaUser style={{ color: '#64748b' }} />
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '1rem' }}>{candidate.user?.name || 'N/A'}</div>
+                          <small className="text-muted">{candidate.user?.email || 'N/A'}</small>
                         </div>
-                      )}
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '1rem' }}>{candidate.user?.name || 'N/A'}</div>
-                        <small className="text-muted">{candidate.user?.email || 'N/A'}</small>
                       </div>
+                      <FormCheck
+                        type="checkbox"
+                        checked={selectedCandidates.has(candidate._id)}
+                        onChange={() => handleSelectCandidate(candidate._id)}
+                      />
                     </div>
-                    <FormCheck
-                      type="checkbox"
-                      checked={selectedCandidates.has(candidate._id)}
-                      onChange={() => handleSelectCandidate(candidate._id)}
-                    />
-                  </div>
-                  <div className="mb-2 text-muted" style={{ fontSize: '0.85rem' }}>
-                    <div><strong>Position:</strong> {candidate.form?.position || 'N/A'}</div>
-                    <div><strong>Department:</strong> {candidate.form?.department || 'N/A'}</div>
-                    <div><strong>Applied:</strong> {new Date(candidate.createdAt).toLocaleDateString()}</div>
-                  </div>
-                  <div className="mb-3 d-flex flex-wrap gap-2">
-                    <Badge bg={candidate.form?.formCategory === 'teaching' ? 'primary' : 'secondary'}>
-                      {candidate.form?.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
-                    </Badge>
-                    {candidate.candidateNumber ? (
-                      <Badge bg="dark">{candidate.candidateNumber}</Badge>
-                    ) : (
-                      <Badge bg="light" text="dark">No Candidate ID</Badge>
-                    )}
-                    {getStatusBadge(candidate.status || 'pending')}
-                  </div>
-                  <div className="mt-auto d-flex gap-2">
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      onClick={() => fetchCandidateProfile(candidate._id)}
-                      disabled={profileLoading}
-                    >
-                      {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
-                    </Button>
-                    <Button
-                      variant="success"
-                      size="sm"
-                      onClick={() => handleApprove(candidate._id)}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline-danger"
-                      size="sm"
-                      onClick={() => handleReject(candidate._id)}
-                    >
-                      Reject
-                    </Button>
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
+                    <div className="mb-2 text-muted" style={{ fontSize: '0.85rem' }}>
+                      <div><strong>Position:</strong> {candidate.form?.position || 'N/A'}</div>
+                      <div><strong>Department:</strong> {candidate.form?.department || 'N/A'}</div>
+                      <div><strong>Applied:</strong> {new Date(candidate.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <div className="mb-3 d-flex flex-wrap gap-2">
+                      <Badge bg={candidate.form?.formCategory === 'teaching' ? 'primary' : 'secondary'}>
+                        {candidate.form?.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
+                      </Badge>
+                      {candidate.candidateNumber ? (
+                        <Badge bg="dark">{candidate.candidateNumber}</Badge>
+                      ) : (
+                        <Badge bg="light" text="dark">No Candidate ID</Badge>
+                      )}
+                      {getStatusBadge(candidate.status || 'pending')}
+                    </div>
+                    <div className="mt-auto d-flex gap-2">
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => fetchCandidateProfile(candidate._id)}
+                        disabled={profileLoading}
+                      >
+                        {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
+                      </Button>
+                      <Button
+                        variant="success"
+                        size="sm"
+                        onClick={() => handleApprove(candidate._id)}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={() => handleReject(candidate._id)}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            ))}
           </Row>
           {pendingTotalPages > 1 && (
             <Row className="mt-4">
@@ -842,9 +843,9 @@ const FormSubmissions = () => {
           </Button>
         </Modal.Footer>
       </Modal>
-      <ToastNotificationContainer 
-        toast={toast} 
-        onClose={() => setToast({ type: '', message: '' })} 
+      <ToastNotificationContainer
+        toast={toast}
+        onClose={() => setToast({ type: '', message: '' })}
       />
     </Container>
   );

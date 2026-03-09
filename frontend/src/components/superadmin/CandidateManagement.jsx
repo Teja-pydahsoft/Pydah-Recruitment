@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar, InputGroup, Pagination } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaSearch, FaKeyboard, FaEye } from 'react-icons/fa';
+import { FaFilePdf, FaFileImage, FaDownload, FaUser, FaSearch, FaKeyboard, FaEye } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
 import ToastNotificationContainer from '../ToastNotificationContainer';
+import DataValueRenderer from '../DataValueRenderer';
 
 const PAGE_SIZE = 10;
 
@@ -157,7 +158,7 @@ const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignm
 const CandidateManagement = () => {
   const { hasWritePermission } = useAuth();
   const canWrite = hasWritePermission('candidates.manage');
-  
+
   const [candidates, setCandidates] = useState([]);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -425,34 +426,34 @@ const CandidateManagement = () => {
 
   const handleDecisionSubmit = async () => {
     if (!decisionCandidate) return;
-    
+
     // Validate: Notes are mandatory for non-finalization decisions
     if (decisionType !== 'selected' && !decisionNotes.trim()) {
       setToast({ type: 'danger', message: 'Note is mandatory when promoting candidate to next step' });
       return;
     }
-    
+
     // Validate: Finalization form fields are required when finalizing
     if (decisionType === 'selected') {
-      if (!finalizationData.bond.trim() || !finalizationData.conditions.trim() || 
-          !finalizationData.salary.trim() || !finalizationData.designation.trim()) {
+      if (!finalizationData.bond.trim() || !finalizationData.conditions.trim() ||
+        !finalizationData.salary.trim() || !finalizationData.designation.trim()) {
         setToast({ type: 'danger', message: 'All finalization fields (Bond, Conditions, Salary, Designation) are required' });
         return;
       }
     }
-    
+
     setDecisionLoading(true);
     try {
       const payload = {
         decision: decisionType,
         notes: decisionNotes
       };
-      
+
       // Include finalization data when finalizing
       if (decisionType === 'selected') {
         payload.finalizationData = finalizationData;
       }
-      
+
       const response = await api.put(`/candidates/${decisionCandidate._id}/final-decision`, payload);
 
       let decisionLabel = 'updated';
@@ -470,18 +471,18 @@ const CandidateManagement = () => {
           prevCandidates.map(candidate =>
             candidate._id === response.data.candidate._id
               ? {
-                  ...candidate,
-                  ...response.data.candidate,
-                  assignments: {
-                    tests: candidate.assignments?.tests || [],
-                    interviews: candidate.assignments?.interviews || []
-                  },
-                  workflow: buildWorkflowSnapshot(
-                    response.data.candidate,
-                    candidate.assignments?.tests || [],
-                    candidate.assignments?.interviews || []
-                  )
-                }
+                ...candidate,
+                ...response.data.candidate,
+                assignments: {
+                  tests: candidate.assignments?.tests || [],
+                  interviews: candidate.assignments?.interviews || []
+                },
+                workflow: buildWorkflowSnapshot(
+                  response.data.candidate,
+                  candidate.assignments?.tests || [],
+                  candidate.assignments?.interviews || []
+                )
+              }
               : candidate
           )
         );
@@ -501,247 +502,156 @@ const CandidateManagement = () => {
     const applicationData = candidate.personalDetails?.applicationData || {};
     const documents = candidate.personalDetails?.documents || [];
     const passportPhoto = candidate.personalDetails?.passportPhoto;
-    const workflow = candidate.workflow;
-    
-    // Get phone number - check application data for mobile number if phone not provided
-    const phone = candidate.personalDetails.phone || 
-                  applicationData.mobileNumber || 
-                  applicationData.mobile || 
-                  applicationData.phone ||
-                  'Not provided';
-    
-    // Fields to exclude from Application Form Details (already shown in Personal Information)
-    const excludedFields = ['name', 'fullName', 'email', 'phone', 'mobileNumber', 'mobile', 'passportPhoto'];
-    
-    const resume = documents.find(d => d.name?.toLowerCase().includes('resume') || d.name?.toLowerCase().includes('cv'));
-    const certificates = documents.filter(d => 
-      d.name?.toLowerCase().includes('certificate') || 
-      d.name?.toLowerCase().includes('certification')
-    );
 
-    // Filter application data to exclude duplicate fields
-    const filteredApplicationData = Object.entries(applicationData).filter(([key]) => {
-      const lowerKey = key.toLowerCase();
-      return !excludedFields.some(excluded => lowerKey.includes(excluded.toLowerCase()));
+    // Fields to exclude from Application Form Details
+    const excludedFields = ['name', 'fullName', 'email', 'phone', 'mobileNumber', 'mobile', 'passportPhoto'];
+
+    const resume = documents.find(d => {
+      const name = d.name?.toLowerCase() || '';
+      return name.includes('resume') || name.includes('cv');
+    });
+    const certificates = documents.filter(d => (d.name?.toLowerCase() || '').includes('certificate'));
+    const otherDocs = documents.filter(d => {
+      const name = d.name?.toLowerCase() || '';
+      const isResume = resume ? (d.name === resume.name && d.url === resume.url) : false;
+      return !isResume && !name.includes('certificate');
     });
 
-    // Extract key information
-    const currentDesignation = applicationData.designation || applicationData.lastDesignation || 'Not provided';
-    const qualification = applicationData.highestQualification || applicationData.qualification || 'Not provided';
-    const currentCTC = applicationData.currentSalary || applicationData.currentCTC || 'Not provided';
-    const expectedCTC = applicationData.expectedSalary || applicationData.expectedCTC || 'Not provided';
-    const experience = applicationData.experience || applicationData.totalExperienceYears || 'Not provided';
-    
-    // Parse experience and education (if stored as textarea)
-    const experienceEntries = typeof experience === 'string' && experience.includes('\n') 
-      ? experience.split('\n').filter(e => e.trim()) 
-      : [experience];
+    const filteredApplicationData = Object.entries(applicationData).filter(([key, value]) => {
+      const lowerKey = key.toLowerCase();
+      // Skip excluded fields and file URLs
+      if (excludedFields.some(excluded => lowerKey.includes(excluded.toLowerCase()))) return false;
+      if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) return false;
+      if (value === null || value === undefined || value === '') return false;
+      return true;
+    });
 
     return (
-      <div>
-        <Row className="mb-4">
-          {/* Left Column - Key Information */}
-          <Col md={4}>
-            <Card className="shadow-sm mb-3">
-              <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Key Information</h5>
-              </Card.Header>
-              <Card.Body style={{ backgroundColor: '#ffffff' }}>
-                {passportPhoto && (
-                  <div className="text-center mb-3">
-                    <Image 
-                      src={passportPhoto} 
-                      alt="Profile Photo" 
-                      rounded 
-                      style={{ 
-                        maxWidth: '150px', 
-                        maxHeight: '150px', 
-                        objectFit: 'cover',
-                        border: '3px solid #e9ecef',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                      }}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
-                    />
+      <div className="pb-3">
+        {/* Profile Summary Card */}
+        <Card className="border-0 shadow-sm mb-4">
+          <Card.Body className="d-flex flex-wrap gap-4 align-items-center">
+            {passportPhoto && (
+              <Image
+                src={passportPhoto}
+                alt="Profile"
+                roundedCircle
+                style={{ width: '80px', height: '80px', objectFit: 'cover', border: '2px solid #eef2f6' }}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            )}
+            <div>
+              <h4 className="mb-1" style={{ fontWeight: 600 }}>{candidate.personalDetails?.name}</h4>
+              <div className="d-flex flex-wrap gap-2">
+                <Badge bg="light" text="dark">{candidate.personalDetails?.email}</Badge>
+                {candidate.personalDetails?.phone && (
+                  <Badge bg="light" text="dark">📞 {candidate.personalDetails.phone}</Badge>
+                )}
+                {candidate.candidateNumber && (
+                  <Badge bg="dark">{candidate.candidateNumber}</Badge>
+                )}
+                <Badge bg={candidate.workflow?.variant || 'secondary'}>{candidate.workflow?.label}</Badge>
+              </div>
+            </div>
+          </Card.Body>
+        </Card>
+
+        {/* Application Responses section matching FormSubmissions UI */}
+        <h6 className="text-uppercase text-muted mb-3" style={{ letterSpacing: '0.08em', fontSize: '0.75rem', fontWeight: 700 }}>
+          Application Responses
+        </h6>
+        <Row className="g-3 mb-4">
+          {filteredApplicationData.map(([key, value]) => (
+            <Col xs={12} md={6} lg={4} key={key}>
+              <Card className="h-100 border-0 shadow-sm">
+                <Card.Body style={{ fontSize: '0.9rem' }}>
+                  <div className="text-muted text-uppercase mb-1" style={{ fontSize: '0.7rem', letterSpacing: '0.08em', fontWeight: 600 }}>
+                    {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                   </div>
-                )}
-                {workflow && (
-                  <Alert variant="light" className="mb-3">
-                    <div style={{ fontWeight: 600, color: '#1f2937' }}>Workflow Stage</div>
-                    <div style={{ color: '#475569', fontSize: '0.9rem' }}>{workflow.label}</div>
-                    {workflow.nextAction && (
-                      <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>
-                        Next: {workflow.nextAction}
-                      </div>
-                    )}
-                  </Alert>
-                )}
-                <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Name:</strong> 
-                  <span style={{ color: '#212529' }}> {candidate.personalDetails.name}</span>
-                </p>
-                <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Email:</strong> 
-                  <span style={{ color: '#212529' }}> {candidate.personalDetails.email}</span>
-                </p>
-                <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Phone:</strong> 
-                  <span style={{ color: phone === 'Not provided' ? '#6c757d' : '#212529' }}> {phone}</span>
-                </p>
-                <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Current Designation:</strong> 
-                  <span style={{ color: '#212529' }}> {currentDesignation}</span>
-                </p>
-                <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Qualification:</strong> 
-                  <span style={{ color: '#212529' }}> {qualification}</span>
-                </p>
-                <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Current CTC:</strong> 
-                  <span style={{ color: '#212529' }}> {currentCTC}</span>
-                </p>
-                <p style={{ marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#495057', minWidth: '120px', display: 'inline-block' }}>Expected CTC:</strong> 
-                  <span style={{ color: '#212529' }}> {expectedCTC}</span>
-                </p>
-              </Card.Body>
-            </Card>
-
-            {/* Experience Section */}
-            <Card className="shadow-sm mb-3">
-              <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Experience</h5>
-              </Card.Header>
-              <Card.Body style={{ backgroundColor: '#ffffff', maxHeight: '300px', overflowY: 'auto' }}>
-                {experienceEntries.length > 0 && experienceEntries[0] !== 'Not provided' ? (
-                  experienceEntries.map((exp, idx) => (
-                    <div key={idx} className="mb-3 p-2" style={{ backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
-                      <div style={{ color: '#212529', whiteSpace: 'pre-wrap' }}>{exp}</div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-muted">No experience details provided</p>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* Right Column - Remaining Details */}
-          <Col md={8}>
-            <Card className="shadow-sm mb-3">
-              <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Application Form Details</h5>
-              </Card.Header>
-              <Card.Body style={{ maxHeight: '500px', overflowY: 'auto', backgroundColor: '#ffffff' }}>
-                {filteredApplicationData.length > 0 ? (
-                  filteredApplicationData.map(([key, value]) => {
-                    if (typeof value === 'string' && (value.startsWith('http') || value.startsWith('https'))) {
-                      return null;
-                    }
-                    if (value === null || value === undefined || value === '') {
-                      return null;
-                    }
-                    // Skip experience and education as they're shown separately
-                    if (key.toLowerCase() === 'experience' || key.toLowerCase() === 'education') {
-                      return null;
-                    }
-                    return (
-                      <p key={key} style={{ marginBottom: '0.75rem' }}>
-                        <strong style={{ color: '#495057', minWidth: '150px', display: 'inline-block' }}>
-                          {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
-                        </strong>{' '}
-                        <span style={{ color: '#212529' }}>
-                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                        </span>
-                      </p>
-                    );
-                  })
-                ) : (
-                  <p className="text-muted">No additional application data available</p>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
+                  <div>
+                    <DataValueRenderer value={value} />
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+          {filteredApplicationData.length === 0 && (
+            <Col xs={12}>
+              <Alert variant="light" className="mb-0">No additional application data available.</Alert>
+            </Col>
+          )}
         </Row>
 
-        <Row className="mb-4">
-          <Col md={12}>
-            <Card className="shadow-sm">
-              <Card.Header style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <h5 className="mb-0" style={{ color: '#495057', fontWeight: '600' }}>Documents</h5>
-              </Card.Header>
-              <Card.Body style={{ backgroundColor: '#ffffff' }}>
-                {resume && (
-                  <div className="mb-3 p-3" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-                    <h6 style={{ color: '#495057', marginBottom: '0.75rem' }}>
-                      <FaFilePdf className="me-2" style={{ color: '#dc3545' }} />Resume
-                    </h6>
-                    <div className="d-flex align-items-center gap-2">
-                      <span style={{ color: '#212529', flex: 1 }}>{resume.name}</span>
-                      <Button 
-                        variant="outline-primary" 
-                        size="sm"
-                        href={resume.url} 
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ borderRadius: '6px' }}
-                      >
-                        <FaExternalLinkAlt className="me-1" />
-                        View
-                      </Button>
-                      <Button 
-                        variant="outline-secondary" 
-                        size="sm"
-                        href={resume.url} 
-                        download
-                        style={{ borderRadius: '6px' }}
-                      >
-                        <FaDownload className="me-1" />
-                        Download
-                      </Button>
-                    </div>
+        {/* Documents section matching FormSubmissions UI */}
+        <h6 className="text-uppercase text-muted mb-3" style={{ letterSpacing: '0.08em', fontSize: '0.75rem', fontWeight: 700 }}>
+          Documents
+        </h6>
+        <Row className="g-3">
+          {resume && (
+            <Col xs={12} md={6} lg={4}>
+              <Card className="h-100 border-0 shadow-sm">
+                <Card.Body>
+                  <h6 className="d-flex align-items-center gap-2 mb-2" style={{ fontSize: '0.95rem' }}>
+                    <FaFilePdf /> Resume / CV
+                  </h6>
+                  <div className="d-flex flex-wrap gap-2 text-truncate">
+                    <small className="text-muted w-100 mb-2 d-block text-truncate">{resume.name}</small>
+                    <Button variant="outline-primary" size="sm" href={resume.url} target="_blank" rel="noopener noreferrer">
+                      View
+                    </Button>
+                    <Button variant="outline-secondary" size="sm" href={resume.url} download>
+                      Download
+                    </Button>
                   </div>
-                )}
+                </Card.Body>
+              </Card>
+            </Col>
+          )}
 
-                {certificates.length > 0 && (
-                  <div className="mb-3">
-                    <h6 style={{ color: '#495057', marginBottom: '0.75rem' }}>
-                      <FaFileImage className="me-2" style={{ color: '#0d6efd' }} />Certificates ({certificates.length})
-                    </h6>
-                    <div className="d-flex flex-wrap gap-2">
-                      {certificates.map((cert, index) => (
-                        <div 
-                          key={index} 
-                          className="border rounded p-2" 
-                          style={{ 
-                            minWidth: '200px', 
-                            backgroundColor: '#f8f9fa',
-                            border: '1px solid #dee2e6',
-                            borderRadius: '8px'
-                          }}
-                        >
-                          <div className="d-flex align-items-center justify-content-between">
-                            <span className="text-truncate" style={{ maxWidth: '150px', color: '#212529' }}>{cert.name}</span>
-                            <Button 
-                              variant="outline-primary" 
-                              size="sm"
-                              href={cert.url} 
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ borderRadius: '6px' }}
-                            >
-                              <FaExternalLinkAlt />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+          {certificates.map((cert, index) => (
+            <Col xs={12} md={6} lg={4} key={`cert-${index}`}>
+              <Card className="h-100 border-0 shadow-sm">
+                <Card.Body>
+                  <h6 className="d-flex align-items-center gap-2 mb-2" style={{ fontSize: '0.95rem' }}>
+                    <FaFileImage /> Certificate
+                  </h6>
+                  <div className="d-flex flex-wrap gap-2 text-truncate">
+                    <small className="text-muted w-100 mb-2 d-block text-truncate">{cert.name}</small>
+                    <Button variant="outline-primary" size="sm" href={cert.url} target="_blank" rel="noopener noreferrer">
+                      View
+                    </Button>
+                    <Button variant="outline-secondary" size="sm" href={cert.url} download>
+                      Download
+                    </Button>
                   </div>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+
+          {otherDocs.map((doc, index) => (
+            <Col xs={12} md={6} lg={4} key={`doc-${index}`}>
+              <Card className="h-100 border-0 shadow-sm">
+                <Card.Body>
+                  <h6 className="mb-2" style={{ fontSize: '0.95rem' }}>{doc.name}</h6>
+                  <div className="d-flex flex-wrap gap-2">
+                    <Button variant="outline-primary" size="sm" href={doc.url} target="_blank" rel="noopener noreferrer">
+                      View
+                    </Button>
+                    <Button variant="outline-secondary" size="sm" href={doc.url} download>
+                      Download
+                    </Button>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
+
+          {!resume && certificates.length === 0 && otherDocs.length === 0 && (
+            <Col xs={12}>
+              <Alert variant="light" className="mb-0">No supporting documents available.</Alert>
+            </Col>
+          )}
         </Row>
       </div>
     );
@@ -751,23 +661,23 @@ const CandidateManagement = () => {
     // Include typing test results in counts
     const summary = candidate.testResults?.summary || {};
     const completedTests = Array.isArray(candidate.testResults?.tests) ? candidate.testResults.tests : [];
-    
+
     const typingTestsCount = typingTestResultsForCandidate.length;
     const typingTestsPassed = typingTestResultsForCandidate.filter(t => t.accuracy >= 70).length; // Consider 70%+ accuracy as passed
     const typingTestsAvgScore = typingTestsCount > 0
       ? typingTestResultsForCandidate.reduce((sum, t) => sum + (t.accuracy || 0), 0) / typingTestsCount
       : 0;
-    
+
     // Combine MCQ and typing test counts
     const totalTests = Number(summary.totalTests || 0) + typingTestsCount;
     const passedTests = Number(summary.passedTests || 0) + typingTestsPassed;
-    
+
     // Calculate combined average score
     const mcqTestsCount = completedTests.length;
-    const mcqAvgScore = typeof summary.averageScore === 'number' 
-      ? summary.averageScore 
+    const mcqAvgScore = typeof summary.averageScore === 'number'
+      ? summary.averageScore
       : Number(summary.averageScore || 0);
-    
+
     let averageScoreValue = 0;
     if (totalTests > 0) {
       const mcqTotal = mcqAvgScore * mcqTestsCount;
@@ -793,222 +703,223 @@ const CandidateManagement = () => {
     };
 
     return (
-    <div>
-      <Row className="mb-4">
-        <Col md={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-primary">{totalTests}</h3>
-              <p className="text-muted mb-0">Total Tests</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-success">{passedTests}</h3>
-              <p className="text-muted mb-0">Passed Tests</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-info">{averageScoreValue.toFixed(1)}%</h3>
-              <p className="text-muted mb-0">Average Score</p>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      <div>
+        <Row className="mb-4">
+          <Col md={4}>
+            <Card className="text-center">
+              <Card.Body>
+                <h3 className="text-primary">{totalTests}</h3>
+                <p className="text-muted mb-0">Total Tests</p>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={4}>
+            <Card className="text-center">
+              <Card.Body>
+                <h3 className="text-success">{passedTests}</h3>
+                <p className="text-muted mb-0">Passed Tests</p>
+              </Card.Body>
+            </Card>
+          </Col>
+          <Col md={4}>
+            <Card className="text-center">
+              <Card.Body>
+                <h3 className="text-info">{averageScoreValue.toFixed(1)}%</h3>
+                <p className="text-muted mb-0">Average Score</p>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
 
-      {candidate.testResults.tests.length > 0 ? (
-        <Table striped bordered hover responsive>
-          <thead>
-            <tr>
-              <th>Test Title</th>
-              <th>Score</th>
-              <th>Percentage</th>
-              <th>Status</th>
-              <th>Submitted At</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {candidate.testResults.tests.map((test, index) => {
-              const testKey = test.testId || index;
-              return (
-              <React.Fragment key={testKey}>
-                <tr>
-                  <td>{test.testTitle}</td>
-                  <td>{test.score}/{test.totalScore}</td>
-                  <td>{test.percentage.toFixed(1)}%</td>
-                  <td>{getStatusBadge(test.status)}</td>
-                  <td>{test.submittedAt ? new Date(test.submittedAt).toLocaleString() : '--'}</td>
-                  <td>
-                    <Button
-                      variant={expandedTestResults[testKey] ? 'primary' : 'outline-primary'}
-                      size="sm"
-                      onClick={() => toggleTestResultDetails(testKey)}
-                    >
-                      {expandedTestResults[testKey] ? 'Hide Answers' : 'View Answers'}
-                    </Button>
-                  </td>
-                </tr>
-                {expandedTestResults[testKey] && (
+        {candidate.testResults.tests.length > 0 ? (
+          <Table striped bordered hover responsive>
+            <thead>
+              <tr>
+                <th>Test Title</th>
+                <th>Score</th>
+                <th>Percentage</th>
+                <th>Status</th>
+                <th>Submitted At</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {candidate.testResults.tests.map((test, index) => {
+                const testKey = test.testId || index;
+                return (
+                  <React.Fragment key={testKey}>
+                    <tr>
+                      <td>{test.testTitle}</td>
+                      <td>{test.score}/{test.totalScore}</td>
+                      <td>{test.percentage.toFixed(1)}%</td>
+                      <td>{getStatusBadge(test.status)}</td>
+                      <td>{test.submittedAt ? new Date(test.submittedAt).toLocaleString() : '--'}</td>
+                      <td>
+                        <Button
+                          variant={expandedTestResults[testKey] ? 'primary' : 'outline-primary'}
+                          size="sm"
+                          onClick={() => toggleTestResultDetails(testKey)}
+                        >
+                          {expandedTestResults[testKey] ? 'Hide Answers' : 'View Answers'}
+                        </Button>
+                      </td>
+                    </tr>
+                    {expandedTestResults[testKey] && (
+                      <tr>
+                        <td colSpan={6}>
+                          <div className="p-3 bg-light rounded">
+                            <div className="d-flex flex-wrap gap-3 mb-3">
+                              <div><strong>Score:</strong> {test.score}/{test.totalScore}</div>
+                              <div><strong>Percentage:</strong> {test.percentage.toFixed(1)}%</div>
+                              {test.duration && <div><strong>Duration:</strong> {test.duration} minutes</div>}
+                              {test.startedAt && <div><strong>Started:</strong> {new Date(test.startedAt).toLocaleString()}</div>}
+                              {test.submittedAt && <div><strong>Submitted:</strong> {new Date(test.submittedAt).toLocaleString()}</div>}
+                            </div>
+                            {test.answers && test.answers.length > 0 ? (
+                              <Table size="sm" bordered hover responsive>
+                                <thead>
+                                  <tr>
+                                    <th>#</th>
+                                    <th>Question</th>
+                                    <th>Your Answer</th>
+                                    <th>Correct Answer</th>
+                                    <th>Result</th>
+                                    <th>Marks</th>
+                                    <th>Time Taken</th>
+                                    <th>Answered At</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {test.answers.map((answer, answerIndex) => (
+                                    <tr key={`${testKey}-${answer.questionId || answerIndex}`}>
+                                      <td>{answerIndex + 1}</td>
+                                      <td>{answer.questionText}</td>
+                                      <td>{formatOptionList(answer.selectedOptions)}</td>
+                                      <td>{formatOptionList(answer.correctOptions, 'Not available')}</td>
+                                      <td>
+                                        {answer.isCorrect === true ? (
+                                          <Badge bg="success">Correct</Badge>
+                                        ) : answer.isCorrect === false ? (
+                                          <Badge bg="danger">Incorrect</Badge>
+                                        ) : (
+                                          <Badge bg="secondary">Pending</Badge>
+                                        )}
+                                      </td>
+                                      <td>{typeof answer.marksAwarded === 'number' ? answer.marksAwarded : '--'}</td>
+                                      <td>{formatDurationSeconds(answer.timeTaken)}</td>
+                                      <td>{answer.answeredAt ? new Date(answer.answeredAt).toLocaleString() : '--'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </Table>
+                            ) : (
+                              <Alert variant="info" className="mb-0">No answer details available for this test.</Alert>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </Table>
+        ) : (
+          <Alert variant="info">No test results available yet.</Alert>
+        )}
+
+        {/* Typing Test Results Section */}
+        {typingTestResultsForCandidate.length > 0 && (
+          <Card className="mt-3">
+            <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+              <h6 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
+                <FaKeyboard className="me-2" />
+                Typing Test Results
+              </h6>
+            </Card.Header>
+            <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
+              <Table striped bordered hover responsive style={{ marginBottom: 0 }}>
+                <thead style={{ background: '#f8f9fa' }}>
                   <tr>
-                    <td colSpan={6}>
-                      <div className="p-3 bg-light rounded">
-                        <div className="d-flex flex-wrap gap-3 mb-3">
-                          <div><strong>Score:</strong> {test.score}/{test.totalScore}</div>
-                          <div><strong>Percentage:</strong> {test.percentage.toFixed(1)}%</div>
-                          {test.duration && <div><strong>Duration:</strong> {test.duration} minutes</div>}
-                          {test.startedAt && <div><strong>Started:</strong> {new Date(test.startedAt).toLocaleString()}</div>}
-                          {test.submittedAt && <div><strong>Submitted:</strong> {new Date(test.submittedAt).toLocaleString()}</div>}
-                        </div>
-                        {test.answers && test.answers.length > 0 ? (
-                          <Table size="sm" bordered hover responsive>
-                            <thead>
-                              <tr>
-                                <th>#</th>
-                                <th>Question</th>
-                                <th>Your Answer</th>
-                                <th>Correct Answer</th>
-                                <th>Result</th>
-                                <th>Marks</th>
-                                <th>Time Taken</th>
-                                <th>Answered At</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {test.answers.map((answer, answerIndex) => (
-                                <tr key={`${testKey}-${answer.questionId || answerIndex}`}>
-                                  <td>{answerIndex + 1}</td>
-                                  <td>{answer.questionText}</td>
-                                  <td>{formatOptionList(answer.selectedOptions)}</td>
-                                  <td>{formatOptionList(answer.correctOptions, 'Not available')}</td>
-                                  <td>
-                                    {answer.isCorrect === true ? (
-                                      <Badge bg="success">Correct</Badge>
-                                    ) : answer.isCorrect === false ? (
-                                      <Badge bg="danger">Incorrect</Badge>
-                                    ) : (
-                                      <Badge bg="secondary">Pending</Badge>
-                                    )}
-                                  </td>
-                                  <td>{typeof answer.marksAwarded === 'number' ? answer.marksAwarded : '--'}</td>
-                                  <td>{formatDurationSeconds(answer.timeTaken)}</td>
-                                  <td>{answer.answeredAt ? new Date(answer.answeredAt).toLocaleString() : '--'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </Table>
-                        ) : (
-                          <Alert variant="info" className="mb-0">No answer details available for this test.</Alert>
-                        )}
-                      </div>
-                    </td>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Test Title</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>WPM</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Accuracy</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Errors</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Time Taken</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Duration</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Submitted At</th>
+                    <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Actions</th>
                   </tr>
-                )}
-              </React.Fragment>
-            );})}
-          </tbody>
-        </Table>
-      ) : (
-        <Alert variant="info">No test results available yet.</Alert>
-      )}
+                </thead>
+                <tbody>
+                  {typingTestResultsForCandidate.map((result, index) => (
+                    <tr key={result._id || index}>
+                      <td>{result.typingTest?.title || 'N/A'}</td>
+                      <td>
+                        <Badge bg={getTypingWPMBadge(result.wpm)}>
+                          {result.wpm || 0} WPM
+                        </Badge>
+                      </td>
+                      <td>
+                        <Badge bg={getTypingAccuracyBadge(result.accuracy)}>
+                          {result.accuracy || 0}%
+                        </Badge>
+                      </td>
+                      <td>{result.totalErrors || 0}</td>
+                      <td>{result.timeTaken || 0}s</td>
+                      <td>{result.duration || 0} min</td>
+                      <td>{formatTypingDate(result.submittedAt)}</td>
+                      <td>
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTypingResult(result);
+                            setShowTypingResultModal(true);
+                          }}
+                        >
+                          <FaEye className="me-1" />
+                          View Details
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card.Body>
+          </Card>
+        )}
 
-      {/* Typing Test Results Section */}
-      {typingTestResultsForCandidate.length > 0 && (
-        <Card className="mt-3">
-          <Card.Header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
-            <h6 className="mb-0" style={{ color: 'white', fontWeight: '600' }}>
-              <FaKeyboard className="me-2" />
-              Typing Test Results
-            </h6>
-          </Card.Header>
-          <Card.Body style={{ padding: '1.5rem', background: '#ffffff' }}>
-            <Table striped bordered hover responsive style={{ marginBottom: 0 }}>
-              <thead style={{ background: '#f8f9fa' }}>
-                <tr>
-                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Test Title</th>
-                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>WPM</th>
-                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Accuracy</th>
-                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Errors</th>
-                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Time Taken</th>
-                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Duration</th>
-                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Submitted At</th>
-                  <th style={{ fontWeight: '600', color: '#495057', borderBottom: '2px solid #dee2e6' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {typingTestResultsForCandidate.map((result, index) => (
-                  <tr key={result._id || index}>
-                    <td>{result.typingTest?.title || 'N/A'}</td>
-                    <td>
-                      <Badge bg={getTypingWPMBadge(result.wpm)}>
-                        {result.wpm || 0} WPM
-                      </Badge>
-                    </td>
-                    <td>
-                      <Badge bg={getTypingAccuracyBadge(result.accuracy)}>
-                        {result.accuracy || 0}%
-                      </Badge>
-                    </td>
-                    <td>{result.totalErrors || 0}</td>
-                    <td>{result.timeTaken || 0}s</td>
-                    <td>{result.duration || 0} min</td>
-                    <td>{formatTypingDate(result.submittedAt)}</td>
-                    <td>
-                      <Button
-                        variant="outline-primary"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedTypingResult(result);
-                          setShowTypingResultModal(true);
-                        }}
-                      >
-                        <FaEye className="me-1" />
-                        View Details
-                      </Button>
-                    </td>
+        {candidate.assignments?.tests?.length > 0 && (
+          <Card className="mt-3">
+            <Card.Header>Test Assignments</Card.Header>
+            <Card.Body style={{ padding: 0 }}>
+              <Table striped bordered hover responsive className="mb-0">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Invited</th>
+                    <th>Completed</th>
+                    <th>Score</th>
                   </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Card.Body>
-        </Card>
-      )}
-
-      {candidate.assignments?.tests?.length > 0 && (
-        <Card className="mt-3">
-          <Card.Header>Test Assignments</Card.Header>
-          <Card.Body style={{ padding: 0 }}>
-            <Table striped bordered hover responsive className="mb-0">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Status</th>
-                  <th>Invited</th>
-                  <th>Completed</th>
-                  <th>Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidate.assignments.tests.map(assignment => (
-                  <tr key={assignment.testId}>
-                    <td>{assignment.title}</td>
-                    <td><Badge bg="secondary">{assignment.status}</Badge></td>
-                    <td>{assignment.invitedAt ? new Date(assignment.invitedAt).toLocaleString() : '--'}</td>
-                    <td>{assignment.completedAt ? new Date(assignment.completedAt).toLocaleString() : '--'}</td>
-                    <td>{assignment.percentage ? `${assignment.percentage.toFixed(1)}%` : '--'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Card.Body>
-        </Card>
-      )}
-    </div>
+                </thead>
+                <tbody>
+                  {candidate.assignments.tests.map(assignment => (
+                    <tr key={assignment.testId}>
+                      <td>{assignment.title}</td>
+                      <td><Badge bg="secondary">{assignment.status}</Badge></td>
+                      <td>{assignment.invitedAt ? new Date(assignment.invitedAt).toLocaleString() : '--'}</td>
+                      <td>{assignment.completedAt ? new Date(assignment.completedAt).toLocaleString() : '--'}</td>
+                      <td>{assignment.percentage ? `${assignment.percentage.toFixed(1)}%` : '--'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card.Body>
+          </Card>
+        )}
+      </div>
     );
   };
 
@@ -1124,15 +1035,15 @@ const CandidateManagement = () => {
                                 return !questionText.includes('recommend');
                               })
                               .map((answer, answerIdx) => (
-                              <tr key={answerIdx}>
-                                <td>{answer.question || 'Question'}</td>
-                                <td>
-                                  {answer.type === 'rating' && typeof answer.displayAnswer === 'number'
-                                    ? `${answer.displayAnswer}/5`
-                                    : (answer.displayAnswer ?? answer.answer ?? '—')}
-                                </td>
-                              </tr>
-                            ))}
+                                <tr key={answerIdx}>
+                                  <td>{answer.question || 'Question'}</td>
+                                  <td>
+                                    {answer.type === 'rating' && typeof answer.displayAnswer === 'number'
+                                      ? `${answer.displayAnswer}/5`
+                                      : (answer.displayAnswer ?? answer.answer ?? '—')}
+                                  </td>
+                                </tr>
+                              ))}
                           </tbody>
                         </Table>
                       </div>
@@ -1268,7 +1179,7 @@ const CandidateManagement = () => {
               onClick={() => {
                 setSearchTerm(searchInput);
               }}
-              style={{ 
+              style={{
                 borderRadius: '0 8px 8px 0',
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: 'none'
@@ -1277,8 +1188,8 @@ const CandidateManagement = () => {
               <FaSearch />
             </Button>
             {(searchTerm || searchInput) && (
-              <Button 
-                variant="outline-secondary" 
+              <Button
+                variant="outline-secondary"
                 onClick={() => {
                   setSearchInput('');
                   setSearchTerm('');
@@ -1344,9 +1255,9 @@ const CandidateManagement = () => {
                               src={candidate.passportPhotoUrl}
                               alt={candidate.user?.name || 'Candidate'}
                               roundedCircle
-                              style={{ 
-                                width: '40px', 
-                                height: '40px', 
+                              style={{
+                                width: '40px',
+                                height: '40px',
                                 objectFit: 'cover',
                                 border: '2px solid #e2e8f0',
                                 display: 'block',
@@ -1361,11 +1272,11 @@ const CandidateManagement = () => {
                               }}
                             />
                           ) : null}
-                          <div 
-                            style={{ 
-                              width: '40px', 
-                              height: '40px', 
-                              borderRadius: '50%', 
+                          <div
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
                               background: '#e2e8f0',
                               display: candidate.passportPhotoUrl ? 'none' : 'flex',
                               alignItems: 'center',
@@ -1382,7 +1293,7 @@ const CandidateManagement = () => {
                         <td>{candidate.form?.position || 'N/A'}</td>
                         <td>{candidate.form?.department || 'N/A'}</td>
                         <td>
-                          {candidate.finalDecision?.decision === 'selected' 
+                          {candidate.finalDecision?.decision === 'selected'
                             ? <Badge bg="success">finalized</Badge>
                             : getStatusBadge(candidate.status)}
                         </td>
@@ -1434,7 +1345,7 @@ const CandidateManagement = () => {
                                 size="sm"
                                 className="me-2"
                                 disabled={
-                                  candidate.status === 'on_hold' || 
+                                  candidate.status === 'on_hold' ||
                                   candidate.finalDecision?.decision === 'on_hold' ||
                                   candidate.status === 'selected' ||
                                   candidate.finalDecision?.decision === 'selected'
@@ -1447,7 +1358,7 @@ const CandidateManagement = () => {
                                 variant="outline-danger"
                                 size="sm"
                                 disabled={
-                                  candidate.status === 'rejected' || 
+                                  candidate.status === 'rejected' ||
                                   candidate.finalDecision?.decision === 'rejected' ||
                                   candidate.status === 'selected' ||
                                   candidate.finalDecision?.decision === 'selected'
@@ -1552,7 +1463,7 @@ const CandidateManagement = () => {
                               variant="outline-warning"
                               size="sm"
                               disabled={
-                                candidate.status === 'on_hold' || 
+                                candidate.status === 'on_hold' ||
                                 candidate.finalDecision?.decision === 'on_hold' ||
                                 candidate.status === 'selected' ||
                                 candidate.finalDecision?.decision === 'selected'
@@ -1568,7 +1479,7 @@ const CandidateManagement = () => {
                               variant="outline-danger"
                               size="sm"
                               disabled={
-                                candidate.status === 'rejected' || 
+                                candidate.status === 'rejected' ||
                                 candidate.finalDecision?.decision === 'rejected' ||
                                 candidate.status === 'selected' ||
                                 candidate.finalDecision?.decision === 'selected'
@@ -1604,10 +1515,10 @@ const CandidateManagement = () => {
         centered
         style={{ zIndex: 1050 }}
       >
-        <Modal.Header 
-          closeButton 
-          style={{ 
-            backgroundColor: '#f8f9fa', 
+        <Modal.Header
+          closeButton
+          style={{
+            backgroundColor: '#f8f9fa',
             borderBottom: '2px solid #dee2e6',
             padding: '1.25rem 1.5rem'
           }}
@@ -1616,22 +1527,22 @@ const CandidateManagement = () => {
             Candidate Profile - {selectedCandidate?.personalDetails?.name}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body 
-          style={{ 
-            maxHeight: '70vh', 
+        <Modal.Body
+          style={{
+            maxHeight: '70vh',
             overflowY: 'auto',
             backgroundColor: '#f8fafc',
             padding: '1.5rem'
           }}
         >
           {selectedCandidate && (
-            <Tabs 
-              defaultActiveKey="personal" 
+            <Tabs
+              defaultActiveKey="personal"
               className="mb-3"
               style={{ borderBottom: '2px solid #dee2e6' }}
             >
-              <Tab 
-                eventKey="personal" 
+              <Tab
+                eventKey="personal"
                 title="Personal & Form Details"
                 style={{ paddingTop: '1rem' }}
               >
@@ -1694,8 +1605,8 @@ const CandidateManagement = () => {
               </Button>
             </>
           )}
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
             onClick={closeProfileModal}
             style={{ borderRadius: '6px', padding: '0.5rem 1.5rem' }}
           >
@@ -1710,8 +1621,8 @@ const CandidateManagement = () => {
             {decisionType === 'selected'
               ? 'Finalize Candidate'
               : decisionType === 'rejected'
-              ? 'Reject Candidate'
-              : 'Put Candidate On Hold'}
+                ? 'Reject Candidate'
+                : 'Put Candidate On Hold'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -1720,12 +1631,12 @@ const CandidateManagement = () => {
             {decisionType === 'selected'
               ? 'finalize'
               : decisionType === 'rejected'
-              ? 'reject'
-              : 'put on hold'}{' '}
+                ? 'reject'
+                : 'put on hold'}{' '}
             <strong>{decisionCandidate?.user?.name}</strong> for the role of{' '}
             <strong>{decisionCandidate?.form?.position}</strong>.
           </p>
-          
+
           {decisionType === 'selected' ? (
             <>
               <Form.Group className="mt-3">
@@ -1804,8 +1715,8 @@ const CandidateManagement = () => {
               decisionType === 'selected'
                 ? 'success'
                 : decisionType === 'rejected'
-                ? 'danger'
-                : 'warning'
+                  ? 'danger'
+                  : 'warning'
             }
             onClick={handleDecisionSubmit}
             disabled={decisionLoading}
@@ -2040,9 +1951,9 @@ const CandidateManagement = () => {
         </Modal.Footer>
       </Modal>
 
-      <ToastNotificationContainer 
-        toast={toast} 
-        onClose={() => setToast({ type: '', message: '' })} 
+      <ToastNotificationContainer
+        toast={toast}
+        onClose={() => setToast({ type: '', message: '' })}
       />
     </Container>
   );
