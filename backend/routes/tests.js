@@ -22,6 +22,212 @@ const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
 const router = express.Router();
 const upload = multer({ dest: path.join(os.tmpdir(), 'uploads') });
 
+/** Normalize Mongoose ref (ObjectId, populated subdoc, or string) for test id comparisons */
+function resolveEmbeddedTestRefId(ref) {
+  if (ref == null) return null;
+  if (typeof ref === 'string') return ref;
+  if (ref instanceof mongoose.Types.ObjectId) return ref.toString();
+  if (ref._id != null) return String(ref._id);
+  if (typeof ref.toString === 'function') {
+    try {
+      const s = ref.toString();
+      if (s && !s.startsWith('[object ')) return s;
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+async function candidateTestResultPdfHandler(req, res) {
+  try {
+    const PDFDocument = require('pdfkit');
+    const { testId, candidateId } = req.params;
+
+    const test = await Test.findById(testId).populate('form', 'title position department');
+    if (!test) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+
+    const candidate = await Candidate.findById(candidateId)
+      .populate('user', 'name email')
+      .populate('form', 'title position department');
+
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    const testResult = candidate.testResults.find(
+      result => resolveEmbeddedTestRefId(result.test) === testId
+    );
+
+    if (!testResult) {
+      return res.status(404).json({ message: 'Test result not found for this candidate' });
+    }
+
+    const formatAnswerForDisplay = (answer, options) => {
+      if (!options || !Array.isArray(options)) {
+        return answer;
+      }
+
+      if (typeof answer === 'number') {
+        if (answer >= 0 && answer < options.length) {
+          return {
+            index: answer,
+            value: options[answer],
+            display: `Option ${String.fromCharCode(65 + answer)}: ${options[answer]}`
+          };
+        }
+        return { index: answer, value: null, display: `Invalid index: ${answer}` };
+      }
+
+      if (Array.isArray(answer)) {
+        const formatted = answer.map(a => {
+          if (typeof a === 'number' && a >= 0 && a < options.length) {
+            return {
+              index: a,
+              value: options[a],
+              display: `Option ${String.fromCharCode(65 + a)}: ${options[a]}`
+            };
+          }
+          return { index: a, value: a, display: String(a) };
+        });
+        return {
+          indices: formatted.map(f => f.index),
+          values: formatted.map(f => f.value),
+          display: formatted.map(f => f.display).join(', ')
+        };
+      }
+
+      if (typeof answer === 'string') {
+        const index = options.findIndex(opt => opt.trim().toLowerCase() === answer.trim().toLowerCase());
+        if (index >= 0) {
+          return {
+            index,
+            value: options[index],
+            display: `Option ${String.fromCharCode(65 + index)}: ${options[index]}`
+          };
+        }
+        return { index: null, value: answer, display: answer };
+      }
+
+      return { index: null, value: answer, display: String(answer) };
+    };
+
+    const displayAnswer = (formatted) => {
+      if (formatted === null || formatted === undefined) {
+        return 'Not available';
+      }
+      if (typeof formatted === 'string' || typeof formatted === 'number' || typeof formatted === 'boolean') {
+        return String(formatted);
+      }
+      if (typeof formatted === 'object' && Object.prototype.hasOwnProperty.call(formatted, 'display')) {
+        return String(formatted.display);
+      }
+      if (typeof formatted === 'object' && Array.isArray(formatted.values)) {
+        return formatted.values.map(v => (v == null ? '' : String(v))).join(', ');
+      }
+      try {
+        return JSON.stringify(formatted);
+      } catch {
+        return String(formatted);
+      }
+    };
+
+    const detailedAnswers = (testResult.answers || []).map(answer => {
+      const question = test.questions.find(q => q._id.toString() === answer.questionId?.toString());
+      const formattedCandidateAnswer = formatAnswerForDisplay(answer.answer, question?.options);
+      const formattedCorrectAnswer = formatAnswerForDisplay(question?.correctAnswer, question?.options);
+      return {
+        questionText: question?.questionText || 'Question not found',
+        candidateLine: displayAnswer(formattedCandidateAnswer),
+        correctLine: displayAnswer(formattedCorrectAnswer),
+        isCorrect: answer.isCorrect,
+        marks: answer.marks || 0,
+        timeTaken: answer.timeTaken || 0
+      };
+    });
+
+    const safeFilePart = (value) => {
+      const s = String(value || 'export')
+        .replace(/[^a-z0-9-_]+/gi, '_')
+        .replace(/^_+|_+$/g, '');
+      return (s || 'export').slice(0, 50);
+    };
+
+    const fileName = `${safeFilePart(test.title)}_${safeFilePart(candidate.user?.name)}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    const doc = new PDFDocument({ margin: 48, size: 'A4' });
+    doc.pipe(res);
+
+    doc.fontSize(16).fillColor('#333333').text('Test Result Report', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(10).fillColor('#666666').text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
+    doc.moveDown(1.2);
+
+    doc.fillColor('#000000').fontSize(12).font('Helvetica-Bold').text('Test', { continued: true });
+    doc.font('Helvetica').text(`  ${test.title}`);
+    doc.font('Helvetica-Bold').text('Candidate', { continued: true });
+    doc.font('Helvetica').text(`  ${candidate.user?.name || '—'}`);
+    doc.font('Helvetica-Bold').text('Email', { continued: true });
+    doc.font('Helvetica').text(`  ${candidate.user?.email || '—'}`);
+    if (candidate.form) {
+      const pos = [candidate.form.position, candidate.form.department].filter(Boolean).join(' • ');
+      if (pos) {
+        doc.font('Helvetica-Bold').text('Position / Department', { continued: true });
+        doc.font('Helvetica').text(`  ${pos}`);
+      }
+    }
+    doc.moveDown(0.8);
+
+    doc.fontSize(11).font('Helvetica-Bold').text('Score and outcome');
+    doc.font('Helvetica').fontSize(10);
+    doc.text(`Score: ${testResult.score ?? 0} / ${testResult.totalScore ?? test.totalMarks ?? '—'}`);
+    doc.text(`Percentage: ${Number(testResult.percentage || 0).toFixed(1)}%`);
+    doc.text(`Status: ${testResult.status || '—'}`);
+    if (testResult.startedAt) doc.text(`Started: ${new Date(testResult.startedAt).toLocaleString()}`);
+    if (testResult.submittedAt) doc.text(`Submitted: ${new Date(testResult.submittedAt).toLocaleString()}`);
+    doc.moveDown(1);
+
+    doc.fontSize(12).font('Helvetica-Bold').text('Question breakdown');
+    doc.moveDown(0.3);
+
+    if (!detailedAnswers.length) {
+      doc.font('Helvetica').fontSize(10).fillColor('#555555').text('No answer records on file for this attempt.');
+    } else {
+      detailedAnswers.forEach((row, i) => {
+        if (doc.y > 720) {
+          doc.addPage();
+        }
+        doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold').text(`${i + 1}. `, { continued: true });
+        doc.font('Helvetica').text(row.questionText, { width: 500 });
+        doc.fontSize(9).fillColor('#333333');
+        doc.text(`Your answer: ${row.candidateLine}`, { width: 500 });
+        doc.text(`Correct answer: ${row.correctLine}`, { width: 500 });
+        const r = row.isCorrect === true ? 'Correct' : row.isCorrect === false ? 'Incorrect' : 'Pending';
+        doc.text(`Result: ${r}   |   Marks: ${row.marks}   |   Time: ${row.timeTaken}s`);
+        doc.moveDown(0.6);
+      });
+    }
+
+    doc.end();
+  } catch (error) {
+    console.error('Test result PDF export error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Server error generating test result PDF' });
+    } else {
+      try {
+        res.end();
+      } catch (e) {
+        // ignore secondary errors while closing the response
+      }
+    }
+  }
+}
+
 // Create new test (Super Admin only)
 router.post('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'), async (req, res) => {
   try {
@@ -2895,6 +3101,12 @@ router.get('/', authenticateToken, requireSuperAdminOrPermission('tests.manage')
   }
 });
 
+// MCQ test result PDF — literal path registered before `/:id` so it always resolves (not mistaken for /:id)
+router.get('/export/candidate-result-pdf/:testId/:candidateId', authenticateToken, requireSuperAdminOrPermission('tests.manage'), candidateTestResultPdfHandler);
+
+// Legacy PDF URL (kept for bookmarks); same handler
+router.get('/:testId/results/:candidateId/pdf', authenticateToken, requireSuperAdminOrPermission('tests.manage'), candidateTestResultPdfHandler);
+
 // Get test by ID
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
@@ -3479,7 +3691,7 @@ router.get('/:testId/results/:candidateId', authenticateToken, requireSuperAdmin
 
     // Find the test result for this candidate
     const testResult = candidate.testResults.find(
-      result => result.test.toString() === testId
+      result => resolveEmbeddedTestRefId(result.test) === testId
     );
 
     if (!testResult) {

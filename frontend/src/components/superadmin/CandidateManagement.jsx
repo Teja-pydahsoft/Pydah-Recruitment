@@ -183,6 +183,7 @@ const CandidateManagement = () => {
     designation: ''
   });
   const [expandedTestResults, setExpandedTestResults] = useState({});
+  const [testResultPdfDownloadingKey, setTestResultPdfDownloadingKey] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [typingTestResultsForCandidate, setTypingTestResultsForCandidate] = useState([]);
   const [selectedTypingResult, setSelectedTypingResult] = useState(null);
@@ -199,6 +200,47 @@ const CandidateManagement = () => {
       ...prev,
       [testId]: !prev[testId]
     }));
+  };
+
+  const downloadTestResultPdf = async (test, candidateId, rowKey) => {
+    const key = String(rowKey);
+    const testId = test.testId;
+    if (!testId || !candidateId) {
+      setToast({ type: 'danger', message: 'Missing test or candidate information for this export.' });
+      return;
+    }
+    setTestResultPdfDownloadingKey(key);
+    try {
+      const response = await api.get(`/tests/export/candidate-result-pdf/${testId}/${candidateId}`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safe = (s) => String(s || 'test_result').replace(/[^a-z0-9-_]+/gi, '_').slice(0, 80);
+      link.setAttribute('download', `${safe(test.testTitle)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setToast({ type: 'success', message: 'PDF downloaded successfully.' });
+    } catch (error) {
+      console.error('Test result PDF download error:', error);
+      let message = 'Unable to download test result PDF. Please try again.';
+      if (error.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.message) message = parsed.message;
+        } catch {
+          // keep default message
+        }
+      } else if (error.response?.data?.message) {
+        message = error.response.data.message;
+      }
+      setToast({ type: 'danger', message });
+    } finally {
+      setTestResultPdfDownloadingKey(null);
+    }
   };
 
   const formatDurationSeconds = (value) => {
@@ -259,6 +301,7 @@ const CandidateManagement = () => {
       setTypingTestResultsForCandidate(typingResultsResponse.data.typingTestResults || []);
       setShowProfileModal(true);
       setExpandedTestResults({});
+      setTestResultPdfDownloadingKey(null);
     } catch (error) {
       setToast({ type: 'danger', message: 'Failed to fetch candidate profile' });
       console.error('Profile fetch error:', error);
@@ -271,6 +314,7 @@ const CandidateManagement = () => {
     setShowProfileModal(false);
     setSelectedCandidate(null);
     setExpandedTestResults({});
+    setTestResultPdfDownloadingKey(null);
     setTypingTestResultsForCandidate([]);
     setSelectedTypingResult(null);
     setShowTypingResultModal(false);
@@ -755,13 +799,33 @@ const CandidateManagement = () => {
                       <td>{getStatusBadge(test.status)}</td>
                       <td>{test.submittedAt ? new Date(test.submittedAt).toLocaleString() : '--'}</td>
                       <td>
-                        <Button
-                          variant={expandedTestResults[testKey] ? 'primary' : 'outline-primary'}
-                          size="sm"
-                          onClick={() => toggleTestResultDetails(testKey)}
-                        >
-                          {expandedTestResults[testKey] ? 'Hide Answers' : 'View Answers'}
-                        </Button>
+                        <div className="d-flex flex-wrap gap-2 align-items-center">
+                          <Button
+                            variant={expandedTestResults[testKey] ? 'primary' : 'outline-primary'}
+                            size="sm"
+                            onClick={() => toggleTestResultDetails(testKey)}
+                          >
+                            {expandedTestResults[testKey] ? 'Hide Answers' : 'View Answers'}
+                          </Button>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={() => downloadTestResultPdf(test, candidate._id, testKey)}
+                            disabled={!test.testId || testResultPdfDownloadingKey === String(testKey)}
+                          >
+                            {testResultPdfDownloadingKey === String(testKey) ? (
+                              <>
+                                <Spinner animation="border" size="sm" className="me-1" />
+                                Preparing...
+                              </>
+                            ) : (
+                              <>
+                                <FaFilePdf className="me-1" />
+                                Print PDF
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                     {expandedTestResults[testKey] && (
