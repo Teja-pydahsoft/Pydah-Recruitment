@@ -39,6 +39,40 @@ function resolveEmbeddedTestRefId(ref) {
   return null;
 }
 
+/**
+ * Resolve frontend app URL from env.
+ * Supports comma-separated FRONTEND_URL values and prefers a public URL in production.
+ */
+function getFrontendAppUrl() {
+  const fallback = 'http://localhost:3000';
+  const raw = String(process.env.FRONTEND_URL || '').trim();
+  const candidates = raw
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean)
+    .map((value) => {
+      if (/^https?:\/\//i.test(value)) return value;
+      if (value.includes('localhost') || value.includes('127.0.0.1')) return `http://${value}`;
+      return `https://${value}`;
+    })
+    .map(url => url.replace(/\/+$/, ''));
+
+  if (!candidates.length) {
+    return fallback;
+  }
+
+  const isLocal = (url) => /localhost|127\.0\.0\.1/i.test(url);
+  const firstPublic = candidates.find(url => !isLocal(url));
+  const firstLocal = candidates.find(url => isLocal(url));
+
+  if (process.env.NODE_ENV === 'production') {
+    return firstPublic || candidates[0] || fallback;
+  }
+
+  // In non-production, prefer local if present; otherwise use first configured URL.
+  return firstLocal || candidates[0] || fallback;
+}
+
 async function candidateTestResultPdfHandler(req, res) {
   try {
     const PDFDocument = require('pdfkit');
@@ -138,13 +172,13 @@ async function candidateTestResultPdfHandler(req, res) {
       const question = test.questions.find(q => q._id.toString() === answer.questionId?.toString());
       const formattedCandidateAnswer = formatAnswerForDisplay(answer.answer, question?.options);
       const formattedCorrectAnswer = formatAnswerForDisplay(question?.correctAnswer, question?.options);
+      const resultLabel = answer.isCorrect === true ? 'Correct' : answer.isCorrect === false ? 'Incorrect' : 'Pending';
       return {
         questionText: question?.questionText || 'Question not found',
         candidateLine: displayAnswer(formattedCandidateAnswer),
         correctLine: displayAnswer(formattedCorrectAnswer),
-        isCorrect: answer.isCorrect,
-        marks: answer.marks || 0,
-        timeTaken: answer.timeTaken || 0
+        resultLabel,
+        marks: answer.marks || 0
       };
     });
 
@@ -186,30 +220,122 @@ async function candidateTestResultPdfHandler(req, res) {
     doc.fontSize(11).font('Helvetica-Bold').text('Score and outcome');
     doc.font('Helvetica').fontSize(10);
     doc.text(`Score: ${testResult.score ?? 0} / ${testResult.totalScore ?? test.totalMarks ?? '—'}`);
-    doc.text(`Percentage: ${Number(testResult.percentage || 0).toFixed(1)}%`);
-    doc.text(`Status: ${testResult.status || '—'}`);
+    const percentageValue = Number(testResult.percentage || 0).toFixed(1);
+    const statusLabel = testResult.status || '—';
+    const statusColor = statusLabel === 'passed' ? '#047857' : statusLabel === 'failed' ? '#b91c1c' : '#1d4ed8';
+    const percentageColor = Number(testResult.percentage || 0) >= Number(test.passingPercentage || 50) ? '#047857' : '#b91c1c';
+    doc.fillColor('#111827').text('Percentage: ', { continued: true });
+    doc.fillColor(percentageColor).font('Helvetica-Bold').text(`${percentageValue}%`);
+    doc.font('Helvetica').fillColor('#111827').text('Status: ', { continued: true });
+    doc.fillColor(statusColor).font('Helvetica-Bold').text(statusLabel.toUpperCase());
+    doc.font('Helvetica').fillColor('#111827');
     if (testResult.startedAt) doc.text(`Started: ${new Date(testResult.startedAt).toLocaleString()}`);
     if (testResult.submittedAt) doc.text(`Submitted: ${new Date(testResult.submittedAt).toLocaleString()}`);
     doc.moveDown(1);
 
-    doc.fontSize(12).font('Helvetica-Bold').text('Question breakdown');
+    doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000').text('Question breakdown');
     doc.moveDown(0.3);
 
     if (!detailedAnswers.length) {
       doc.font('Helvetica').fontSize(10).fillColor('#555555').text('No answer records on file for this attempt.');
     } else {
-      detailedAnswers.forEach((row, i) => {
-        if (doc.y > 720) {
-          doc.addPage();
+      const table = {
+        x: 48,
+        width: 499,
+        columns: [
+          { key: 'index', label: '#', width: 24, align: 'center' },
+          { key: 'questionText', label: 'Question', width: 140, align: 'left' },
+          { key: 'candidateLine', label: 'Your Answer', width: 110, align: 'left' },
+          { key: 'correctLine', label: 'Correct Answer', width: 110, align: 'left' },
+          { key: 'resultLabel', label: 'Result', width: 70, align: 'center' },
+          { key: 'marks', label: 'Marks', width: 45, align: 'center' }
+        ]
+      };
+
+      const pageBottomY = doc.page.height - 48;
+      const cellPadding = 4;
+      const borderColor = '#d1d5db';
+
+      const drawCellText = (text, x, y, width, height, align = 'left', isHeader = false, key = '') => {
+        const value = String(text ?? '');
+        let textColor = isHeader ? '#374151' : '#111827';
+        if (!isHeader && key === 'resultLabel') {
+          textColor = value === 'Correct' ? '#047857' : value === 'Incorrect' ? '#b91c1c' : '#1d4ed8';
         }
-        doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold').text(`${i + 1}. `, { continued: true });
-        doc.font('Helvetica').text(row.questionText, { width: 500 });
-        doc.fontSize(9).fillColor('#333333');
-        doc.text(`Your answer: ${row.candidateLine}`, { width: 500 });
-        doc.text(`Correct answer: ${row.correctLine}`, { width: 500 });
-        const r = row.isCorrect === true ? 'Correct' : row.isCorrect === false ? 'Incorrect' : 'Pending';
-        doc.text(`Result: ${r}   |   Marks: ${row.marks}   |   Time: ${row.timeTaken}s`);
-        doc.moveDown(0.6);
+        if (!isHeader && key === 'marks') {
+          textColor = Number(value) > 0 ? '#047857' : '#b91c1c';
+        }
+        doc
+          .font(isHeader ? 'Helvetica-Bold' : 'Helvetica')
+          .fontSize(isHeader ? 8.5 : 8)
+          .fillColor(textColor)
+          .text(value, x + cellPadding, y + cellPadding, {
+            width: width - (cellPadding * 2),
+            height: height - (cellPadding * 2),
+            align
+          });
+      };
+
+      const drawRow = (cells, y, isHeader = false) => {
+        doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(isHeader ? 8.5 : 8);
+        const heights = table.columns.map((col, index) => {
+          const content = String(cells[index] ?? '');
+          return doc.heightOfString(content, {
+            width: col.width - (cellPadding * 2),
+            align: col.align || 'left'
+          });
+        });
+        const rowHeight = Math.max(isHeader ? 24 : 20, ...heights.map(h => h + (cellPadding * 2)));
+
+        let x = table.x;
+        for (let i = 0; i < table.columns.length; i += 1) {
+          const col = table.columns[i];
+          if (isHeader) {
+            doc.rect(x, y, col.width, rowHeight).fillAndStroke('#f3f4f6', borderColor);
+          } else {
+            if (col.key === 'resultLabel') {
+              const resultValue = String(cells[i] ?? '');
+              const bg = resultValue === 'Correct' ? '#ecfdf5' : resultValue === 'Incorrect' ? '#fef2f2' : '#eff6ff';
+              doc.rect(x, y, col.width, rowHeight).fillAndStroke(bg, borderColor);
+            } else {
+              doc.rect(x, y, col.width, rowHeight).stroke(borderColor);
+            }
+          }
+          drawCellText(cells[i], x, y, col.width, rowHeight, col.align || 'left', isHeader, col.key);
+          x += col.width;
+        }
+
+        return rowHeight;
+      };
+
+      const headerCells = table.columns.map(col => col.label);
+      let tableY = doc.y;
+      tableY += drawRow(headerCells, tableY, true);
+
+      detailedAnswers.forEach((row, idx) => {
+        const rowCells = [
+          idx + 1,
+          row.questionText,
+          row.candidateLine,
+          row.correctLine,
+          row.resultLabel,
+          row.marks
+        ];
+
+        doc.font('Helvetica').fontSize(8);
+        const estimatedHeights = table.columns.map((col, cellIndex) => doc.heightOfString(String(rowCells[cellIndex] ?? ''), {
+          width: col.width - (cellPadding * 2),
+          align: col.align || 'left'
+        }));
+        const estimatedRowHeight = Math.max(20, ...estimatedHeights.map(h => h + (cellPadding * 2)));
+
+        if (tableY + estimatedRowHeight > pageBottomY) {
+          doc.addPage();
+          tableY = 48;
+          tableY += drawRow(headerCells, tableY, true);
+        }
+
+        tableY += drawRow(rowCells, tableY, false);
       });
     }
 
@@ -256,7 +382,7 @@ router.post('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'
     );
 
     if (candidateAssignments.length > 0) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = getFrontendAppUrl();
       const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
 
       const notificationSettings = await NotificationSettings.getGlobalSettings();
@@ -2585,7 +2711,7 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
     }
 
     // Define frontendUrl outside the if block so it's available for assignment details
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = getFrontendAppUrl();
     const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
 
     if (candidateAssignments.length > 0) {
@@ -2878,7 +3004,7 @@ router.post('/conduct-from-topics', authenticateToken, requireSuperAdminOrPermis
       await test.save();
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = getFrontendAppUrl();
     const candidateLink = `${frontendUrl}/test/${test.testLink}?candidate=${candidateId.toString()}`;
 
     const user = candidate.user;
@@ -3522,11 +3648,8 @@ router.post('/:id/submit', async (req, res) => {
       await candidate.populate('user', 'name email');
       await candidate.populate('form', 'title position campus');
       
-      // Get frontend URL (handle comma-separated values)
-      let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      if (frontendUrl.includes(',')) {
-        frontendUrl = frontendUrl.split(',')[0].trim();
-      }
+      // Resolve frontend URL for invitation links
+      const frontendUrl = getFrontendAppUrl();
       
       // Determine emoji and color based on pass/fail
       const statusEmoji = passed ? '✅' : '❌';
@@ -3638,7 +3761,7 @@ router.post('/:id/assign', authenticateToken, requireSuperAdminOrPermission('tes
     await test.save();
 
     // Generate test links for each candidate
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = getFrontendAppUrl();
     const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
     
     const assignmentDetails = candidates.map(candidate => {
@@ -4110,7 +4233,7 @@ router.post('/conduct-from-csv', authenticateToken, requireSuperAdminOrPermissio
           }
 
           // Generate full test link URL
-          const baseTestLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/test/${test.testLink}`;
+          const baseTestLink = `${getFrontendAppUrl()}/test/${test.testLink}`;
           const candidateLink = `${baseTestLink}?candidate=${candidateId.toString()}`;
 
           // Log test details for debugging
