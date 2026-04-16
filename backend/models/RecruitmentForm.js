@@ -166,7 +166,33 @@ recruitmentFormSchema.statics.checkClosingDates = async function() {
 // Method to generate QR code
 recruitmentFormSchema.methods.generateQRCode = async function() {
   const QRCode = require('qrcode');
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const resolveFrontendUrl = () => {
+    const fallback = 'http://localhost:3000';
+    const raw = String(process.env.FRONTEND_URL || '').trim();
+    const urls = raw
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean)
+      .map((value) => {
+        if (/^https?:\/\//i.test(value)) return value;
+        if (value.includes('localhost') || value.includes('127.0.0.1')) return `http://${value}`;
+        return `https://${value}`;
+      })
+      .map(url => url.replace(/\/+$/, ''));
+
+    if (!urls.length) return fallback;
+    const isLocal = (url) => /localhost|127\.0\.0\.1/i.test(url);
+    const firstPublic = urls.find(url => !isLocal(url));
+    const firstLocal = urls.find(url => isLocal(url));
+
+    if (process.env.NODE_ENV === 'production') {
+      return firstPublic || urls[0] || fallback;
+    }
+
+    return firstLocal || urls[0] || fallback;
+  };
+
+  const frontendUrl = resolveFrontendUrl();
   const formUrl = `${frontendUrl}/form/${this.uniqueLink}`;
   
   try {

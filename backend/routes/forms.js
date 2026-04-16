@@ -39,6 +39,46 @@ const buildFieldFolderName = (fieldName, index) => {
   return sanitizeForDrive(fieldName, `Field-${index + 1}`);
 };
 
+const getFrontendAppUrl = () => {
+  const fallback = 'http://localhost:3000';
+  const raw = String(process.env.FRONTEND_URL || '').trim();
+  const urls = raw
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean)
+    .map((value) => {
+      if (/^https?:\/\//i.test(value)) return value;
+      if (value.includes('localhost') || value.includes('127.0.0.1')) return `http://${value}`;
+      return `https://${value}`;
+    })
+    .map(url => url.replace(/\/+$/, ''));
+
+  if (!urls.length) return fallback;
+  const isLocal = (url) => /localhost|127\.0\.0\.1/i.test(url);
+  const firstPublic = urls.find(url => !isLocal(url));
+  const firstLocal = urls.find(url => isLocal(url));
+
+  if (process.env.NODE_ENV === 'production') {
+    return firstPublic || urls[0] || fallback;
+  }
+
+  return firstLocal || urls[0] || fallback;
+};
+
+const normalizeFormLink = (uniqueLink) => `${getFrontendAppUrl()}/form/${uniqueLink}`;
+
+const normalizeFormForResponse = (formDoc) => {
+  const form = typeof formDoc.toObject === 'function' ? formDoc.toObject() : { ...formDoc };
+  if (form?.uniqueLink) {
+    const safeLink = normalizeFormLink(form.uniqueLink);
+    form.publicUrl = safeLink;
+    if (form.qrCode && typeof form.qrCode === 'object') {
+      form.qrCode = { ...form.qrCode, url: safeLink };
+    }
+  }
+  return form;
+};
+
 async function provisionDriveStructureForForm(form) {
   if (!form || form.formType !== 'candidate_profile') {
     return null;
@@ -171,7 +211,7 @@ router.get('/', authenticateToken, requireSuperAdminOrPermission('forms.manage')
     console.log('✅ [FORMS FETCH] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory || 'N/A' })));
     console.log('✅ [FORMS FETCH] Request completed\n');
     
-    res.json({ forms });
+    res.json({ forms: forms.map(normalizeFormForResponse) });
   } catch (error) {
     console.error('❌ [FORMS FETCH] Error:', error.message);
     res.status(500).json({ message: 'Server error fetching forms' });
@@ -198,7 +238,7 @@ router.get('/type/:formType', authenticateToken, requireSuperAdminOrPermission('
     console.log('✅ [FORMS BY TYPE] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory || 'N/A' })));
     console.log('✅ [FORMS BY TYPE] Request completed\n');
     
-    res.json({ forms });
+    res.json({ forms: forms.map(normalizeFormForResponse) });
   } catch (error) {
     console.error('❌ [FORMS BY TYPE] Error:', error.message);
     res.status(500).json({ message: 'Server error fetching forms by type' });
@@ -228,7 +268,7 @@ router.get('/category/:formCategory', authenticateToken, requireSuperAdminOrPerm
     console.log('✅ [FORMS BY CATEGORY] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory })));
     console.log('✅ [FORMS BY CATEGORY] Request completed\n');
     
-    res.json({ forms });
+    res.json({ forms: forms.map(normalizeFormForResponse) });
   } catch (error) {
     console.error('❌ [FORMS BY CATEGORY] Error:', error.message);
     res.status(500).json({ message: 'Server error fetching forms by category' });
@@ -269,13 +309,26 @@ router.get('/:id/qr-code', authenticateToken, requireSuperAdminOrPermission('for
       return res.status(404).json({ message: 'Form not found' });
     }
 
+    const normalizedLink = normalizeFormLink(form.uniqueLink);
+    const currentQrUrl = form.qrCode?.url || '';
+    const shouldRegenerateQr = !form.qrCode?.data || currentQrUrl.includes(',') || currentQrUrl !== normalizedLink;
+
+    if (shouldRegenerateQr) {
+      await form.generateQRCode();
+      await form.save();
+    }
+
     res.json({
       form: {
         _id: form._id,
         title: form.title,
         formType: form.formType,
         uniqueLink: form.uniqueLink,
-        qrCode: form.qrCode,
+        qrCode: {
+          ...(form.qrCode || {}),
+          url: normalizedLink
+        },
+        publicUrl: normalizedLink,
         isActive: form.isActive
       }
     });
@@ -771,11 +824,8 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
       // Populate form details for notification
       await form.populate('createdBy', 'name email');
       
-      // Get frontend URL (handle comma-separated values)
-      let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      if (frontendUrl.includes(',')) {
-        frontendUrl = frontendUrl.split(',')[0].trim();
-      }
+      // Get normalized frontend URL
+      const frontendUrl = getFrontendAppUrl();
       
       const notificationData = {
         title: '🎯 New Application Received',
