@@ -132,6 +132,37 @@ Your app’s own env (e.g. `MONGODB_URI`, `JWT_SECRET`) stays in `.env` on the L
 
 ---
 
+## SSL certificate renewal (fixes `ERR_CERT_DATE_INVALID`)
+
+If the careers page shows **Network Error** / `net::ERR_CERT_DATE_INVALID` when calling `https://srs-backend.pydah.edu.in`, the **HTTPS certificate on the Lightsail server has expired**. Browsers block all API calls until it is renewed.
+
+### Option A – GitHub Actions (recommended)
+
+1. Ensure the same secrets as backend deploy are set (`LIGHTSAIL_HOST`, `LIGHTSAIL_USER`, `LIGHTSAIL_SSH_KEY`, `LIGHTSAIL_APP_PATH`).
+2. Go to **Actions → Renew Backend SSL → Run workflow**.
+3. After it succeeds, reload [pydah-recruitment.vercel.app](https://pydah-recruitment.vercel.app) and confirm openings load.
+
+### Option B – SSH on the instance
+
+```bash
+ssh ubuntu@YOUR_LIGHTSAIL_IP
+cd /home/ubuntu/Pydah-Recruitment   # or your LIGHTSAIL_APP_PATH
+git pull origin main
+sudo bash backend/scripts/renew-ssl.sh
+```
+
+### Verify
+
+```bash
+curl -I https://srs-backend.pydah.edu.in/api/forms/public/active
+```
+
+You should get `HTTP/2 200` (or `401`/`404` from the app), not a TLS/certificate error.
+
+Future backend deploys will run `certbot renew` automatically when certbot is installed on the server.
+
+---
+
 ## Why deploys can take time (and how to speed them up)
 
 - **GitHub runner:** Checkout + Node setup + `npm ci` on the runner usually takes 1–2 minutes.

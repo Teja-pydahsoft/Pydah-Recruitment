@@ -1,0 +1,33 @@
+# Renew expired SSL certificate on Lightsail (nginx + certbot).
+# Run manually: Actions → "Renew Backend SSL" → Run workflow
+
+name: Renew Backend SSL
+
+on:
+  workflow_dispatch:
+
+jobs:
+  renew-ssl:
+    name: Renew SSL on Lightsail
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Renew certificate via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: ${{ secrets.LIGHTSAIL_SSH_PORT || 22 }}
+          command_timeout: 10m
+          request_pty: false
+          script: |
+            set -e
+            APP_PATH="${{ secrets.LIGHTSAIL_APP_PATH }}"
+            cd "$APP_PATH" || { echo "Invalid LIGHTSAIL_APP_PATH"; exit 1; }
+            git fetch origin main
+            git reset --hard origin/main
+            sudo bash backend/scripts/renew-ssl.sh
+            curl -fsSI "https://srs-backend.pydah.edu.in/api/health" || curl -fsSI "https://srs-backend.pydah.edu.in/"
