@@ -1,9 +1,11 @@
-# Renew expired SSL certificate on Lightsail (nginx + certbot).
-# Run manually: Actions → "Renew Backend SSL" → Run workflow
+# Renew SSL on Lightsail (nginx + certbot).
+# Runs weekly + on manual dispatch so certs stay valid between app deploys.
 
 name: Renew Backend SSL
 
 on:
+  schedule:
+    - cron: '0 4 * * 1' # Every Monday 04:00 UTC
   workflow_dispatch:
 
 jobs:

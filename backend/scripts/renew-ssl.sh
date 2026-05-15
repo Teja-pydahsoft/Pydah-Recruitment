@@ -15,6 +15,19 @@ reload_nginx() {
   fi
 }
 
+enable_auto_renew_timer() {
+  # Letsencrypt installs a systemd timer; ensure it stays enabled on reboot.
+  if systemctl list-unit-files certbot.timer 2>/dev/null | grep -q certbot.timer; then
+    systemctl enable certbot.timer
+    systemctl start certbot.timer
+    echo "certbot.timer enabled (runs twice daily on the server)."
+  elif [ -d /etc/cron.d ] && [ ! -f /etc/cron.d/certbot-renew ]; then
+    echo "0 3,15 * * * root certbot renew --quiet --deploy-hook 'systemctl reload nginx || nginx -s reload'" \
+      > /etc/cron.d/certbot-renew
+    echo "Installed /etc/cron.d/certbot-renew fallback."
+  fi
+}
+
 if ! command -v certbot >/dev/null 2>&1; then
   echo "Installing certbot..."
   apt-get update -qq
@@ -26,8 +39,14 @@ if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
   certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${EMAIL}" --redirect
 else
   echo "Renewing certificate for ${DOMAIN}..."
-  certbot renew --force-renewal --non-interactive
+  if certbot renew --non-interactive; then
+    echo "Certificate renewed (or not yet due)."
+  else
+    echo "Standard renew failed; forcing renewal (expired or misconfigured cert)..."
+    certbot renew --force-renewal --non-interactive
+  fi
 fi
 
+enable_auto_renew_timer
 reload_nginx
 echo "SSL renewal complete. Verify: curl -I https://${DOMAIN}/api/health"

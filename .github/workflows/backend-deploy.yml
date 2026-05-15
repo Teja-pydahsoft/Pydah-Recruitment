@@ -58,11 +58,8 @@ jobs:
             else
               echo "No systemd or PM2 found. Restart your app manually."
             fi
-            if [ -f "$APP_PATH/backend/scripts/renew-ssl.sh" ] && command -v certbot >/dev/null 2>&1; then
-              echo "Checking SSL certificate..."
-              sudo certbot renew --quiet --deploy-hook "systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true" || {
-                echo "Standard renew failed; attempting force renewal..."
-                sudo bash "$APP_PATH/backend/scripts/renew-ssl.sh"
-              }
+            if [ -f "$APP_PATH/backend/scripts/renew-ssl.sh" ]; then
+              echo "Ensuring SSL certificate is valid..."
+              sudo bash "$APP_PATH/backend/scripts/renew-ssl.sh" || echo "SSL renewal step failed; check certbot on the server."
             fi
             echo "Deploy completed."

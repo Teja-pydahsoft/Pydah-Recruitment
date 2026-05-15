@@ -159,7 +159,17 @@ curl -I https://srs-backend.pydah.edu.in/api/forms/public/active
 
 You should get `HTTP/2 200` (or `401`/`404` from the app), not a TLS/certificate error.
 
-Future backend deploys will run `certbot renew` automatically when certbot is installed on the server.
+**How renewal is automated (three layers):**
+
+| Layer | When it runs | What it does |
+|-------|----------------|---------------|
+| **certbot.timer** on Lightsail | Twice daily (after first `renew-ssl.sh` run) | Standard Let's Encrypt renewal |
+| **Renew Backend SSL** workflow | Every Monday + manual | SSH + `renew-ssl.sh` even if you did not deploy code |
+| **Backend Deploy** workflow | Push to `main` under `backend/` | Runs `renew-ssl.sh` after each deploy |
+
+**Why it worked after deploy but failed later:** A deploy only renews SSL if that step runs and certbot succeeds. Let's Encrypt certs last ~90 days. If no backend deploy and no server timer ran for months, the cert expires while the Node app still runs — the API looks "up" but browsers reject HTTPS.
+
+**One-time fix now:** Run **Actions → Renew Backend SSL → Run workflow** (or SSH + `sudo bash backend/scripts/renew-ssl.sh`), then reload the careers page.
 
 ---
 
