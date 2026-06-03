@@ -24,7 +24,7 @@ const FormSubmissions = () => {
   const [pendingPage, setPendingPage] = useState(1);
   const [progressedPage, setProgressedPage] = useState(1);
   const [toast, setToast] = useState({ type: '', message: '' });
-  const [applicationPdfDownloading, setApplicationPdfDownloading] = useState(false);
+  const [downloadingPdfId, setDownloadingPdfId] = useState(null);
 
   const navigate = useNavigate();
 
@@ -166,7 +166,7 @@ const FormSubmissions = () => {
       return;
     }
 
-    setApplicationPdfDownloading(true);
+    setDownloadingPdfId(candidateId);
     try {
       const response = await api.get(`/candidates/${candidateId}/application-pdf`, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -185,7 +185,7 @@ const FormSubmissions = () => {
       console.error('Application PDF download error:', error);
       setToast({ type: 'danger', message: 'Failed to download application PDF. Please try again.' });
     } finally {
-      setApplicationPdfDownloading(false);
+      setDownloadingPdfId(null);
     }
   };
 
@@ -681,7 +681,7 @@ const FormSubmissions = () => {
                       )}
                       {getStatusBadge(candidate.status || 'pending')}
                     </div>
-                    <div className="mt-auto d-flex gap-2">
+                    <div className="mt-auto d-flex flex-wrap gap-2">
                       <Button
                         variant="outline-primary"
                         size="sm"
@@ -689,6 +689,21 @@ const FormSubmissions = () => {
                         disabled={profileLoading}
                       >
                         {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
+                      </Button>
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => downloadApplicationPdf(candidate)}
+                        disabled={downloadingPdfId === candidate._id}
+                      >
+                        {downloadingPdfId === candidate._id ? (
+                          <Spinner as="span" animation="border" size="sm" />
+                        ) : (
+                          <>
+                            <FaDownload className="me-1" />
+                            Download
+                          </>
+                        )}
                       </Button>
                       <Button
                         variant="success"
@@ -807,7 +822,7 @@ const FormSubmissions = () => {
                       )}
                       {getStatusBadge(candidate.status || 'approved')}
                     </div>
-                    <div className="mt-auto d-flex gap-2">
+                    <div className="mt-auto d-flex flex-wrap gap-2">
                       <Button
                         variant="outline-primary"
                         size="sm"
@@ -815,6 +830,21 @@ const FormSubmissions = () => {
                         disabled={profileLoading}
                       >
                         {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
+                      </Button>
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => downloadApplicationPdf(candidate)}
+                        disabled={downloadingPdfId === candidate._id}
+                      >
+                        {downloadingPdfId === candidate._id ? (
+                          <Spinner as="span" animation="border" size="sm" />
+                        ) : (
+                          <>
+                            <FaDownload className="me-1" />
+                            Download
+                          </>
+                        )}
                       </Button>
                       <Button
                         variant="outline-secondary"
@@ -884,17 +914,17 @@ const FormSubmissions = () => {
               variant="outline-primary"
               className="me-auto"
               onClick={() => downloadApplicationPdf(selectedCandidate)}
-              disabled={applicationPdfDownloading}
+              disabled={downloadingPdfId === (selectedCandidate?._id || selectedCandidate?.candidate?._id)}
             >
-              {applicationPdfDownloading ? (
+              {downloadingPdfId === (selectedCandidate?._id || selectedCandidate?.candidate?._id) ? (
                 <>
                   <Spinner animation="border" size="sm" className="me-2" />
-                  Preparing PDF...
+                  Downloading...
                 </>
               ) : (
                 <>
                   <FaDownload className="me-1" />
-                  Download PDF
+                  Download
                 </>
               )}
             </Button>
