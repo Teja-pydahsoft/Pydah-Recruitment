@@ -35,6 +35,7 @@ import {
   FaFilePdf
 } from 'react-icons/fa';
 import api from '../../services/api';
+import { rewriteAppLink, buildTypingTestTakeLink } from '../../utils/appUrl';
 import SkeletonLoader from '../SkeletonLoader';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
@@ -1318,8 +1319,9 @@ const TestsManagement = () => {
 
   const copyTestLink = () => {
     if (!assignmentDetails) return;
-    
-    const textToCopy = `Candidate Name: ${assignmentDetails.candidateName}\nTest Name: ${assignmentDetails.testName}\nTime Duration: ${assignmentDetails.duration} minutes\nTest Link: ${assignmentDetails.testLink}`;
+
+    const testLink = rewriteAppLink(assignmentDetails.testLink);
+    const textToCopy = `Candidate Name: ${assignmentDetails.candidateName}\nTest Name: ${assignmentDetails.testName}\nTime Duration: ${assignmentDetails.duration} minutes\nTest Link: ${testLink}`;
     
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopySuccess(true);
@@ -1332,10 +1334,11 @@ const TestsManagement = () => {
 
   const copyTypingTestLink = () => {
     if (!typingTestAssignmentDetails) return;
-    
-    const frontendUrl = window.location.origin;
-    // Include candidate ID as query parameter (required for typing test)
-    const testLink = `${frontendUrl}/typing-test/${typingTestAssignmentDetails.testLink}?candidate=${typingTestAssignmentDetails.candidateId}`;
+
+    const testLink = buildTypingTestTakeLink(
+      typingTestAssignmentDetails.testLink,
+      typingTestAssignmentDetails.candidateId
+    );
     const candidate = candidates.find(c => c._id === typingTestAssignmentDetails.candidateId);
     const candidateName = candidate?.user?.name || 'Candidate';
     const durationText = typingTestAssignmentDetails.defaultDuration === 1 ? '1 minute' : '2 minutes';
@@ -5892,9 +5895,10 @@ Ans: 3`}
                     {(() => {
                       const candidate = candidates.find(c => c._id === typingTestAssignmentDetails.candidateId);
                       const candidateName = candidate?.user?.name || 'Candidate';
-                      const frontendUrl = window.location.origin;
-                      // Include candidate ID as query parameter (required for typing test)
-                      const testLink = `${frontendUrl}/typing-test/${typingTestAssignmentDetails.testLink}?candidate=${typingTestAssignmentDetails.candidateId}`;
+                      const testLink = buildTypingTestTakeLink(
+                        typingTestAssignmentDetails.testLink,
+                        typingTestAssignmentDetails.candidateId
+                      );
                       const durationText = typingTestAssignmentDetails.defaultDuration === 1 ? '1 minute' : '2 minutes';
                       
                       return (

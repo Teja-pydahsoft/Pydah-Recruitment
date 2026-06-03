@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup, Pagination } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes, FaSearch } from 'react-icons/fa';
+import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes, FaSearch, FaDownload } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import SkeletonLoader from '../SkeletonLoader';
@@ -24,6 +24,7 @@ const FormSubmissions = () => {
   const [pendingPage, setPendingPage] = useState(1);
   const [progressedPage, setProgressedPage] = useState(1);
   const [toast, setToast] = useState({ type: '', message: '' });
+  const [applicationPdfDownloading, setApplicationPdfDownloading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -158,6 +159,36 @@ const FormSubmissions = () => {
     }
   };
 
+  const downloadApplicationPdf = async (candidate) => {
+    const candidateId = candidate?._id || candidate?.candidate?._id;
+    if (!candidateId) {
+      setToast({ type: 'danger', message: 'Unable to download PDF for this application.' });
+      return;
+    }
+
+    setApplicationPdfDownloading(true);
+    try {
+      const response = await api.get(`/candidates/${candidateId}/application-pdf`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safeName = (candidate.personalDetails?.name || candidate.user?.name || 'application')
+        .replace(/[^a-z0-9]/gi, '_');
+      link.setAttribute('download', `application_${safeName}_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setToast({ type: 'success', message: 'Application PDF downloaded successfully.' });
+    } catch (error) {
+      console.error('Application PDF download error:', error);
+      setToast({ type: 'danger', message: 'Failed to download application PDF. Please try again.' });
+    } finally {
+      setApplicationPdfDownloading(false);
+    }
+  };
+
   const handleApprove = async (candidateId) => {
     try {
       await api.put(`/candidates/${candidateId}/status`, { status: 'approved' });
@@ -260,6 +291,8 @@ const FormSubmissions = () => {
   const renderPersonalDetailsTab = (candidate) => {
     const applicationData = candidate.personalDetails?.applicationData || {};
     const documents = candidate.personalDetails?.documents || [];
+    const passportPhoto = candidate.personalDetails?.passportPhoto;
+    const excludedFields = ['name', 'fullName', 'email', 'phone', 'mobileNumber', 'mobile', 'passportPhoto'];
     const resume = documents.find(doc => {
       const name = doc.name?.toLowerCase() || '';
       return name.includes('resume') || name.includes('cv');
@@ -271,21 +304,64 @@ const FormSubmissions = () => {
       return !isResume && !name.includes('certificate');
     });
 
+    const filteredApplicationData = Object.entries(applicationData).filter(([key, value]) => {
+      const lowerKey = key.toLowerCase();
+      if (excludedFields.some(excluded => lowerKey.includes(excluded.toLowerCase()))) return false;
+      if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) return false;
+      if (value === null || value === undefined || value === '') return false;
+      return true;
+    });
+
     return (
       <div className="pb-3">
-        <Card className="border-0 shadow-sm mb-4">
-          <Card.Body className="d-flex flex-wrap gap-3 align-items-center">
-            <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{candidate.personalDetails?.name}</div>
-            <Badge bg="light" text="dark">{candidate.personalDetails?.email}</Badge>
-            {candidate.personalDetails?.phone && (
-              <Badge bg="light" text="dark">📞 {candidate.personalDetails.phone}</Badge>
-            )}
-          </Card.Body>
-        </Card>
+        <Row className="g-4 mb-4">
+          <Col xs={12} lg={passportPhoto ? 9 : 12}>
+            <Card className="border-0 shadow-sm h-100">
+              <Card.Body>
+                <div style={{ fontWeight: 600, fontSize: '1.25rem' }} className="mb-2">
+                  {candidate.personalDetails?.name}
+                </div>
+                <div className="d-flex flex-wrap gap-2 mb-2">
+                  <Badge bg="light" text="dark">{candidate.personalDetails?.email}</Badge>
+                  {candidate.personalDetails?.phone && (
+                    <Badge bg="light" text="dark">📞 {candidate.personalDetails.phone}</Badge>
+                  )}
+                  {candidate.candidateNumber && (
+                    <Badge bg="dark">{candidate.candidateNumber}</Badge>
+                  )}
+                  {getStatusBadge(candidate.status || 'pending')}
+                </div>
+                {(candidate.form?.position || candidate.form?.department) && (
+                  <div className="text-muted" style={{ fontSize: '0.9rem' }}>
+                    {[candidate.form?.position, candidate.form?.department, candidate.form?.campus].filter(Boolean).join(' · ')}
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+          </Col>
+          {passportPhoto && (
+            <Col xs={12} lg={3} className="d-flex justify-content-lg-end">
+              <Card className="border-0 shadow-sm w-100" style={{ maxWidth: '220px' }}>
+                <Card.Body className="text-center p-3">
+                  <div className="text-muted text-uppercase mb-2" style={{ fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+                    Candidate Photo
+                  </div>
+                  <Image
+                    src={passportPhoto}
+                    alt="Candidate"
+                    rounded
+                    style={{ width: '100%', maxHeight: '260px', objectFit: 'cover', border: '2px solid #e2e8f0' }}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </Card.Body>
+              </Card>
+            </Col>
+          )}
+        </Row>
 
         <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em', fontSize: '0.75rem' }}>Application Responses</h6>
         <Row className="g-3 mb-4">
-          {Object.entries(applicationData).filter(([_, value]) => !(typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://')))).map(([key, value]) => (
+          {filteredApplicationData.map(([key, value]) => (
             <Col xs={12} md={6} lg={4} key={key}>
               <Card className="h-100 border-0 shadow-sm">
                 <Card.Body style={{ fontSize: '0.9rem' }}>
@@ -299,7 +375,7 @@ const FormSubmissions = () => {
               </Card>
             </Col>
           ))}
-          {Object.keys(applicationData).length === 0 && (
+          {filteredApplicationData.length === 0 && (
             <Col>
               <Alert variant="light" className="mb-0">No additional application data provided.</Alert>
             </Col>
@@ -803,6 +879,26 @@ const FormSubmissions = () => {
           )}
         </Modal.Body>
         <Modal.Footer>
+          {selectedCandidate && (
+            <Button
+              variant="outline-primary"
+              className="me-auto"
+              onClick={() => downloadApplicationPdf(selectedCandidate)}
+              disabled={applicationPdfDownloading}
+            >
+              {applicationPdfDownloading ? (
+                <>
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  Preparing PDF...
+                </>
+              ) : (
+                <>
+                  <FaDownload className="me-1" />
+                  Download PDF
+                </>
+              )}
+            </Button>
+          )}
           {selectedCandidate && (selectedCandidate.status === 'pending' || !selectedCandidate.status) && (
             <>
               <Button

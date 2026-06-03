@@ -315,6 +315,76 @@ async function uploadToDrive({ filePath, mimeType, originalName, parentFolderId 
   }
 }
 
-module.exports = { uploadToDrive, ensureFolder, verifyFolderAccess };
+function extractGoogleDriveFileId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const fileMatch = url.match(/\/file\/d\/([^/]+)/);
+  if (fileMatch) return fileMatch[1];
+  const idMatch = url.match(/[?&]id=([^&]+)/);
+  if (idMatch) return idMatch[1];
+  const openMatch = url.match(/\/open\?id=([^&]+)/);
+  if (openMatch) return openMatch[1];
+  return null;
+}
+
+async function getDriveClient() {
+  const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const oauthCreds = getOAuthCredentials();
+  const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
+
+  let auth;
+  if (oauthCreds && refreshToken) {
+    auth = getAuthClient();
+  } else {
+    const ownerEmail = await getFolderOwner(rootFolderId);
+    if (!ownerEmail) {
+      throw new Error('Cannot determine folder owner for Drive download');
+    }
+    auth = getAuthClient(ownerEmail);
+  }
+
+  return google.drive({ version: 'v3', auth });
+}
+
+async function downloadFileBufferFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId) {
+    try {
+      const drive = await getDriveClient();
+      const response = await drive.files.get(
+        { fileId, alt: 'media', supportsAllDrives: true },
+        { responseType: 'arraybuffer' }
+      );
+      return Buffer.from(response.data);
+    } catch (error) {
+      console.warn('Drive file download failed:', error.message);
+    }
+  }
+
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const axios = require('axios');
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+        maxContentLength: 5 * 1024 * 1024
+      });
+      return Buffer.from(response.data);
+    } catch (error) {
+      console.warn('HTTP file download failed:', error.message);
+    }
+  }
+
+  return null;
+}
+
+module.exports = {
+  uploadToDrive,
+  ensureFolder,
+  verifyFolderAccess,
+  extractGoogleDriveFileId,
+  downloadFileBufferFromUrl
+};
 
 

@@ -7,6 +7,9 @@ const path = require('path');
 const fs = require('fs');
 const { uploadToDrive, ensureFolder, verifyFolderAccess } = require('../config/googleDrive');
 const { authenticateToken, requireSuperAdminOrPermission, requireSuperAdminOrWritePermission, hasPermission, getCampusFilter } = require('../middleware/auth');
+const { getDefaultFormFieldsForCategory } = require('../constants/candidateProfileFormFields');
+const { formHasNoFields } = require('../utils/repairEmptyFormFields');
+const { getFrontendAppUrl } = require('../utils/frontendUrl');
 
 const router = express.Router();
 
@@ -39,38 +42,12 @@ const buildFieldFolderName = (fieldName, index) => {
   return sanitizeForDrive(fieldName, `Field-${index + 1}`);
 };
 
-const getFrontendAppUrl = () => {
-  const fallback = 'http://localhost:3000';
-  const raw = String(process.env.FRONTEND_URL || '').trim();
-  const urls = raw
-    .split(',')
-    .map(v => v.trim())
-    .filter(Boolean)
-    .map((value) => {
-      if (/^https?:\/\//i.test(value)) return value;
-      if (value.includes('localhost') || value.includes('127.0.0.1')) return `http://${value}`;
-      return `https://${value}`;
-    })
-    .map(url => url.replace(/\/+$/, ''));
+const normalizeFormLink = (uniqueLink, req) => `${getFrontendAppUrl(req)}/form/${uniqueLink}`;
 
-  if (!urls.length) return fallback;
-  const isLocal = (url) => /localhost|127\.0\.0\.1/i.test(url);
-  const firstPublic = urls.find(url => !isLocal(url));
-  const firstLocal = urls.find(url => isLocal(url));
-
-  if (process.env.NODE_ENV === 'production') {
-    return firstPublic || urls[0] || fallback;
-  }
-
-  return firstLocal || urls[0] || fallback;
-};
-
-const normalizeFormLink = (uniqueLink) => `${getFrontendAppUrl()}/form/${uniqueLink}`;
-
-const normalizeFormForResponse = (formDoc) => {
+const normalizeFormForResponse = (formDoc, req) => {
   const form = typeof formDoc.toObject === 'function' ? formDoc.toObject() : { ...formDoc };
   if (form?.uniqueLink) {
-    const safeLink = normalizeFormLink(form.uniqueLink);
+    const safeLink = normalizeFormLink(form.uniqueLink, req);
     form.publicUrl = safeLink;
     if (form.qrCode && typeof form.qrCode === 'object') {
       form.qrCode = { ...form.qrCode, url: safeLink };
@@ -143,6 +120,14 @@ router.post('/', authenticateToken, requireSuperAdminOrWritePermission('forms.ma
 
     const { title, description, formType, formCategory, campus, position, department, closingDate, vacancies, requirements, formFields } = req.body;
 
+    if ((formType || 'candidate_profile') === 'candidate_profile') {
+      if (!Array.isArray(formFields) || formFields.length === 0) {
+        return res.status(400).json({
+          message: 'Candidate application forms must include at least one field. Load the teaching or non-teaching template first.'
+        });
+      }
+    }
+
     const form = new RecruitmentForm({
       title,
       description,
@@ -211,7 +196,7 @@ router.get('/', authenticateToken, requireSuperAdminOrPermission('forms.manage')
     console.log('✅ [FORMS FETCH] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory || 'N/A' })));
     console.log('✅ [FORMS FETCH] Request completed\n');
     
-    res.json({ forms: forms.map(normalizeFormForResponse) });
+    res.json({ forms: forms.map((form) => normalizeFormForResponse(form, req)) });
   } catch (error) {
     console.error('❌ [FORMS FETCH] Error:', error.message);
     res.status(500).json({ message: 'Server error fetching forms' });
@@ -238,7 +223,7 @@ router.get('/type/:formType', authenticateToken, requireSuperAdminOrPermission('
     console.log('✅ [FORMS BY TYPE] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory || 'N/A' })));
     console.log('✅ [FORMS BY TYPE] Request completed\n');
     
-    res.json({ forms: forms.map(normalizeFormForResponse) });
+    res.json({ forms: forms.map((form) => normalizeFormForResponse(form, req)) });
   } catch (error) {
     console.error('❌ [FORMS BY TYPE] Error:', error.message);
     res.status(500).json({ message: 'Server error fetching forms by type' });
@@ -268,7 +253,7 @@ router.get('/category/:formCategory', authenticateToken, requireSuperAdminOrPerm
     console.log('✅ [FORMS BY CATEGORY] Forms:', forms.map(f => ({ id: f._id, title: f.title, category: f.formCategory })));
     console.log('✅ [FORMS BY CATEGORY] Request completed\n');
     
-    res.json({ forms: forms.map(normalizeFormForResponse) });
+    res.json({ forms: forms.map((form) => normalizeFormForResponse(form, req)) });
   } catch (error) {
     console.error('❌ [FORMS BY CATEGORY] Error:', error.message);
     res.status(500).json({ message: 'Server error fetching forms by category' });
@@ -309,7 +294,7 @@ router.get('/:id/qr-code', authenticateToken, requireSuperAdminOrPermission('for
       return res.status(404).json({ message: 'Form not found' });
     }
 
-    const normalizedLink = normalizeFormLink(form.uniqueLink);
+    const normalizedLink = normalizeFormLink(form.uniqueLink, req);
     const currentQrUrl = form.qrCode?.url || '';
     const shouldRegenerateQr = !form.qrCode?.data || currentQrUrl.includes(',') || currentQrUrl !== normalizedLink;
 
@@ -395,6 +380,19 @@ router.put('/:id', authenticateToken, requireSuperAdminOrWritePermission('forms.
     const originalFormType = existingForm.formType;
     const { title, description, formCategory, campus, position, department, closingDate, vacancies, requirements, formFields, isActive } = req.body;
 
+    let resolvedFormFields = formFields;
+    if (originalFormType === 'candidate_profile') {
+      if (!Array.isArray(resolvedFormFields) || resolvedFormFields.length === 0) {
+        if (formHasNoFields(existingForm)) {
+          resolvedFormFields = getDefaultFormFieldsForCategory(formCategory || existingForm.formCategory);
+          console.log('ℹ️ [FORM UPDATE] Backfilled empty formFields from default template');
+        } else {
+          resolvedFormFields = existingForm.formFields;
+          console.log('ℹ️ [FORM UPDATE] Ignored empty formFields payload; kept existing field definitions');
+        }
+      }
+    }
+
     // Use original formType, ignore any formType in request body
     const updateData = {
       title,
@@ -408,7 +406,7 @@ router.put('/:id', authenticateToken, requireSuperAdminOrWritePermission('forms.
       closingDate: originalFormType === 'candidate_profile' && closingDate ? new Date(closingDate) : undefined,
       vacancies: originalFormType === 'candidate_profile' && vacancies ? parseInt(vacancies) : undefined,
       requirements,
-      formFields,
+      formFields: resolvedFormFields,
       isActive
     };
 
@@ -825,7 +823,7 @@ router.post('/public/:uniqueLink/submit', upload.any(), async (req, res) => {
       await form.populate('createdBy', 'name email');
       
       // Get normalized frontend URL
-      const frontendUrl = getFrontendAppUrl();
+      const frontendUrl = getFrontendAppUrl(req);
       
       const notificationData = {
         title: '🎯 New Application Received',

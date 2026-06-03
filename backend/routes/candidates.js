@@ -1,5 +1,9 @@
 const express = require('express');
 const Candidate = require('../models/Candidate');
+const {
+  generateApplicationProfilePdf,
+  resolvePassportPhotoUrl
+} = require('../utils/applicationProfilePdf');
 const User = require('../models/User');
 const Test = require('../models/Test');
 const Interview = require('../models/Interview');
@@ -102,6 +106,9 @@ const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignm
   };
 };
 
+const canViewApplicationProfile = (user) =>
+  hasPermission(user, 'candidates.manage') || hasPermission(user, 'forms.manage');
+
 // Get all candidates (Super Admin only)
 router.get('/', authenticateToken, requireSuperAdminOrPermission('candidates.manage'), async (req, res) => {
   try {
@@ -130,11 +137,7 @@ router.get('/', authenticateToken, requireSuperAdminOrPermission('candidates.man
         ? Object.fromEntries(candidate.applicationData)
         : candidate.applicationData || {};
       
-      const passportPhoto = appData.passportPhoto || 
-                           candidate.documents?.find(d => 
-                             d && (d.name?.toLowerCase().includes('photo') || 
-                             d.name?.toLowerCase().includes('passport'))
-                           )?.url;
+      const passportPhoto = resolvePassportPhotoUrl(candidate);
       return {
         ...candidate,
         applicationData: appData,
@@ -937,6 +940,30 @@ router.get('/:id/pdf', authenticateToken, requireSuperAdminOrPermission('candida
   }
 });
 
+// Single-page application profile PDF with passport photo on the right
+router.get('/:id/application-pdf', authenticateToken, async (req, res) => {
+  try {
+    if (!canViewApplicationProfile(req.user)) {
+      return res.status(403).json({ message: 'Access denied. Insufficient permissions' });
+    }
+
+    const candidate = await Candidate.findById(req.params.id)
+      .populate('user', 'name email profile')
+      .populate('form', 'title position department campus formCategory');
+
+    if (!candidate) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    await generateApplicationProfilePdf(candidate, res);
+  } catch (error) {
+    console.error('Application PDF generation error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Failed to generate application PDF', error: error.message });
+    }
+  }
+});
+
 // Get candidate by ID with full profile (Super Admin and the candidate themselves)
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
@@ -953,8 +980,10 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     // Check access permissions
     const canManageCandidates = hasPermission(req.user, 'candidates.manage');
+    const canViewForms = hasPermission(req.user, 'forms.manage');
+    const isOwnProfile = candidate.user._id.toString() === req.user._id.toString();
 
-    if (!canManageCandidates && candidate.user._id.toString() !== req.user._id.toString()) {
+    if (!canManageCandidates && !canViewForms && !isOwnProfile) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -1038,10 +1067,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
           ? Object.fromEntries(candidate.applicationData)
           : candidate.applicationData || {},
         documents: candidate.documents || [],
-        passportPhoto: (candidate.applicationData instanceof Map 
-          ? candidate.applicationData.get('passportPhoto')
-          : candidate.applicationData?.passportPhoto) || 
-          candidate.documents?.find(d => d && (d.name?.toLowerCase().includes('photo') || d.name?.toLowerCase().includes('passport')))?.url
+        passportPhoto: resolvePassportPhotoUrl(candidate)
       },
 
       // Tab 2: Test Results & Evaluation Summary

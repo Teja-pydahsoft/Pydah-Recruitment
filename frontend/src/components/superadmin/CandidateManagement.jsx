@@ -190,6 +190,7 @@ const CandidateManagement = () => {
   const [showTypingResultModal, setShowTypingResultModal] = useState(false);
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [selectedCandidateForDownload, setSelectedCandidateForDownload] = useState(null);
+  const [applicationPdfDownloading, setApplicationPdfDownloading] = useState(false);
 
   useEffect(() => {
     fetchCandidates();
@@ -315,9 +316,40 @@ const CandidateManagement = () => {
     setSelectedCandidate(null);
     setExpandedTestResults({});
     setTestResultPdfDownloadingKey(null);
+    setApplicationPdfDownloading(false);
     setTypingTestResultsForCandidate([]);
     setSelectedTypingResult(null);
     setShowTypingResultModal(false);
+  };
+
+  const downloadApplicationPdf = async (candidate) => {
+    const candidateId = candidate?._id;
+    if (!candidateId) {
+      setToast({ type: 'danger', message: 'Unable to download PDF for this application.' });
+      return;
+    }
+
+    setApplicationPdfDownloading(true);
+    try {
+      const response = await api.get(`/candidates/${candidateId}/application-pdf`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safeName = (candidate.personalDetails?.name || candidate.user?.name || 'application')
+        .replace(/[^a-z0-9]/gi, '_');
+      link.setAttribute('download', `application_${safeName}_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setToast({ type: 'success', message: 'Application PDF downloaded successfully.' });
+    } catch (error) {
+      console.error('Application PDF download error:', error);
+      setToast({ type: 'danger', message: 'Failed to download application PDF. Please try again.' });
+    } finally {
+      setApplicationPdfDownloading(false);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -572,35 +604,44 @@ const CandidateManagement = () => {
 
     return (
       <div className="pb-3">
-        {/* Profile Summary Card */}
-        <Card className="border-0 shadow-sm mb-4">
-          <Card.Body className="d-flex flex-wrap gap-4 align-items-center">
-            {passportPhoto && (
-              <Image
-                src={passportPhoto}
-                alt="Profile"
-                roundedCircle
-                style={{ width: '80px', height: '80px', objectFit: 'cover', border: '2px solid #eef2f6' }}
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-            )}
-            <div>
-              <h4 className="mb-1" style={{ fontWeight: 600 }}>{candidate.personalDetails?.name}</h4>
-              <div className="d-flex flex-wrap gap-2">
-                <Badge bg="light" text="dark">{candidate.personalDetails?.email}</Badge>
-                {candidate.personalDetails?.phone && (
-                  <Badge bg="light" text="dark">📞 {candidate.personalDetails.phone}</Badge>
-                )}
-                {candidate.candidateNumber && (
-                  <Badge bg="dark">{candidate.candidateNumber}</Badge>
-                )}
-                <Badge bg={candidate.workflow?.variant || 'secondary'}>{candidate.workflow?.label}</Badge>
-              </div>
-            </div>
-          </Card.Body>
-        </Card>
+        <Row className="g-4 mb-4">
+          <Col xs={12} lg={passportPhoto ? 9 : 12}>
+            <Card className="border-0 shadow-sm h-100">
+              <Card.Body>
+                <h4 className="mb-1" style={{ fontWeight: 600 }}>{candidate.personalDetails?.name}</h4>
+                <div className="d-flex flex-wrap gap-2">
+                  <Badge bg="light" text="dark">{candidate.personalDetails?.email}</Badge>
+                  {candidate.personalDetails?.phone && (
+                    <Badge bg="light" text="dark">📞 {candidate.personalDetails.phone}</Badge>
+                  )}
+                  {candidate.candidateNumber && (
+                    <Badge bg="dark">{candidate.candidateNumber}</Badge>
+                  )}
+                  <Badge bg={candidate.workflow?.variant || 'secondary'}>{candidate.workflow?.label}</Badge>
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+          {passportPhoto && (
+            <Col xs={12} lg={3} className="d-flex justify-content-lg-end">
+              <Card className="border-0 shadow-sm w-100" style={{ maxWidth: '220px' }}>
+                <Card.Body className="text-center p-3">
+                  <div className="text-muted text-uppercase mb-2" style={{ fontSize: '0.7rem', letterSpacing: '0.08em' }}>
+                    Candidate Photo
+                  </div>
+                  <Image
+                    src={passportPhoto}
+                    alt="Candidate"
+                    roundedCircle
+                    style={{ width: '80px', height: '80px', objectFit: 'cover', border: '2px solid #eef2f6' }}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </Card.Body>
+              </Card>
+            </Col>
+          )}
+        </Row>
 
-        {/* Application Responses section matching FormSubmissions UI */}
         <h6 className="text-uppercase text-muted mb-3" style={{ letterSpacing: '0.08em', fontSize: '0.75rem', fontWeight: 700 }}>
           Application Responses
         </h6>
@@ -1622,6 +1663,26 @@ const CandidateManagement = () => {
           )}
         </Modal.Body>
         <Modal.Footer style={{ backgroundColor: '#f8f9fa', borderTop: '2px solid #dee2e6' }}>
+          {selectedCandidate && (
+            <Button
+              variant="outline-primary"
+              className="me-auto"
+              onClick={() => downloadApplicationPdf(selectedCandidate)}
+              disabled={applicationPdfDownloading}
+            >
+              {applicationPdfDownloading ? (
+                <>
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  Preparing PDF...
+                </>
+              ) : (
+                <>
+                  <FaDownload className="me-1" />
+                  Download PDF
+                </>
+              )}
+            </Button>
+          )}
           {selectedCandidate && canWrite && (
             <>
               <Button

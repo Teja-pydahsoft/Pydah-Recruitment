@@ -18,6 +18,7 @@ const NotificationSettings = require('../models/NotificationSettings');
 const { authenticateToken, requireSuperAdminOrPermission, getCampusFilter } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
 const { ensureSMSConfigured, sendTemplateSMS } = require('../config/sms');
+const { getFrontendAppUrl } = require('../utils/frontendUrl');
 
 const router = express.Router();
 const upload = multer({ dest: path.join(os.tmpdir(), 'uploads') });
@@ -37,40 +38,6 @@ function resolveEmbeddedTestRefId(ref) {
     }
   }
   return null;
-}
-
-/**
- * Resolve frontend app URL from env.
- * Supports comma-separated FRONTEND_URL values and prefers a public URL in production.
- */
-function getFrontendAppUrl() {
-  const fallback = 'http://localhost:3000';
-  const raw = String(process.env.FRONTEND_URL || '').trim();
-  const candidates = raw
-    .split(',')
-    .map(v => v.trim())
-    .filter(Boolean)
-    .map((value) => {
-      if (/^https?:\/\//i.test(value)) return value;
-      if (value.includes('localhost') || value.includes('127.0.0.1')) return `http://${value}`;
-      return `https://${value}`;
-    })
-    .map(url => url.replace(/\/+$/, ''));
-
-  if (!candidates.length) {
-    return fallback;
-  }
-
-  const isLocal = (url) => /localhost|127\.0\.0\.1/i.test(url);
-  const firstPublic = candidates.find(url => !isLocal(url));
-  const firstLocal = candidates.find(url => isLocal(url));
-
-  if (process.env.NODE_ENV === 'production') {
-    return firstPublic || candidates[0] || fallback;
-  }
-
-  // In non-production, prefer local if present; otherwise use first configured URL.
-  return firstLocal || candidates[0] || fallback;
 }
 
 async function candidateTestResultPdfHandler(req, res) {
@@ -382,7 +349,7 @@ router.post('/', authenticateToken, requireSuperAdminOrPermission('tests.manage'
     );
 
     if (candidateAssignments.length > 0) {
-      const frontendUrl = getFrontendAppUrl();
+      const frontendUrl = getFrontendAppUrl(req);
       const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
 
       const notificationSettings = await NotificationSettings.getGlobalSettings();
@@ -2711,7 +2678,7 @@ router.post('/auto-generate', authenticateToken, requireSuperAdminOrPermission('
     }
 
     // Define frontendUrl outside the if block so it's available for assignment details
-    const frontendUrl = getFrontendAppUrl();
+    const frontendUrl = getFrontendAppUrl(req);
     const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
 
     if (candidateAssignments.length > 0) {
@@ -3004,7 +2971,7 @@ router.post('/conduct-from-topics', authenticateToken, requireSuperAdminOrPermis
       await test.save();
     }
 
-    const frontendUrl = getFrontendAppUrl();
+    const frontendUrl = getFrontendAppUrl(req);
     const candidateLink = `${frontendUrl}/test/${test.testLink}?candidate=${candidateId.toString()}`;
 
     const user = candidate.user;
@@ -3649,7 +3616,7 @@ router.post('/:id/submit', async (req, res) => {
       await candidate.populate('form', 'title position campus');
       
       // Resolve frontend URL for invitation links
-      const frontendUrl = getFrontendAppUrl();
+      const frontendUrl = getFrontendAppUrl(req);
       
       // Determine emoji and color based on pass/fail
       const statusEmoji = passed ? '✅' : '❌';
@@ -3761,7 +3728,7 @@ router.post('/:id/assign', authenticateToken, requireSuperAdminOrPermission('tes
     await test.save();
 
     // Generate test links for each candidate
-    const frontendUrl = getFrontendAppUrl();
+    const frontendUrl = getFrontendAppUrl(req);
     const baseTestLink = `${frontendUrl}/test/${test.testLink}`;
     
     const assignmentDetails = candidates.map(candidate => {
@@ -4233,7 +4200,7 @@ router.post('/conduct-from-csv', authenticateToken, requireSuperAdminOrPermissio
           }
 
           // Generate full test link URL
-          const baseTestLink = `${getFrontendAppUrl()}/test/${test.testLink}`;
+          const baseTestLink = `${getFrontendAppUrl(req)}/test/${test.testLink}`;
           const candidateLink = `${baseTestLink}?candidate=${candidateId.toString()}`;
 
           // Log test details for debugging

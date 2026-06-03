@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Table } from 'react-bootstrap';
+import { Table } from 'react-bootstrap';
 
 const DataValueRenderer = ({ value }) => {
     if (value === null || value === undefined || value === '') {
@@ -67,24 +67,26 @@ const renderArray = (arr) => {
     // Experience: [{ organization: '...', designation: '...', duration: '...', responsibilities: '...' }]
     if (firstItem && (firstItem.organization || firstItem.designation || firstItem.duration)) {
         return (
-            <div className="mt-2">
-                {arr.map((item, idx) => (
-                    <Card key={idx} className="mb-2 bg-light border-0">
-                        <Card.Body className="p-2" style={{ fontSize: '0.85rem' }}>
-                            <div className="fw-bold text-primary">{item.organization || 'N/A'}</div>
-                            <div className="d-flex justify-content-between">
-                                <span><strong>Designation:</strong> {item.designation || 'N/A'}</span>
-                                <span className="text-muted"><strong>Duration:</strong> {item.duration || 'N/A'}</span>
-                            </div>
-                            {item.responsibilities && (
-                                <div className="mt-1" style={{ fontSize: '0.8rem' }}>
-                                    <strong>Responsibilities:</strong> {item.responsibilities}
-                                </div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                ))}
-            </div>
+            <Table size="sm" bordered hover className="mt-2 mb-0" style={{ fontSize: '0.85rem' }}>
+                <thead className="bg-light">
+                    <tr>
+                        <th>Organization</th>
+                        <th>Designation</th>
+                        <th>Duration</th>
+                        <th>Responsibilities</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {arr.map((item, idx) => (
+                        <tr key={idx}>
+                            <td>{item.organization || 'N/A'}</td>
+                            <td>{item.designation || 'N/A'}</td>
+                            <td>{item.duration || 'N/A'}</td>
+                            <td>{item.responsibilities || '—'}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </Table>
         );
     }
 

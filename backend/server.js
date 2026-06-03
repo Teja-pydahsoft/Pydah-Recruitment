@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const ensureSuperAdmin = require('./utils/ensureSuperAdmin');
+const { repairEmptyFormFields } = require('./utils/repairEmptyFormFields');
 const { initializePushNotifications } = require('./config/pushNotifications');
 
 // Load environment variables
@@ -11,6 +12,12 @@ dotenv.config();
 // Connect to database and ensure default users
 connectDB()
   .then(() => ensureSuperAdmin())
+  .then(() => repairEmptyFormFields())
+  .then((repairResult) => {
+    if (repairResult?.repaired > 0) {
+      console.log(`✅ Repaired ${repairResult.repaired} recruitment form(s) missing field definitions`);
+    }
+  })
   .then(() => {
     // Initialize Web Push Notifications
     try {

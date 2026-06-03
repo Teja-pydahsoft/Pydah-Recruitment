@@ -3,6 +3,7 @@ import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Aler
 import { FaFilePdf, FaFileImage, FaDownload, FaExternalLinkAlt, FaUser, FaCopy } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
+import { rewriteAppLink } from '../../utils/appUrl';
 import SkeletonLoader from '../SkeletonLoader';
 import DataValueRenderer from '../DataValueRenderer';
 
@@ -74,7 +75,8 @@ const CandidatesManagement = () => {
   const copyTestLink = () => {
     if (!assignmentDetails) return;
 
-    const textToCopy = `Candidate Name: ${assignmentDetails.candidateName}\nTest Name: ${assignmentDetails.testName}\nTime Duration: ${assignmentDetails.duration} minutes\nTest Link: ${assignmentDetails.testLink}`;
+    const testLink = rewriteAppLink(assignmentDetails.testLink);
+    const textToCopy = `Candidate Name: ${assignmentDetails.candidateName}\nTest Name: ${assignmentDetails.testName}\nTime Duration: ${assignmentDetails.duration} minutes\nTest Link: ${testLink}`;
 
     navigator.clipboard.writeText(textToCopy).then(() => {
       setCopySuccess(true);

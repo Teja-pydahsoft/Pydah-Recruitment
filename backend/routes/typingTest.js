@@ -5,6 +5,7 @@ const Candidate = require('../models/Candidate');
 const RecruitmentForm = require('../models/RecruitmentForm');
 const { authenticateToken, requireSuperAdminOrPermission, getCampusFilter } = require('../middleware/auth');
 const { sendEmail } = require('../config/email');
+const { getFrontendAppUrl } = require('../utils/frontendUrl');
 
 const router = express.Router();
 
@@ -289,7 +290,7 @@ router.post('/:id/assign', authenticateToken, requireSuperAdminOrPermission('tes
     await typingTest.save();
 
     // Send notifications (optional - can be enhanced with email/SMS)
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = getFrontendAppUrl(req);
     const baseTestLink = `${frontendUrl}/typing-test/${typingTest.testLink}`;
 
     res.json({

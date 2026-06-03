@@ -237,6 +237,11 @@ const FormsManagement = () => {
       try {
         // Validate required fields for candidate_profile forms
         if (formData.formType === 'candidate_profile') {
+          if (!formData.formFields || formData.formFields.length === 0) {
+            setToast({ type: 'danger', message: 'Add form fields or load the teaching/non-teaching template before saving' });
+            setSubmitting(false);
+            return;
+          }
           if (!formData.campus || !formData.campus.trim()) {
             setToast({ type: 'danger', message: 'Campus is required for candidate profile forms' });
             setSubmitting(false);
@@ -326,11 +331,14 @@ const FormsManagement = () => {
         const closingDateValue = fullForm.closingDate 
           ? new Date(fullForm.closingDate).toISOString().split('T')[0]
           : '';
+        const existingFields = fullForm.formFields || [];
+        const formCategory = fullForm.formCategory || 'teaching';
+
         setFormData({
           title: fullForm.title || '',
           description: fullForm.description || '',
           formType: fullForm.formType || 'candidate_profile',
-          formCategory: fullForm.formCategory || 'teaching',
+          formCategory,
           campus: fullForm.campus || '',
           position: fullForm.position || '',
           department: fullForm.department || '',
@@ -342,11 +350,23 @@ const FormsManagement = () => {
             qualifications: [],
             responsibilities: []
           },
-          formFields: fullForm.formFields || []
+          formFields: existingFields
         });
 
         setEditingForm(fullForm);
         setShowCreateModal(true);
+
+        if (fullForm.formType === 'candidate_profile' && existingFields.length === 0) {
+          if (formCategory === 'non_teaching') {
+            loadNonTeachingTemplate();
+          } else {
+            loadTeachingTemplate();
+          }
+          setToast({
+            type: 'info',
+            message: 'This form had no fields. The standard template was loaded — review and save to apply.'
+          });
+        }
       } catch (error) {
         setToast({ type: 'danger', message: 'Failed to load form for editing' });
         console.error('Error loading form:', error);
