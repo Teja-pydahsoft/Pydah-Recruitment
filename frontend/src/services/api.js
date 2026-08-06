@@ -21,7 +21,7 @@ const getBaseUrl = () => {
   })();
 
   // Prefer local backend while running frontend locally, unless env explicitly overrides.
-  let url = envUrl || (isLocalHost ? 'http://localhost:5000/api' : 'https://srs-backend.pydah.edu.in/api');
+  let url = envUrl || (isLocalHost ? 'http://localhost:5000/api' : 'https://srs.pydah.edu.in/api');
 
   // Fix: If user strictly provides a domain without http:// or https:// in env file,
   // Axios will treat it as a relative path resulting in a 404/403.

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Renew Let's Encrypt certificate for srs-backend.pydah.edu.in (nginx).
+# Renew Let's Encrypt certificate for srs.pydah.edu.in (nginx).
 # Run on the Lightsail instance: sudo bash backend/scripts/renew-ssl.sh
 
 set -euo pipefail
 
-DOMAIN="${SSL_DOMAIN:-srs-backend.pydah.edu.in}"
+DOMAIN="${SSL_DOMAIN:-srs.pydah.edu.in}"
 EMAIL="${SSL_EMAIL:-careers@pydah.edu.in}"
 
 reload_nginx() {

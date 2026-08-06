@@ -39,7 +39,7 @@ const allowedOrigins = [
   'https://pydah-recruitment.vercel.app',
   'https://pydah-recruitment-git-main.vercel.app', // Vercel preview deployments
   'https://pydah-recruitment-*.vercel.app', // All Vercel preview URLs
-  'https://srs-backend.pydah.edu.in',
+  'https://srs.pydah.edu.in',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3000',

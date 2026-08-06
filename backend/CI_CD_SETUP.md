@@ -134,7 +134,7 @@ Your app’s own env (e.g. `MONGODB_URI`, `JWT_SECRET`) stays in `.env` on the L
 
 ## SSL certificate renewal (fixes `ERR_CERT_DATE_INVALID`)
 
-If the careers page shows **Network Error** / `net::ERR_CERT_DATE_INVALID` when calling `https://srs-backend.pydah.edu.in`, the **HTTPS certificate on the Lightsail server has expired**. Browsers block all API calls until it is renewed.
+If the careers page shows **Network Error** / `net::ERR_CERT_DATE_INVALID` when calling `https://srs.pydah.edu.in`, the **HTTPS certificate on the Lightsail server has expired**. Browsers block all API calls until it is renewed.
 
 ### Option A – GitHub Actions (recommended)
 
@@ -154,7 +154,7 @@ sudo bash backend/scripts/renew-ssl.sh
 ### Verify
 
 ```bash
-curl -I https://srs-backend.pydah.edu.in/api/forms/public/active
+curl -I https://srs.pydah.edu.in/api/forms/public/active
 ```
 
 You should get `HTTP/2 200` (or `401`/`404` from the app), not a TLS/certificate error.
