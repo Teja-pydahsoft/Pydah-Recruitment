@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Badge } from 'react-bootstrap';
-import { FaCalendarAlt, FaClock, FaUser, FaCheckCircle, FaExclamationTriangle, FaRedo, FaVideo, FaBriefcase, FaBuilding, FaClipboardCheck, FaArrowRight, FaChevronDown, FaChevronUp, FaStar } from 'react-icons/fa';
+import { Badge, Table } from 'react-bootstrap';
+import { FaCalendarAlt, FaCheckCircle, FaExclamationTriangle, FaRedo, FaClipboardCheck, FaArrowRight } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import SkeletonLoader from '../SkeletonLoader';
@@ -129,140 +129,7 @@ const RetryButton = styled.button`
   }
 `;
 
-const InterviewsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 2rem;
-  margin-top: 2rem;
 
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-    margin-top: 1.5rem;
-  }
-
-  @media (max-width: 480px) {
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-`;
-
-const InterviewCard = styled.div`
-  background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e2e8f0;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: ${props => {
-      if (props.status === 'completed') return 'linear-gradient(90deg, #10b981, #059669)';
-      if (props.status === 'pending') return 'linear-gradient(90deg, #f59e0b, #d97706)';
-      return 'linear-gradient(90deg, #3b82f6, #2563eb)';
-    }};
-  }
-
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  }
-
-  @media (max-width: 768px) {
-    padding: 1.5rem;
-    border-radius: 12px;
-  }
-
-  @media (max-width: 480px) {
-    padding: 1rem;
-    border-radius: 8px;
-  }
-`;
-
-const InterviewHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-
-  @media (max-width: 480px) {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-`;
-
-const InterviewTitle = styled.h3`
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-
-  @media (max-width: 768px) {
-    font-size: 1.1rem;
-  }
-
-  @media (max-width: 480px) {
-    font-size: 1rem;
-  }
-`;
-
-const StatusBadge = styled.span`
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  background: ${props => {
-    if (props.status === 'completed') return '#dcfce7';
-    if (props.status === 'pending') return '#fef3c7';
-    return '#dbeafe';
-  }};
-  color: ${props => {
-    if (props.status === 'completed') return '#166534';
-    if (props.status === 'pending') return '#92400e';
-    return '#1d4ed8';
-  }};
-`;
-
-const InterviewDetails = styled.div`
-  margin-top: 1.5rem;
-`;
-
-const DetailRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  color: #64748b;
-  font-size: 0.95rem;
-
-  @media (max-width: 768px) {
-    font-size: 0.85rem;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  @media (max-width: 480px) {
-    font-size: 0.8rem;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    flex-wrap: wrap;
-  }
-`;
-
-const DetailIcon = styled.span`
-  color: #06b6d4;
-  font-size: 1rem;
-`;
 
 const EmptyState = styled.div`
   text-align: center;
@@ -335,85 +202,13 @@ const ActionButton = styled.button`
   }
 `;
 
-const FeedbackHistorySection = styled.div`
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-`;
 
-const FeedbackHistoryHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  padding: 0.75rem;
-  background: #f9fafb;
-  border-radius: 8px;
-  margin-bottom: ${props => props.expanded ? '1rem' : '0'};
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: #f3f4f6;
-  }
-`;
-
-const FeedbackHistoryTitle = styled.div`
-  font-weight: 600;
-  color: #374151;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const FeedbackHistoryContent = styled.div`
-  padding: 1rem;
-  background: #f9fafb;
-  border-radius: 8px;
-  margin-top: 0.5rem;
-`;
-
-const FeedbackItem = styled.div`
-  margin-bottom: 1rem;
-  padding: 0.75rem;
-  background: white;
-  border-radius: 6px;
-  border-left: 3px solid #10b981;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-`;
-
-const FeedbackItemLabel = styled.div`
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-`;
-
-const FeedbackItemValue = styled.div`
-  color: #6b7280;
-  font-size: 0.95rem;
-`;
-
-const RatingDisplay = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-top: 0.25rem;
-`;
-
-const StarIcon = styled.span`
-  color: ${props => props.filled ? '#fbbf24' : '#d1d5db'};
-  font-size: 1rem;
-`;
 
 const MyInterviews = () => {
   const navigate = useNavigate();
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedFeedback, setExpandedFeedback] = useState({});
 
   useEffect(() => {
     fetchInterviews();
@@ -569,41 +364,6 @@ const MyInterviews = () => {
     }
   };
 
-  const toggleFeedbackHistory = (interviewId) => {
-    setExpandedFeedback(prev => ({
-      ...prev,
-      [interviewId]: !prev[interviewId]
-    }));
-  };
-
-  const formatFeedbackDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Kolkata'
-      });
-    } catch (error) {
-      return dateString;
-    }
-  };
-
-  const getRecommendationLabel = (recommendation) => {
-    const labels = {
-      'strong_reject': 'Strong Reject',
-      'reject': 'Reject',
-      'neutral': 'Neutral',
-      'accept': 'Accept',
-      'strong_accept': 'Strong Accept'
-    };
-    return labels[recommendation] || recommendation;
-  };
-
   if (loading) {
     return (
       <Container>
@@ -648,105 +408,62 @@ const MyInterviews = () => {
             <EmptyText>You don't have any interviews assigned at the moment.</EmptyText>
           </EmptyState>
         ) : (
-          <InterviewsGrid>
-            {interviews.map((interview) => {
-              const status = getStatus(interview);
-              return (
-                <InterviewCard key={interview._id} status={status}>
-                  <InterviewHeader>
-                    <InterviewTitle>{interview.title}</InterviewTitle>
-                    <StatusBadge status={status}>
-                      {status === 'completed' ? (
-                        <>
-                          <FaCheckCircle /> Completed
-                        </>
-                      ) : status === 'pending' ? (
-                        <>
-                          <FaClock /> Pending
-                        </>
-                      ) : (
-                        <>
-                          <FaCalendarAlt /> Upcoming
-                        </>
-                      )}
-                    </StatusBadge>
-                  </InterviewHeader>
+          <div className="table-responsive bg-white rounded shadow-sm border p-2">
+            <Table hover className="align-middle mb-0">
+              <thead className="bg-light">
+                <tr>
+                  <th className="py-3 px-3">Candidate</th>
+                  <th className="py-3 px-3">Job Role & Dept</th>
+                  <th className="py-3 px-3">Interview Title</th>
+                  <th className="py-3 px-3">Scheduled (IST)</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3 text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {interviews.map((interview) => {
+                  const status = getStatus(interview);
+                  const candidateName = interview.candidate?.user?.name || interview.candidate?.name || 'Unknown';
+                  const candidateNo = interview.candidate?.candidateNumber;
+                  const position = interview.candidate?.form?.position || interview.form?.position || 'N/A';
+                  const department = interview.candidate?.form?.department || interview.form?.department || 'N/A';
+                  const scheduledText = interview.scheduledDate && interview.scheduledTime 
+                    ? formatISTDateTime(interview.scheduledDate, interview.scheduledTime)
+                    : interview.scheduledAt 
+                      ? formatDate(interview.scheduledAt)
+                      : 'Not scheduled';
 
-                  <InterviewDetails>
-                    <DetailRow>
-                      <DetailIcon>
-                        <FaUser />
-                      </DetailIcon>
-                      <div style={{ flex: 1 }}>
-                        <div><strong>Candidate:</strong> {interview.candidate?.user?.name || interview.candidate?.name || 'Unknown'}</div>
-                        {interview.candidate?.candidateNumber && (
-                          <Badge bg="secondary" style={{ marginTop: '0.25rem', fontSize: '0.75rem' }}>
-                            {interview.candidate.candidateNumber}
-                          </Badge>
-                        )}
-                      </div>
-                    </DetailRow>
-                    <DetailRow>
-                      <DetailIcon>
-                        <FaBriefcase />
-                      </DetailIcon>
-                      <span><strong>Job Role:</strong> {interview.candidate?.form?.position || interview.form?.position || 'N/A'}</span>
-                    </DetailRow>
-                    <DetailRow>
-                      <DetailIcon>
-                        <FaBuilding />
-                      </DetailIcon>
-                      <span><strong>Department:</strong> {interview.candidate?.form?.department || interview.form?.department || 'N/A'}</span>
-                    </DetailRow>
-                    <DetailRow>
-                      <DetailIcon>
-                        <FaCalendarAlt />
-                      </DetailIcon>
-                      <span><strong>Position Applied:</strong> {interview.form?.title || 'N/A'}</span>
-                    </DetailRow>
-                    <DetailRow>
-                      <DetailIcon>
-                        <FaClock />
-                      </DetailIcon>
-                      <div style={{ flex: 1 }}>
-                        <div><strong>Scheduled:</strong> {
-                          interview.scheduledDate && interview.scheduledTime 
-                            ? formatISTDateTime(interview.scheduledDate, interview.scheduledTime)
-                            : interview.scheduledAt 
-                              ? formatDate(interview.scheduledAt)
-                              : 'Not scheduled'
-                        }</div>
-                        {interview.duration && (
-                          <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.25rem' }}>
-                            Duration: {interview.duration} minutes
+                  return (
+                    <tr key={interview._id}>
+                      <td className="px-3">
+                        <div className="fw-semibold text-dark">{candidateName}</div>
+                        {candidateNo && <Badge bg="secondary" className="small mt-1">{candidateNo}</Badge>}
+                      </td>
+                      <td className="px-3">
+                        <div className="fw-medium text-dark">{position}</div>
+                        <div className="text-muted small">{department}</div>
+                      </td>
+                      <td className="px-3">
+                        <div className="fw-medium text-dark">{interview.title}</div>
+                      </td>
+                      <td className="px-3">
+                        <div className="small fw-semibold">{scheduledText}</div>
+                        {interview.duration && <div className="text-muted small">Duration: {interview.duration} mins</div>}
+                        {interview.meetingLink && (
+                          <div className="mt-1">
+                            <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="small text-primary fw-bold">
+                              Join Meeting
+                            </a>
                           </div>
                         )}
-                      </div>
-                    </DetailRow>
-                    {interview.meetingLink && (
-                      <DetailRow>
-                        <DetailIcon>
-                          <FaVideo />
-                        </DetailIcon>
-                        <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: '600' }}>
-                          Join Meeting
-                        </a>
-                      </DetailRow>
-                    )}
-                    {interview.notes && (
-                      <DetailRow>
-                        <div style={{ flex: 1, padding: '0.75rem', background: '#f9fafb', borderRadius: '6px', fontSize: '0.875rem', color: '#374151' }}>
-                          <strong>Notes:</strong> {interview.notes}
-                        </div>
-                      </DetailRow>
-                    )}
-                  </InterviewDetails>
-                  
-                  {/* Action Buttons and Feedback Status */}
-                  {/* Feedback form is available all the time once assigned - no time restrictions */}
-                  <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e5e7eb' }}>
-                    {interview.submittedFeedback ? (
-                        <>
+                      </td>
+                      <td className="px-3">
+                        <Badge bg={status === 'completed' ? 'success' : status === 'pending' ? 'warning' : 'info'}>
+                          {status === 'completed' ? 'Completed' : status === 'pending' ? 'Pending' : 'Upcoming'}
+                        </Badge>
+                      </td>
+                      <td className="px-3 text-end">
+                        {interview.submittedFeedback ? (
                           <ActionButton
                             submitted
                             onClick={() => {
@@ -758,183 +475,35 @@ const MyInterviews = () => {
                               });
                             }}
                           >
-                            <FaCheckCircle />
+                            <FaCheckCircle style={{ marginRight: '6px' }} />
                             Feedback Submitted
-                            <FaArrowRight style={{ marginLeft: 'auto' }} />
+                            <FaArrowRight style={{ marginLeft: '6px' }} />
                           </ActionButton>
-                          
-                          {/* Feedback History */}
-                          <FeedbackHistorySection>
-                            <FeedbackHistoryHeader
-                              expanded={expandedFeedback[interview._id]}
-                              onClick={() => toggleFeedbackHistory(interview._id)}
-                            >
-                              <FeedbackHistoryTitle>
-                                <FaClipboardCheck />
-                                Submitted Feedback
-                                {interview.submittedFeedback.submittedAt && (
-                                  <span style={{ fontSize: '0.875rem', color: '#6b7280', fontWeight: 'normal' }}>
-                                    ({formatFeedbackDate(interview.submittedFeedback.submittedAt)})
-                                  </span>
-                                )}
-                              </FeedbackHistoryTitle>
-                              {expandedFeedback[interview._id] ? <FaChevronUp /> : <FaChevronDown />}
-                            </FeedbackHistoryHeader>
-                            
-                            {expandedFeedback[interview._id] && interview.submittedFeedback && (
-                              <FeedbackHistoryContent>
-                                {interview.submittedFeedback.questionAnswers && interview.submittedFeedback.questionAnswers.length > 0 ? (
-                                  // Custom feedback form answers
-                                  interview.submittedFeedback.questionAnswers.map((qa, idx) => (
-                                    <FeedbackItem key={idx}>
-                                      <FeedbackItemLabel>{qa.question}</FeedbackItemLabel>
-                                      <FeedbackItemValue>
-                                        {qa.type === 'rating' ? (
-                                          <RatingDisplay>
-                                            {[1, 2, 3, 4, 5].map((star) => (
-                                              <StarIcon key={star} filled={star <= qa.answer}>
-                                                <FaStar />
-                                              </StarIcon>
-                                            ))}
-                                            <span style={{ marginLeft: '0.5rem', color: '#374151' }}>
-                                              ({qa.answer}/5)
-                                            </span>
-                                          </RatingDisplay>
-                                        ) : qa.type === 'yes_no' ? (
-                                          <Badge bg={qa.answer === 'yes' ? 'success' : 'danger'}>
-                                            {qa.answer === 'yes' ? 'Yes' : 'No'}
-                                          </Badge>
-                                        ) : (
-                                          qa.answer || 'N/A'
-                                        )}
-                                      </FeedbackItemValue>
-                                    </FeedbackItem>
-                                  ))
-                                ) : (
-                                  // Default feedback form
-                                  <>
-                                    {interview.submittedFeedback.ratings && (
-                                      <>
-                                        {interview.submittedFeedback.ratings.technicalSkills && (
-                                          <FeedbackItem>
-                                            <FeedbackItemLabel>Technical Skills</FeedbackItemLabel>
-                                            <FeedbackItemValue>
-                                              <RatingDisplay>
-                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                  <StarIcon key={star} filled={star <= interview.submittedFeedback.ratings.technicalSkills}>
-                                                    <FaStar />
-                                                  </StarIcon>
-                                                ))}
-                                                <span style={{ marginLeft: '0.5rem', color: '#374151' }}>
-                                                  ({interview.submittedFeedback.ratings.technicalSkills}/5)
-                                                </span>
-                                              </RatingDisplay>
-                                            </FeedbackItemValue>
-                                          </FeedbackItem>
-                                        )}
-                                        {interview.submittedFeedback.ratings.communication && (
-                                          <FeedbackItem>
-                                            <FeedbackItemLabel>Communication</FeedbackItemLabel>
-                                            <FeedbackItemValue>
-                                              <RatingDisplay>
-                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                  <StarIcon key={star} filled={star <= interview.submittedFeedback.ratings.communication}>
-                                                    <FaStar />
-                                                  </StarIcon>
-                                                ))}
-                                                <span style={{ marginLeft: '0.5rem', color: '#374151' }}>
-                                                  ({interview.submittedFeedback.ratings.communication}/5)
-                                                </span>
-                                              </RatingDisplay>
-                                            </FeedbackItemValue>
-                                          </FeedbackItem>
-                                        )}
-                                        {interview.submittedFeedback.ratings.problemSolving && (
-                                          <FeedbackItem>
-                                            <FeedbackItemLabel>Problem Solving</FeedbackItemLabel>
-                                            <FeedbackItemValue>
-                                              <RatingDisplay>
-                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                  <StarIcon key={star} filled={star <= interview.submittedFeedback.ratings.problemSolving}>
-                                                    <FaStar />
-                                                  </StarIcon>
-                                                ))}
-                                                <span style={{ marginLeft: '0.5rem', color: '#374151' }}>
-                                                  ({interview.submittedFeedback.ratings.problemSolving}/5)
-                                                </span>
-                                              </RatingDisplay>
-                                            </FeedbackItemValue>
-                                          </FeedbackItem>
-                                        )}
-                                        {interview.submittedFeedback.ratings.overallRating && (
-                                          <FeedbackItem>
-                                            <FeedbackItemLabel>Overall Rating</FeedbackItemLabel>
-                                            <FeedbackItemValue>
-                                              <RatingDisplay>
-                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                  <StarIcon key={star} filled={star <= interview.submittedFeedback.ratings.overallRating}>
-                                                    <FaStar />
-                                                  </StarIcon>
-                                                ))}
-                                                <span style={{ marginLeft: '0.5rem', color: '#374151' }}>
-                                                  ({interview.submittedFeedback.ratings.overallRating}/5)
-                                                </span>
-                                              </RatingDisplay>
-                                            </FeedbackItemValue>
-                                          </FeedbackItem>
-                                        )}
-                                      </>
-                                    )}
-                                    {interview.submittedFeedback.comments && (
-                                      <FeedbackItem>
-                                        <FeedbackItemLabel>Comments</FeedbackItemLabel>
-                                        <FeedbackItemValue>{interview.submittedFeedback.comments}</FeedbackItemValue>
-                                      </FeedbackItem>
-                                    )}
-                                    {interview.submittedFeedback.recommendation && (
-                                      <FeedbackItem>
-                                        <FeedbackItemLabel>Recommendation</FeedbackItemLabel>
-                                        <FeedbackItemValue>
-                                          <Badge bg={
-                                            interview.submittedFeedback.recommendation === 'strong_accept' ? 'success' :
-                                            interview.submittedFeedback.recommendation === 'accept' ? 'info' :
-                                            interview.submittedFeedback.recommendation === 'reject' ? 'warning' :
-                                            interview.submittedFeedback.recommendation === 'strong_reject' ? 'danger' : 'secondary'
-                                          }>
-                                            {getRecommendationLabel(interview.submittedFeedback.recommendation)}
-                                          </Badge>
-                                        </FeedbackItemValue>
-                                      </FeedbackItem>
-                                    )}
-                                  </>
-                                )}
-                              </FeedbackHistoryContent>
-                            )}
-                          </FeedbackHistorySection>
-                        </>
-                      ) : (
-                        <ActionButton
-                          variant="primary"
-                          onClick={() => {
-                            navigate('/panel-member/feedback', {
-                              state: {
-                                interviewId: interview._id,
-                                candidateId: interview.candidate?._id || interview.candidateId,
-                                feedbackForm: interview.feedbackForm
-                              }
-                            });
-                          }}
-                        >
-                          <FaClipboardCheck />
-                          Submit Feedback
-                          <FaArrowRight style={{ marginLeft: 'auto' }} />
-                        </ActionButton>
-                      )}
-                    </div>
-                </InterviewCard>
-              );
-            })}
-          </InterviewsGrid>
+                        ) : (
+                          <ActionButton
+                            variant="primary"
+                            onClick={() => {
+                              navigate('/panel-member/feedback', {
+                                state: {
+                                  interviewId: interview._id,
+                                  candidateId: interview.candidate?._id || interview.candidateId,
+                                  feedbackForm: interview.feedbackForm
+                                }
+                              });
+                            }}
+                          >
+                            <FaClipboardCheck style={{ marginRight: '6px' }} />
+                            Submit Feedback
+                            <FaArrowRight style={{ marginLeft: '6px' }} />
+                          </ActionButton>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
         )}
       </Wrapper>
     </Container>

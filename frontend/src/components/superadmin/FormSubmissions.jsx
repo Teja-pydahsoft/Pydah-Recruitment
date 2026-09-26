@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup, Pagination } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes, FaSearch, FaDownload } from 'react-icons/fa';
+import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup, Pagination, Table } from 'react-bootstrap';
+import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes, FaSearch, FaDownload, FaClipboardList } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import SkeletonLoader from '../SkeletonLoader';
@@ -18,11 +18,11 @@ const FormSubmissions = () => {
   const [selectedCandidates, setSelectedCandidates] = useState(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('teaching');
+  const [statusFilter, setStatusFilter] = useState('pending'); // 'pending', 'selected', 'all'
   const [selectedJobRole, setSelectedJobRole] = useState('all');
   const [quickSearch, setQuickSearch] = useState(''); // Applied search
   const [searchInput, setSearchInput] = useState(''); // Input value (not applied until button click)
   const [pendingPage, setPendingPage] = useState(1);
-  const [progressedPage, setProgressedPage] = useState(1);
   const [toast, setToast] = useState({ type: '', message: '' });
   const [downloadingPdfId, setDownloadingPdfId] = useState(null);
 
@@ -98,31 +98,29 @@ const FormSubmissions = () => {
     })
   ), [filteredCandidates]);
 
-  // Paginated pending candidates
-  const paginatedPendingCandidates = useMemo(() => {
+  // Unified candidate list based on status filter
+  const activeCandidatesList = useMemo(() => {
+    if (statusFilter === 'pending') {
+      return pendingCandidates;
+    } else if (statusFilter === 'selected') {
+      return progressedCandidates;
+    }
+    return filteredCandidates;
+  }, [statusFilter, pendingCandidates, progressedCandidates, filteredCandidates]);
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(activeCandidatesList.length / PAGE_SIZE);
+  }, [activeCandidatesList.length]);
+
+  const paginatedCandidates = useMemo(() => {
     const startIndex = (pendingPage - 1) * PAGE_SIZE;
-    return pendingCandidates.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [pendingCandidates, pendingPage]);
+    return activeCandidatesList.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [activeCandidatesList, pendingPage]);
 
-  const pendingTotalPages = useMemo(() => {
-    return Math.ceil(pendingCandidates.length / PAGE_SIZE);
-  }, [pendingCandidates.length]);
-
-  // Paginated progressed candidates
-  const paginatedProgressedCandidates = useMemo(() => {
-    const startIndex = (progressedPage - 1) * PAGE_SIZE;
-    return progressedCandidates.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [progressedCandidates, progressedPage]);
-
-  const progressedTotalPages = useMemo(() => {
-    return Math.ceil(progressedCandidates.length / PAGE_SIZE);
-  }, [progressedCandidates.length]);
-
-  // Reset pages when filters change
+  // Reset page when filters change
   useEffect(() => {
     setPendingPage(1);
-    setProgressedPage(1);
-  }, [activeTab, selectedJobRole, quickSearch]);
+  }, [activeTab, selectedJobRole, quickSearch, statusFilter]);
 
   // Get unique job roles for the current tab
   const getJobRoles = () => {
@@ -267,14 +265,6 @@ const FormSubmissions = () => {
       newSelected.add(candidateId);
     }
     setSelectedCandidates(newSelected);
-  };
-
-  const handleSelectAll = () => {
-    if (selectedCandidates.size === pendingCandidates.length) {
-      setSelectedCandidates(new Set());
-    } else {
-      setSelectedCandidates(new Set(pendingCandidates.map(c => c._id)));
-    }
   };
 
   const getStatusBadge = (status) => {
@@ -476,7 +466,7 @@ const FormSubmissions = () => {
         </Col>
       </Row>
 
-      {/* Category Tabs */}
+      {/* Row 1: Category Tabs, Job Role Filter, Search Bar & Select All */}
       <Row className="mb-3 g-2 align-items-end">
         <Col xs="auto">
           <Button
@@ -502,10 +492,10 @@ const FormSubmissions = () => {
             variant={activeTab === 'all' ? 'primary' : 'outline-primary'}
             onClick={() => { setActiveTab('all'); setSelectedJobRole('all'); }}
           >
-            All ({allCandidates.length})
+            All Categories ({allCandidates.length})
           </Button>
         </Col>
-        <Col xs={12} md={4} className="mt-2 mt-md-0">
+        <Col xs={12} md={3} className="mt-2 mt-md-0">
           <Form.Select
             size="sm"
             value={selectedJobRole}
@@ -536,7 +526,7 @@ const FormSubmissions = () => {
               }}
               style={{
                 borderRadius: '0 8px 8px 0',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: '#0ea5e9',
                 border: 'none'
               }}
             >
@@ -556,23 +546,46 @@ const FormSubmissions = () => {
             )}
           </InputGroup>
         </Col>
-        <Col xs="auto" className="mt-2 mt-md-0">
-          {pendingCandidates.length > 0 && (
-            <FormCheck
-              type="checkbox"
-              label="Select all pending"
-              checked={selectedCandidates.size === pendingCandidates.length}
-              onChange={handleSelectAll}
-            />
-          )}
-        </Col>
-        <Col xs={12} md className="mt-2 mt-md-0 text-md-end">
-          <small className="text-muted">
-            Showing <strong>{pendingCandidates.length}</strong> pending candidate(s){selectedJobRole !== 'all' ? ` for ${selectedJobRole}` : ''}
-          </small>
-        </Col>
       </Row>
 
+      {/* Row 2: Status View Toggle Buttons (Placed below Category & Search controls) */}
+      <Row className="mb-4 g-2 align-items-center">
+        <Col xs="auto">
+          <span className="fw-semibold me-1" style={{ fontSize: '0.9rem', color: '#0284c7' }}>Status View:</span>
+        </Col>
+        <Col xs="auto">
+          <Button
+            size="sm"
+            variant={statusFilter === 'pending' ? 'primary' : 'outline-primary'}
+            onClick={() => setStatusFilter('pending')}
+            style={{ borderRadius: '20px', fontWeight: 600, padding: '0.35rem 1.1rem' }}
+          >
+            <FaClipboardList className="me-1" />
+            Pending Candidates ({pendingCandidates.length})
+          </Button>
+        </Col>
+        <Col xs="auto">
+          <Button
+            size="sm"
+            variant={statusFilter === 'selected' ? 'success' : 'outline-success'}
+            onClick={() => setStatusFilter('selected')}
+            style={{ borderRadius: '20px', fontWeight: 600, padding: '0.35rem 1.1rem' }}
+          >
+            <FaCheckCircle className="me-1" />
+            Selected Candidates ({progressedCandidates.length})
+          </Button>
+        </Col>
+        <Col xs="auto">
+          <Button
+            size="sm"
+            variant={statusFilter === 'all' ? 'info' : 'outline-info'}
+            onClick={() => setStatusFilter('all')}
+            style={{ borderRadius: '20px', fontWeight: 600, padding: '0.35rem 1.1rem' }}
+          >
+            All Candidates ({pendingCandidates.length + progressedCandidates.length})
+          </Button>
+        </Col>
+      </Row>
 
       {/* Bulk Actions */}
       {selectedCandidates.size > 0 && (
@@ -612,128 +625,198 @@ const FormSubmissions = () => {
         </Row>
       )}
 
-      {pendingCandidates.length === 0 ? (
-        <Row>
+      {/* SINGLE UNIFIED CANDIDATES TABLE */}
+      <Row className="mb-2">
+        <Col>
+          <h4 className="mb-1" style={{ fontWeight: 600, color: '#0284c7' }}>
+            {statusFilter === 'pending' ? 'Pending Submissions' : statusFilter === 'selected' ? 'Selected Candidates' : 'All Application Submissions'}
+          </h4>
+          <p className="text-muted mb-2" style={{ fontSize: '0.9rem' }}>
+            {statusFilter === 'pending'
+              ? 'Review, shortlist, or reject submissions before moving candidates to assessments.'
+              : statusFilter === 'selected'
+              ? 'Approved candidates ready for assessments and interview scheduling.'
+              : 'Complete view of candidate applications across all review stages.'}
+          </p>
+        </Col>
+      </Row>
+
+      {activeCandidatesList.length === 0 ? (
+        <Row className="mb-4">
           <Col>
             <Alert variant="info">
-              No pending submissions found for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'the selected filters'}.
+              No candidates found matching the selected status and category filters.
             </Alert>
           </Col>
         </Row>
       ) : (
         <>
-          <Row className="g-3">
-            {paginatedPendingCandidates.map(candidate => (
-              <Col xs={12} md={6} lg={4} key={candidate._id}>
-                <Card className="h-100 shadow-sm border-0">
-                  <Card.Body className="d-flex flex-column">
-                    <div className="d-flex align-items-start justify-content-between mb-2">
-                      <div className="d-flex align-items-center gap-2">
-                        {candidate.passportPhotoUrl ? (
-                          <Image
-                            src={candidate.passportPhotoUrl}
-                            alt={candidate.user?.name}
-                            roundedCircle
-                            style={{ width: '42px', height: '42px', objectFit: 'cover' }}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: '42px',
-                              height: '42px',
-                              borderRadius: '50%',
-                              background: '#e2e8f0',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <FaUser style={{ color: '#64748b' }} />
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '1rem' }}>{candidate.user?.name || 'N/A'}</div>
-                          <small className="text-muted">{candidate.user?.email || 'N/A'}</small>
-                        </div>
-                      </div>
+          <Card className="shadow-sm border-0 mb-4">
+            <div className="table-responsive">
+              <Table hover className="align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }} className="text-center">
                       <FormCheck
                         type="checkbox"
-                        checked={selectedCandidates.has(candidate._id)}
-                        onChange={() => handleSelectCandidate(candidate._id)}
+                        checked={
+                          paginatedCandidates.length > 0 &&
+                          paginatedCandidates.every(c => selectedCandidates.has(c._id))
+                        }
+                        onChange={() => {
+                          const allSelected = paginatedCandidates.every(c => selectedCandidates.has(c._id));
+                          if (allSelected) {
+                            setSelectedCandidates(new Set());
+                          } else {
+                            const newSelected = new Set(selectedCandidates);
+                            paginatedCandidates.forEach(c => newSelected.add(c._id));
+                            setSelectedCandidates(newSelected);
+                          }
+                        }}
                       />
-                    </div>
-                    <div className="mb-2 text-muted" style={{ fontSize: '0.85rem' }}>
-                      <div><strong>Position:</strong> {candidate.form?.position || 'N/A'}</div>
-                      <div><strong>Department:</strong> {candidate.form?.department || 'N/A'}</div>
-                      <div><strong>Applied:</strong> {new Date(candidate.createdAt).toLocaleDateString()}</div>
-                    </div>
-                    <div className="mb-3 d-flex flex-wrap gap-2">
-                      <Badge bg={candidate.form?.formCategory === 'teaching' ? 'primary' : 'secondary'}>
-                        {candidate.form?.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
-                      </Badge>
-                      {candidate.candidateNumber ? (
-                        <Badge bg="dark">{candidate.candidateNumber}</Badge>
-                      ) : (
-                        <Badge bg="light" text="dark">No Candidate ID</Badge>
-                      )}
-                      {getStatusBadge(candidate.status || 'pending')}
-                    </div>
-                    <div className="mt-auto d-flex flex-wrap gap-2">
-                      <Button
-                        variant="outline-primary"
-                        size="sm"
-                        onClick={() => fetchCandidateProfile(candidate._id)}
-                        disabled={profileLoading}
-                      >
-                        {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
-                      </Button>
-                      <Button
-                        variant="outline-secondary"
-                        size="sm"
-                        onClick={() => downloadApplicationPdf(candidate)}
-                        disabled={downloadingPdfId === candidate._id}
-                      >
-                        {downloadingPdfId === candidate._id ? (
-                          <Spinner as="span" animation="border" size="sm" />
-                        ) : (
-                          <>
-                            <FaDownload className="me-1" />
-                            Download
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="success"
-                        size="sm"
-                        onClick={() => handleApprove(candidate._id)}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        variant="outline-danger"
-                        size="sm"
-                        onClick={() => handleReject(candidate._id)}
-                      >
-                        Reject
-                      </Button>
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-            ))}
-          </Row>
-          {pendingTotalPages > 1 && (
-            <Row className="mt-4">
+                    </th>
+                    <th>Candidate</th>
+                    <th>Position & Department</th>
+                    <th>Applied Date</th>
+                    <th>Category & ID</th>
+                    <th>Status</th>
+                    <th className="text-end" style={{ minWidth: '240px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedCandidates.map(candidate => {
+                    const isPending = candidate.status === 'pending' || candidate.status === 'on_hold' || !candidate.status;
+                    return (
+                      <tr key={candidate._id}>
+                        <td className="text-center">
+                          <FormCheck
+                            type="checkbox"
+                            checked={selectedCandidates.has(candidate._id)}
+                            onChange={() => handleSelectCandidate(candidate._id)}
+                          />
+                        </td>
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            {candidate.passportPhotoUrl ? (
+                              <Image
+                                src={candidate.passportPhotoUrl}
+                                alt={candidate.user?.name}
+                                roundedCircle
+                                style={{ width: '38px', height: '38px', objectFit: 'cover' }}
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: '38px',
+                                  height: '38px',
+                                  borderRadius: '50%',
+                                  background: '#e0f2fe',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                <FaUser style={{ color: '#0284c7' }} />
+                              </div>
+                            )}
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#0f172a' }}>{candidate.user?.name || 'N/A'}</div>
+                              <small className="text-muted" style={{ fontSize: '0.8rem' }}>{candidate.user?.email || 'N/A'}</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#334155' }}>{candidate.form?.position || 'N/A'}</div>
+                          <small className="text-muted" style={{ fontSize: '0.8rem' }}>{candidate.form?.department || 'N/A'}</small>
+                        </td>
+                        <td style={{ fontSize: '0.85rem', color: '#475569' }}>
+                          {candidate.createdAt ? new Date(candidate.createdAt).toLocaleDateString() : '—'}
+                        </td>
+                        <td>
+                          <div className="d-flex flex-wrap gap-1">
+                            <Badge bg={candidate.form?.formCategory === 'teaching' ? 'primary' : 'secondary'}>
+                              {candidate.form?.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
+                            </Badge>
+                            {candidate.candidateNumber ? (
+                              <Badge bg="dark">{candidate.candidateNumber}</Badge>
+                            ) : (
+                              <Badge bg="light" text="dark">No Candidate ID</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          {getStatusBadge(candidate.status || 'pending')}
+                        </td>
+                        <td className="text-end">
+                          <div className="d-inline-flex gap-1 flex-wrap justify-content-end">
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() => fetchCandidateProfile(candidate._id)}
+                              disabled={profileLoading}
+                            >
+                              {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
+                            </Button>
+                            <Button
+                              variant="outline-secondary"
+                              size="sm"
+                              onClick={() => downloadApplicationPdf(candidate)}
+                              disabled={downloadingPdfId === candidate._id}
+                            >
+                              {downloadingPdfId === candidate._id ? (
+                                <Spinner as="span" animation="border" size="sm" />
+                              ) : (
+                                <>
+                                  <FaDownload className="me-1" />
+                                  Download
+                                </>
+                              )}
+                            </Button>
+                            {isPending ? (
+                              <>
+                                <Button
+                                  variant="success"
+                                  size="sm"
+                                  onClick={() => handleApprove(candidate._id)}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  variant="outline-danger"
+                                  size="sm"
+                                  onClick={() => handleReject(candidate._id)}
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant="outline-secondary"
+                                size="sm"
+                                onClick={() => navigate('/super-admin/candidates')}
+                              >
+                                Next Steps
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+          </Card>
+          {totalPages > 1 && (
+            <Row className="mt-3 mb-4">
               <Col className="d-flex justify-content-center">
                 <Pagination size="sm">
                   <Pagination.Prev
                     disabled={pendingPage === 1}
                     onClick={() => setPendingPage(prev => Math.max(prev - 1, 1))}
                   />
-                  {Array.from({ length: pendingTotalPages }).map((_, index) => (
+                  {Array.from({ length: totalPages }).map((_, index) => (
                     <Pagination.Item
                       key={index + 1}
                       active={pendingPage === index + 1}
@@ -743,142 +826,8 @@ const FormSubmissions = () => {
                     </Pagination.Item>
                   ))}
                   <Pagination.Next
-                    disabled={pendingPage === pendingTotalPages}
-                    onClick={() => setPendingPage(prev => Math.min(prev + 1, pendingTotalPages))}
-                  />
-                </Pagination>
-              </Col>
-            </Row>
-          )}
-        </>
-      )}
-
-      {progressedCandidates.length > 0 && (
-        <>
-          <Row className="mt-4">
-            <Col>
-              <h4 className="mb-1" style={{ fontWeight: 600 }}>Selected Candidates</h4>
-              <p className="text-muted mb-0" style={{ fontSize: '0.95rem' }}>
-                Candidates approved from submissions appear here so you can coordinate assessments and interviews.
-              </p>
-            </Col>
-          </Row>
-          <Row className="g-3 mt-1">
-            {paginatedProgressedCandidates.map(candidate => (
-              <Col xs={12} md={6} lg={4} key={candidate._id}>
-                <Card className="h-100 shadow-sm border-0 bg-light">
-                  <Card.Body className="d-flex flex-column">
-                    <div className="d-flex align-items-start justify-content-between mb-2">
-                      <div className="d-flex align-items-center gap-2">
-                        {candidate.passportPhotoUrl ? (
-                          <Image
-                            src={candidate.passportPhotoUrl}
-                            alt={candidate.user?.name}
-                            roundedCircle
-                            style={{ width: '42px', height: '42px', objectFit: 'cover' }}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: '42px',
-                              height: '42px',
-                              borderRadius: '50%',
-                              background: '#e2e8f0',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <FaUser style={{ color: '#64748b' }} />
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '1rem' }}>{candidate.user?.name || 'N/A'}</div>
-                          <small className="text-muted">{candidate.user?.email || 'N/A'}</small>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mb-2 text-muted" style={{ fontSize: '0.85rem' }}>
-                      <div><strong>Position:</strong> {candidate.form?.position || 'N/A'}</div>
-                      <div><strong>Department:</strong> {candidate.form?.department || 'N/A'}</div>
-                      <div><strong>Approved:</strong> {candidate.updatedAt ? new Date(candidate.updatedAt).toLocaleDateString() : '—'}</div>
-                    </div>
-                    <div className="mb-3 d-flex flex-wrap gap-2">
-                      <Badge bg={candidate.form?.formCategory === 'teaching' ? 'primary' : 'secondary'}>
-                        {candidate.form?.formCategory === 'teaching' ? 'Teaching' : 'Non-Teaching'}
-                      </Badge>
-                      {candidate.candidateNumber ? (
-                        <Badge bg="dark">{candidate.candidateNumber}</Badge>
-                      ) : (
-                        <Badge bg="light" text="dark">Awaiting ID</Badge>
-                      )}
-                      {['approved', 'selected'].includes(candidate.status) ? (
-                        <Badge bg="success">Selected Candidate</Badge>
-                      ) : (
-                        <Badge bg="warning" text="dark">Shortlisted</Badge>
-                      )}
-                      {getStatusBadge(candidate.status || 'approved')}
-                    </div>
-                    <div className="mt-auto d-flex flex-wrap gap-2">
-                      <Button
-                        variant="outline-primary"
-                        size="sm"
-                        onClick={() => fetchCandidateProfile(candidate._id)}
-                        disabled={profileLoading}
-                      >
-                        {profileLoading ? <Spinner as="span" animation="border" size="sm" /> : 'View'}
-                      </Button>
-                      <Button
-                        variant="outline-secondary"
-                        size="sm"
-                        onClick={() => downloadApplicationPdf(candidate)}
-                        disabled={downloadingPdfId === candidate._id}
-                      >
-                        {downloadingPdfId === candidate._id ? (
-                          <Spinner as="span" animation="border" size="sm" />
-                        ) : (
-                          <>
-                            <FaDownload className="me-1" />
-                            Download
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline-secondary"
-                        size="sm"
-                        onClick={() => navigate('/super-admin/candidates')}
-                      >
-                        Next Steps
-                      </Button>
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-            ))}
-          </Row>
-          {progressedTotalPages > 1 && (
-            <Row className="mt-4">
-              <Col className="d-flex justify-content-center">
-                <Pagination size="sm">
-                  <Pagination.Prev
-                    disabled={progressedPage === 1}
-                    onClick={() => setProgressedPage(prev => Math.max(prev - 1, 1))}
-                  />
-                  {Array.from({ length: progressedTotalPages }).map((_, index) => (
-                    <Pagination.Item
-                      key={index + 1}
-                      active={progressedPage === index + 1}
-                      onClick={() => setProgressedPage(index + 1)}
-                    >
-                      {index + 1}
-                    </Pagination.Item>
-                  ))}
-                  <Pagination.Next
-                    disabled={progressedPage === progressedTotalPages}
-                    onClick={() => setProgressedPage(prev => Math.min(prev + 1, progressedTotalPages))}
+                    disabled={pendingPage === totalPages}
+                    onClick={() => setPendingPage(prev => Math.min(prev + 1, totalPages))}
                   />
                 </Pagination>
               </Col>

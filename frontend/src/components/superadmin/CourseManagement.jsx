@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
+import { Table, Badge, Button as BsButton } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash, FaTag, FaBuilding } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
@@ -36,190 +37,6 @@ const Subtitle = styled.p`
   margin: 0;
   color: #6b7280;
   font-size: 1rem;
-`;
-
-const CampusGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-  
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const CampusCard = styled.div`
-  background: white;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
-    transform: translateY(-2px);
-  }
-`;
-
-const CampusHeader = styled.div`
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border-bottom: 2px solid #e2e8f0;
-  padding: 1.25rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-`;
-
-const CampusTitle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex: 1;
-  min-width: 0;
-`;
-
-const CampusIcon = styled.div`
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #06b6d4, #22d3ee);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 1.25rem;
-  flex-shrink: 0;
-`;
-
-const CampusName = styled.h3`
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1e293b;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
-
-const HeaderActions = styled.div`
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-`;
-
-const ActionButton = styled.button`
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
-  flex-shrink: 0;
-  
-  background: ${({ variant }) => {
-    switch (variant) {
-      case 'primary':
-        return '#3b82f6';
-      case 'danger':
-        return '#06b6d4';
-      case 'secondary':
-        return '#6b7280';
-      default:
-        return '#e2e8f0';
-    }
-  }};
-  color: white;
-  
-  &:hover {
-    transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  }
-  
-  &:active {
-    transform: scale(0.95);
-  }
-`;
-
-const CampusBody = styled.div`
-  padding: 1.25rem 1.5rem;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-`;
-
-const DepartmentsList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  flex: 1;
-  max-height: 400px;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-  
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-  }
-`;
-
-const DepartmentItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-    transform: translateX(2px);
-  }
-`;
-
-const DepartmentName = styled.span`
-  font-weight: 500;
-  color: #334155;
-  font-size: 0.9rem;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-right: 0.75rem;
-`;
-
-const DepartmentActions = styled.div`
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
 `;
 
 const IconButton = styled.button`
@@ -273,40 +90,7 @@ const IconButton = styled.button`
   }
 `;
 
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 2rem 1rem;
-  color: #64748b;
-  
-  p {
-    margin: 0 0 1rem 0;
-    font-size: 0.9rem;
-  }
-`;
 
-const AddButton = styled.button`
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-  }
-  
-  &:active {
-    transform: translateY(0);
-  }
-`;
 
 const Modal = styled.div`
   position: fixed;
@@ -731,76 +515,96 @@ const CourseManagement = () => {
         <Subtitle>Manage campuses and their departments</Subtitle>
       </Header>
 
-      <CampusGrid>
-        {PERMANENT_CAMPUSES.map((permanentCampus) => {
-          const actualCampusName = getActualCampusName(permanentCampus);
-          const campusCourses = getDepartmentsForCampus(permanentCampus);
+      <div className="table-responsive bg-white rounded shadow-sm border p-3">
+        <Table hover className="align-middle mb-0">
+          <thead className="bg-light">
+            <tr>
+              <th className="py-3 px-3">Campus</th>
+              <th className="py-3 px-3">Departments / Courses</th>
+              <th className="py-3 px-3 text-center">Total Depts</th>
+              <th className="py-3 px-3 text-end">Campus Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {PERMANENT_CAMPUSES.map((permanentCampus) => {
+              const actualCampusName = getActualCampusName(permanentCampus);
+              const campusCourses = getDepartmentsForCampus(permanentCampus);
 
-          return (
-            <CampusCard key={permanentCampus}>
-              <CampusHeader>
-                <CampusTitle>
-                  <CampusIcon>
-                    <FaBuilding />
-                  </CampusIcon>
-                  <CampusName>{actualCampusName}</CampusName>
-                </CampusTitle>
-                <HeaderActions>
-                  <ActionButton
-                    variant="secondary"
-                    onClick={() => handleRenameCampus(actualCampusName)}
-                    title="Rename Campus"
-                  >
-                    <FaTag />
-                  </ActionButton>
-                  <ActionButton
-                    variant="primary"
-                    onClick={() => handleAddDepartment(actualCampusName)}
-                    title="Add Department"
-                  >
-                    <FaPlus />
-                  </ActionButton>
-                </HeaderActions>
-              </CampusHeader>
-              <CampusBody>
-                {campusCourses.length > 0 ? (
-                  <DepartmentsList>
-                    {campusCourses.map((course) => (
-                      <DepartmentItem key={course._id}>
-                        <DepartmentName>{course.department}</DepartmentName>
-                        <DepartmentActions>
-                          <IconButton
-                            variant="primary"
-                            onClick={() => handleEditDepartment(course)}
-                            title="Edit Department"
+              return (
+                <tr key={permanentCampus}>
+                  <td className="px-3" style={{ width: '220px' }}>
+                    <div className="d-flex align-items-center gap-2">
+                      <div className="bg-info text-white rounded p-2 d-flex align-items-center justify-content-center" style={{ width: '36px', height: '36px' }}>
+                        <FaBuilding />
+                      </div>
+                      <div className="fw-bold text-dark fs-6">{actualCampusName}</div>
+                    </div>
+                  </td>
+                  <td className="px-3">
+                    {campusCourses.length > 0 ? (
+                      <div className="d-flex flex-wrap gap-2 align-items-center">
+                        {campusCourses.map((course) => (
+                          <span
+                            key={course._id}
+                            className="border rounded-pill px-3 py-1 bg-light text-dark d-inline-flex align-items-center gap-2 small fw-medium shadow-sm"
                           >
-                            <FaEdit />
-                          </IconButton>
-                          <IconButton
-                            variant="danger"
-                            onClick={() => handleDeleteDepartment(course._id)}
-                            title="Delete Department"
-                          >
-                            <FaTrash />
-                          </IconButton>
-                        </DepartmentActions>
-                      </DepartmentItem>
-                    ))}
-                  </DepartmentsList>
-                ) : (
-                  <EmptyState>
-                    <p>No departments added</p>
-                    <AddButton onClick={() => handleAddDepartment(actualCampusName)}>
-                      <FaPlus />
-                      Add Department
-                    </AddButton>
-                  </EmptyState>
-                )}
-              </CampusBody>
-            </CampusCard>
-          );
-        })}
-      </CampusGrid>
+                            <span>{course.department}</span>
+                            <span className="d-inline-flex gap-1 ms-1">
+                              <IconButton
+                                variant="primary"
+                                style={{ width: '22px', height: '22px', fontSize: '0.65rem' }}
+                                onClick={() => handleEditDepartment(course)}
+                                title="Edit Department"
+                              >
+                                <FaEdit />
+                              </IconButton>
+                              <IconButton
+                                variant="danger"
+                                style={{ width: '22px', height: '22px', fontSize: '0.65rem' }}
+                                onClick={() => handleDeleteDepartment(course._id)}
+                                title="Delete Department"
+                              >
+                                <FaTrash />
+                              </IconButton>
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted fst-italic small">No departments added yet</span>
+                    )}
+                  </td>
+                  <td className="px-3 text-center" style={{ width: '120px' }}>
+                    <Badge bg="info" className="px-3 py-2 fs-6">
+                      {campusCourses.length}
+                    </Badge>
+                  </td>
+                  <td className="px-3 text-end" style={{ width: '240px' }}>
+                    <div className="d-flex gap-2 justify-content-end">
+                      <BsButton
+                        size="sm"
+                        variant="outline-secondary"
+                        onClick={() => handleRenameCampus(actualCampusName)}
+                        className="d-inline-flex align-items-center gap-1 fw-semibold"
+                      >
+                        <FaTag /> Rename
+                      </BsButton>
+                      <BsButton
+                        size="sm"
+                        variant="primary"
+                        onClick={() => handleAddDepartment(actualCampusName)}
+                        className="d-inline-flex align-items-center gap-1 fw-semibold"
+                      >
+                        <FaPlus /> Add Dept
+                      </BsButton>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      </div>
 
       {/* Add Department Modal */}
       {showAddDeptModal && (

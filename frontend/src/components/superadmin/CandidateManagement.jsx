@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar, InputGroup, Pagination } from 'react-bootstrap';
-import { FaFilePdf, FaFileImage, FaDownload, FaUser, FaSearch, FaKeyboard, FaEye } from 'react-icons/fa';
+import { FaFilePdf, FaFileImage, FaDownload, FaUser, FaSearch, FaKeyboard, FaEye, FaFilter, FaChevronUp, FaChevronDown, FaUsers, FaCheckCircle } from 'react-icons/fa';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -37,8 +37,6 @@ const SPECIAL_STAGE_PROGRESS = {
   on_hold: 55,
   rejected: 0
 };
-
-const STATUS_OPTIONS = ['pending', 'approved', 'shortlisted', 'selected', 'rejected', 'on_hold'];
 
 const buildWorkflowSnapshot = (candidate, testAssignments = [], interviewAssignments = []) => {
   if (!candidate) {
@@ -169,6 +167,13 @@ const CandidateManagement = () => {
   const [searchInput, setSearchInput] = useState(''); // Input value (not applied until button click)
   const [statusFilter, setStatusFilter] = useState('all');
   const [stageFilter, setStageFilter] = useState('all');
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [campusFilter, setCampusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [positionFilter, setPositionFilter] = useState('all');
+  const [testStatusFilter, setTestStatusFilter] = useState('all');
+  const [interviewStatusFilter, setInterviewStatusFilter] = useState('all');
   const [stageDrawerStage, setStageDrawerStage] = useState(null);
   const [stageDrawerOpen, setStageDrawerOpen] = useState(false);
   const [decisionModalOpen, setDecisionModalOpen] = useState(false);
@@ -189,12 +194,110 @@ const CandidateManagement = () => {
   const [selectedTypingResult, setSelectedTypingResult] = useState(null);
   const [showTypingResultModal, setShowTypingResultModal] = useState(false);
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
-  const [selectedCandidateForDownload, setSelectedCandidateForDownload] = useState(null);
   const [applicationPdfDownloading, setApplicationPdfDownloading] = useState(false);
 
   useEffect(() => {
     fetchCandidates();
   }, []);
+
+  const resetAllFilters = () => {
+    setSearchInput('');
+    setSearchTerm('');
+    setCampusFilter('all');
+    setCategoryFilter('all');
+    setDepartmentFilter('all');
+    setPositionFilter('all');
+    setStatusFilter('all');
+    setStageFilter('all');
+    setTestStatusFilter('all');
+    setInterviewStatusFilter('all');
+  };
+
+  // 1. Available Campuses
+  const availableCampuses = useMemo(() => {
+    const set = new Set(['Btech', 'Pharmacy', 'Degree', 'Diploma']);
+    candidates.forEach(c => {
+      const val = c.form?.campus || c.personalDetails?.college;
+      if (val) set.add(val);
+    });
+    return Array.from(set).sort();
+  }, [candidates]);
+
+  // Candidates after Campus Filter
+  const candidatesAfterCampus = useMemo(() => {
+    if (campusFilter === 'all') return candidates;
+    return candidates.filter(c => {
+      const campus = (c.form?.campus || c.personalDetails?.college || '').toLowerCase();
+      return campus.includes(campusFilter.toLowerCase());
+    });
+  }, [candidates, campusFilter]);
+
+  // 2. Available Categories based on selected Campus
+  const availableCategories = useMemo(() => {
+    const set = new Set();
+    candidatesAfterCampus.forEach(c => {
+      const val = c.form?.formCategory || c.personalDetails?.formCategory;
+      if (val) set.add(val);
+    });
+    return Array.from(set).sort();
+  }, [candidatesAfterCampus]);
+
+  // Candidates after Category Filter
+  const candidatesAfterCategory = useMemo(() => {
+    if (categoryFilter === 'all') return candidatesAfterCampus;
+    return candidatesAfterCampus.filter(c => {
+      const cat = (c.form?.formCategory || c.personalDetails?.formCategory || '').toLowerCase();
+      return cat.includes(categoryFilter.toLowerCase());
+    });
+  }, [candidatesAfterCampus, categoryFilter]);
+
+  // 3. Available Departments based on selected Campus + Category
+  const availableDepartments = useMemo(() => {
+    const set = new Set();
+    candidatesAfterCategory.forEach(c => {
+      const val = c.form?.department || c.personalDetails?.department;
+      if (val) set.add(val);
+    });
+    return Array.from(set).sort();
+  }, [candidatesAfterCategory]);
+
+  // Candidates after Department Filter
+  const candidatesAfterDept = useMemo(() => {
+    if (departmentFilter === 'all') return candidatesAfterCategory;
+    return candidatesAfterCategory.filter(c => {
+      const dept = (c.form?.department || c.personalDetails?.department || '').toLowerCase();
+      return dept.includes(departmentFilter.toLowerCase());
+    });
+  }, [candidatesAfterCategory, departmentFilter]);
+
+  // 4. Available Positions based on selected Campus + Category + Department
+  const availablePositions = useMemo(() => {
+    const set = new Set();
+    candidatesAfterDept.forEach(c => {
+      const val = c.form?.position;
+      if (val) set.add(val);
+    });
+    return Array.from(set).sort();
+  }, [candidatesAfterDept]);
+
+  // Auto reset dependent filters when parent selections change
+  useEffect(() => {
+    if (categoryFilter !== 'all' && !availableCategories.includes(categoryFilter)) {
+      setCategoryFilter('all');
+    }
+  }, [availableCategories, categoryFilter]);
+
+  useEffect(() => {
+    if (departmentFilter !== 'all' && !availableDepartments.includes(departmentFilter)) {
+      setDepartmentFilter('all');
+    }
+  }, [availableDepartments, departmentFilter]);
+
+  useEffect(() => {
+    if (positionFilter !== 'all' && !availablePositions.includes(positionFilter)) {
+      setPositionFilter('all');
+    }
+  }, [availablePositions, positionFilter]);
 
   const toggleTestResultDetails = (testId) => {
     setExpandedTestResults(prev => ({
@@ -397,29 +500,131 @@ const CandidateManagement = () => {
     return groups;
   }, [candidates]);
 
+  const completedProfilesCount = useMemo(() => {
+    return candidates.filter(c => c.status === 'selected' || c.status === 'approved' || c.personalDetails?.isProfileDone).length;
+  }, [candidates]);
+
+  const completionPercentage = useMemo(() => {
+    return candidates.length > 0 ? Math.round((completedProfilesCount / candidates.length) * 100) : 0;
+  }, [candidates.length, completedProfilesCount]);
+
   const filteredCandidates = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    return candidates.filter(candidate => {
-      const matchesStatus = statusFilter === 'all' || candidate.status === statusFilter;
-      const matchesStage = stageFilter === 'all' || candidate.workflow?.stage === stageFilter;
+    return candidatesAfterDept.filter(candidate => {
+      // Position Filter
+      if (positionFilter !== 'all') {
+        const pos = (candidate.form?.position || '').toLowerCase();
+        if (!pos.includes(positionFilter.toLowerCase())) return false;
+      }
 
-      const name = candidate.user?.name?.toLowerCase() || '';
-      const email = candidate.user?.email?.toLowerCase() || '';
-      const position = candidate.form?.position?.toLowerCase() || '';
-      const department = candidate.form?.department?.toLowerCase() || '';
-      const candidateId = candidate.candidateNumber?.toLowerCase() || '';
+      // Search term match
+      const name = (candidate.user?.name || candidate.personalDetails?.name || '').toLowerCase();
+      const email = (candidate.user?.email || candidate.personalDetails?.email || '').toLowerCase();
+      const position = (candidate.form?.position || '').toLowerCase();
+      const department = (candidate.form?.department || '').toLowerCase();
+      const candidateId = (candidate.candidateNumber || '').toLowerCase();
+      const phone = (candidate.personalDetails?.phone || candidate.user?.mobileNumber || '').toLowerCase();
 
       const matchesTerm = !term ||
         name.includes(term) ||
         email.includes(term) ||
         position.includes(term) ||
         department.includes(term) ||
-        candidateId.includes(term);
+        candidateId.includes(term) ||
+        phone.includes(term);
 
-      return matchesStatus && matchesStage && matchesTerm;
+      if (!matchesTerm) return false;
+
+      // Status Filter
+      if (statusFilter !== 'all') {
+        const status = (candidate.status || 'pending').toLowerCase();
+        if (status !== statusFilter.toLowerCase()) return false;
+      }
+
+      // Workflow Stage Filter
+      if (stageFilter !== 'all') {
+        if (candidate.workflow?.stage !== stageFilter) return false;
+      }
+
+      // Test Status Filter
+      if (testStatusFilter !== 'all') {
+        const tests = candidate.workflow?.tests || {};
+        if (testStatusFilter === 'passed' && (tests.passed || 0) === 0) return false;
+        if (testStatusFilter === 'failed' && (tests.failed || 0) === 0) return false;
+        if (testStatusFilter === 'pending' && (tests.pending || 0) === 0) return false;
+        if (testStatusFilter === 'assigned' && (tests.assigned || 0) === 0) return false;
+        if (testStatusFilter === 'none' && (tests.assigned || 0) > 0) return false;
+      }
+
+      // Interview Status Filter
+      if (interviewStatusFilter !== 'all') {
+        const interviews = candidate.workflow?.interviews || {};
+        if (interviewStatusFilter === 'scheduled' && (interviews.scheduled || 0) === 0) return false;
+        if (interviewStatusFilter === 'completed' && (interviews.completed || 0) === 0) return false;
+        if (interviewStatusFilter === 'none' && (interviews.scheduled || 0) > 0) return false;
+      }
+
+      return true;
     });
-  }, [candidates, searchTerm, statusFilter, stageFilter]);
+  }, [
+    candidatesAfterDept,
+    positionFilter,
+    searchTerm,
+    statusFilter,
+    stageFilter,
+    testStatusFilter,
+    interviewStatusFilter
+  ]);
+
+  const downloadFilteredCandidatesCSV = () => {
+    if (filteredCandidates.length === 0) {
+      setToast({ type: 'danger', message: 'No candidates match the selected filters to download.' });
+      return;
+    }
+
+    const headers = [
+      'Candidate Number',
+      'Name',
+      'Email',
+      'Phone',
+      'Position',
+      'Department',
+      'Campus',
+      'Category',
+      'Status',
+      'Workflow Stage',
+      'Tests Assigned',
+      'Tests Passed',
+      'Interviews Scheduled'
+    ];
+
+    const rows = filteredCandidates.map(c => [
+      `"${c.candidateNumber || ''}"`,
+      `"${c.user?.name || c.personalDetails?.name || ''}"`,
+      `"${c.user?.email || c.personalDetails?.email || ''}"`,
+      `"${c.personalDetails?.phone || c.user?.mobileNumber || ''}"`,
+      `"${c.form?.position || ''}"`,
+      `"${c.form?.department || ''}"`,
+      `"${c.form?.campus || c.personalDetails?.college || ''}"`,
+      `"${c.form?.formCategory || ''}"`,
+      `"${c.finalDecision?.decision === 'selected' ? 'finalized' : c.status || ''}"`,
+      `"${c.workflow?.label || c.workflow?.stage || ''}"`,
+      `"${c.workflow?.tests?.assigned || 0}"`,
+      `"${c.workflow?.tests?.passed || 0}"`,
+      `"${c.workflow?.interviews?.scheduled || 0}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `filtered_candidates_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setToast({ type: 'success', message: `Downloaded CSV with ${filteredCandidates.length} filtered candidate(s).` });
+  };
 
   // Paginated candidates
   const paginatedCandidates = useMemo(() => {
@@ -434,7 +639,17 @@ const CandidateManagement = () => {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, stageFilter]);
+  }, [
+    searchTerm,
+    statusFilter,
+    stageFilter,
+    campusFilter,
+    categoryFilter,
+    departmentFilter,
+    positionFilter,
+    testStatusFilter,
+    interviewStatusFilter
+  ]);
 
   const getStageProgressPercentage = (stage) => {
     if (!stage) {
@@ -1223,54 +1438,103 @@ const CandidateManagement = () => {
       </Row>
 
 
-      <Row className="mb-4 g-3">
+      {/* 8 Stage Analytics Cards in 1 Single Line (Count Only) */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
+        gap: '0.75rem',
+        marginBottom: '1.5rem',
+        width: '100%',
+        overflowX: 'auto',
+        paddingBottom: '0.25rem'
+      }}>
         {['awaiting_test_assignment', 'test_assigned', 'test_in_progress', 'awaiting_interview', 'interview_scheduled', 'awaiting_decision', 'selected', 'rejected'].map(stage => {
           const meta = WORKFLOW_STAGE_META[stage];
           if (!meta) return null;
-          const stageCandidates = stageGroups[stage] || [];
-          const topCandidateNames = stageCandidates.slice(0, 3).map(candidate => candidate.user?.name || 'Candidate');
-          const remainingCount = Math.max(stageCandidates.length - topCandidateNames.length, 0);
+          const count = stageStats[stage] || 0;
+          
+          const variantColors = {
+            primary: '#0ea5e9',
+            secondary: '#64748b',
+            info: '#0284c7',
+            warning: '#f59e0b',
+            success: '#10b981',
+            danger: '#ef4444'
+          };
+          const accentColor = variantColors[meta.variant] || '#0ea5e9';
 
           return (
-            <Col xs={12} md={6} lg={3} key={stage}>
-              <Card
-                className="h-100 shadow-sm"
-                role="button"
-                style={{ cursor: 'pointer', borderLeft: `4px solid var(--bs-${meta.variant})` }}
-                onClick={() => openStageDrawer(stage)}
-              >
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span style={{ color: '#6b7280', fontWeight: 600 }}>{meta.label}</span>
-                    <Badge bg={meta.variant}>{stageStats[stage] || 0}</Badge>
-                  </div>
-                  <div style={{ fontSize: '0.9rem', color: '#94a3b8', minHeight: '40px' }}>
-                    {stageCandidates.length === 0 ? (
-                      meta.label === 'Candidate Selected'
-                        ? 'No candidates selected yet'
-                        : 'No candidates in this stage currently'
-                    ) : (
-                      <>
-                        <div style={{ fontWeight: 500, color: '#475569' }}>
-                          {topCandidateNames.join(', ')}
-                          {remainingCount > 0 ? ` +${remainingCount} more` : ''}
-                        </div>
-                        <small style={{ color: '#94a3b8' }}>Click to view pipeline details</small>
-                      </>
-                    )}
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
+            <Card
+              key={stage}
+              role="button"
+              style={{
+                cursor: 'pointer',
+                background: '#ffffff',
+                border: '1px solid #e0f2fe',
+                borderRadius: '12px',
+                boxShadow: '0 2px 8px rgba(14, 165, 233, 0.05)',
+                transition: 'all 0.2s ease',
+                padding: '0.875rem 0.6rem',
+                minWidth: '110px',
+                textAlign: 'center',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+              onClick={() => openStageDrawer(stage)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(14, 165, 233, 0.12)';
+                e.currentTarget.style.borderColor = accentColor;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(14, 165, 233, 0.05)';
+                e.currentTarget.style.borderColor = '#e0f2fe';
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '3px',
+                background: accentColor
+              }} />
+              <div style={{
+                fontSize: '1.6rem',
+                fontWeight: '800',
+                color: count > 0 ? accentColor : '#94a3b8',
+                lineHeight: '1.2',
+                marginBottom: '0.25rem'
+              }}>
+                {count}
+              </div>
+              <div style={{
+                fontSize: '0.72rem',
+                fontWeight: '700',
+                color: '#475569',
+                textTransform: 'uppercase',
+                letterSpacing: '0.03em',
+                lineHeight: '1.25',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word'
+              }}>
+                {meta.label.replace('Candidate ', '')}
+              </div>
+            </Card>
           );
         })}
-      </Row>
+      </div>
 
-      <Row className="mb-3 g-3">
-        <Col md={4}>
-          <InputGroup size="sm">
+      {/* ── Top Full-Width Search Bar ────────────────────────────── */}
+      <Row className="mb-3">
+        <Col xs={12}>
+          <InputGroup style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)', borderRadius: '10px', overflow: 'hidden' }}>
+            <InputGroup.Text style={{ background: '#ffffff', borderRight: 'none', color: '#94a3b8' }}>
+              <FaSearch />
+            </InputGroup.Text>
             <Form.Control
-              placeholder="Search by name, candidate ID, email, position..."
+              placeholder="Search by name, admission no, PIN, or roll number..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyPress={(e) => {
@@ -1278,19 +1542,19 @@ const CandidateManagement = () => {
                   setSearchTerm(searchInput);
                 }
               }}
+              style={{ borderLeft: 'none', borderRight: 'none', padding: '0.65rem 0.75rem', fontSize: '0.92rem' }}
             />
             <Button
               variant="primary"
-              onClick={() => {
-                setSearchTerm(searchInput);
-              }}
+              onClick={() => setSearchTerm(searchInput)}
               style={{
-                borderRadius: '0 8px 8px 0',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                border: 'none'
+                background: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+                border: 'none',
+                fontWeight: '600',
+                padding: '0 1.25rem'
               }}
             >
-              <FaSearch />
+              Search
             </Button>
             {(searchTerm || searchInput) && (
               <Button
@@ -1299,32 +1563,277 @@ const CandidateManagement = () => {
                   setSearchInput('');
                   setSearchTerm('');
                 }}
-                style={{ borderRadius: '8px', marginLeft: '0.5rem' }}
+                style={{ borderLeft: '1px solid #cbd5e1' }}
               >
                 Reset
               </Button>
             )}
           </InputGroup>
         </Col>
-        <Col md={4}>
-          <Form.Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="all">All Candidate Statuses</option>
-            {STATUS_OPTIONS.map(status => (
-              <option key={status} value={status}>
-                {status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </option>
-            ))}
-          </Form.Select>
+      </Row>
+
+      {/* ── Top Summary Stat Badges (Total Candidates & Profiles Done) ──── */}
+      <Row className="mb-3 g-3">
+        <Col md={6}>
+          <Card style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  TOTAL CANDIDATES
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: '800', color: '#0284c7', marginTop: '0.2rem' }}>
+                  {filteredCandidates.length.toLocaleString()}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '500', marginTop: '0.1rem' }}>
+                  {statusFilter !== 'all' ? statusFilter.toUpperCase() : 'Regular'}
+                </div>
+              </div>
+              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FaUsers style={{ color: '#0284c7', fontSize: '1.2rem' }} />
+              </div>
+            </div>
+          </Card>
         </Col>
-        <Col md={4}>
-          <Form.Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
-            <option value="all">All Workflow Stages</option>
-            {Object.entries(WORKFLOW_STAGE_META).map(([stage, meta]) => (
-              <option key={stage} value={stage}>{meta.label}</option>
-            ))}
-          </Form.Select>
+
+        <Col md={6}>
+          <Card style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  PROFILES DONE
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: '800', color: '#0ea5e9', marginTop: '0.2rem' }}>
+                  {completedProfilesCount.toLocaleString()}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '500', marginTop: '0.1rem' }}>
+                  {completionPercentage}% completion
+                </div>
+              </div>
+              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FaCheckCircle style={{ color: '#0ea5e9', fontSize: '1.2rem' }} />
+              </div>
+            </div>
+          </Card>
         </Col>
       </Row>
+
+      {/* ── Expandable Filter Box Matching User Screenshot ───────────────── */}
+      <Card style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '1.5rem', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+        <div style={{
+          padding: '0.875rem 1.25rem',
+          background: '#f8fafc',
+          borderBottom: filtersOpen ? '1px solid #e2e8f0' : 'none',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}>
+          <div
+            onClick={() => setFiltersOpen(!filtersOpen)}
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '700', fontSize: '0.85rem', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+          >
+            <FaFilter style={{ color: '#0ea5e9' }} /> FILTERS {filtersOpen ? <FaChevronUp /> : <FaChevronDown />}
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="outline-primary"
+              size="sm"
+              onClick={downloadFilteredCandidatesCSV}
+              style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '6px' }}
+            >
+              <FaDownload /> Download Filtered Candidates ({filteredCandidates.length})
+            </Button>
+            {(campusFilter !== 'all' || categoryFilter !== 'all' || departmentFilter !== 'all' || positionFilter !== 'all' || statusFilter !== 'all' || stageFilter !== 'all' || testStatusFilter !== 'all' || interviewStatusFilter !== 'all' || searchTerm) && (
+              <Button
+                variant="light"
+                size="sm"
+                onClick={resetAllFilters}
+                style={{ fontWeight: '600', color: '#64748b', borderRadius: '6px' }}
+              >
+                Reset Filters
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {filtersOpen && (
+          <Card.Body style={{ padding: '1.25rem' }}>
+            <Row className="g-3">
+              {/* 1. CAMPUS / STREAM */}
+              <Col xs={12} sm={6} md={3}>
+                <Form.Group>
+                  <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    CAMPUS / STREAM
+                  </Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={campusFilter}
+                    onChange={(e) => setCampusFilter(e.target.value)}
+                    style={{ borderRadius: '6px', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">All Campuses ({candidates.length})</option>
+                    {availableCampuses.map(c => {
+                      const count = candidates.filter(cand => (cand.form?.campus || cand.personalDetails?.college || '').toLowerCase().includes(c.toLowerCase())).length;
+                      return <option key={c} value={c}>{c} ({count})</option>;
+                    })}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              {/* 2. CATEGORY (Teaching vs Non-Teaching) */}
+              <Col xs={12} sm={6} md={3}>
+                <Form.Group>
+                  <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    RECRUITMENT CATEGORY
+                  </Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    style={{ borderRadius: '6px', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">All Categories ({candidatesAfterCampus.length})</option>
+                    {availableCategories.map(cat => {
+                      const count = candidatesAfterCampus.filter(cand => (cand.form?.formCategory || cand.personalDetails?.formCategory || '').toLowerCase().includes(cat.toLowerCase())).length;
+                      const label = cat === 'teaching' ? 'Teaching Staff' : cat === 'non_teaching' ? 'Non-Teaching Staff' : cat;
+                      return <option key={cat} value={cat}>{label} ({count})</option>;
+                    })}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              {/* 3. DEPARTMENT */}
+              <Col xs={12} sm={6} md={3}>
+                <Form.Group>
+                  <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    DEPARTMENT
+                  </Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={departmentFilter}
+                    onChange={(e) => setDepartmentFilter(e.target.value)}
+                    style={{ borderRadius: '6px', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">All Departments ({candidatesAfterCategory.length})</option>
+                    {availableDepartments.map(d => {
+                      const count = candidatesAfterCategory.filter(cand => (cand.form?.department || cand.personalDetails?.department || '').toLowerCase().includes(d.toLowerCase())).length;
+                      return <option key={d} value={d}>{d} ({count})</option>;
+                    })}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              {/* 4. POSITION */}
+              <Col xs={12} sm={6} md={3}>
+                <Form.Group>
+                  <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    POSITION / DESIGNATION
+                  </Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={positionFilter}
+                    onChange={(e) => setPositionFilter(e.target.value)}
+                    style={{ borderRadius: '6px', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">All Positions ({candidatesAfterDept.length})</option>
+                    {availablePositions.map(p => {
+                      const count = candidatesAfterDept.filter(cand => (cand.form?.position || '').toLowerCase().includes(p.toLowerCase())).length;
+                      return <option key={p} value={p}>{p} ({count})</option>;
+                    })}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              {/* 5. CANDIDATE STATUS */}
+              <Col xs={12} sm={6} md={3}>
+                <Form.Group>
+                  <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    CANDIDATE STATUS
+                  </Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    style={{ borderRadius: '6px', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending Review</option>
+                    <option value="approved">Approved</option>
+                    <option value="shortlisted">Shortlisted</option>
+                    <option value="selected">Selected / Finalized</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="on_hold">On Hold</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              {/* 6. WORKFLOW STAGE */}
+              <Col xs={12} sm={6} md={3}>
+                <Form.Group>
+                  <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    WORKFLOW STAGE
+                  </Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={stageFilter}
+                    onChange={(e) => setStageFilter(e.target.value)}
+                    style={{ borderRadius: '6px', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">All Workflow Stages</option>
+                    {Object.entries(WORKFLOW_STAGE_META).map(([stageKey, meta]) => (
+                      <option key={stageKey} value={stageKey}>{meta.label}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              {/* 7. TEST ASSESSMENT STATUS */}
+              <Col xs={12} sm={6} md={3}>
+                <Form.Group>
+                  <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    TEST ASSESSMENT
+                  </Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={testStatusFilter}
+                    onChange={(e) => setTestStatusFilter(e.target.value)}
+                    style={{ borderRadius: '6px', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">All Test Statuses</option>
+                    <option value="passed">Test Passed</option>
+                    <option value="failed">Test Failed</option>
+                    <option value="pending">Test Pending / In Progress</option>
+                    <option value="assigned">Test Assigned</option>
+                    <option value="none">No Test Assigned</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              {/* 8. INTERVIEW STATUS */}
+              <Col xs={12} sm={6} md={3}>
+                <Form.Group>
+                  <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    INTERVIEW STATUS
+                  </Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={interviewStatusFilter}
+                    onChange={(e) => setInterviewStatusFilter(e.target.value)}
+                    style={{ borderRadius: '6px', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">All Interview Statuses</option>
+                    <option value="scheduled">Interview Scheduled</option>
+                    <option value="completed">Interview Completed</option>
+                    <option value="none">No Interview Scheduled</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+          </Card.Body>
+        )}
+      </Card>
 
       <Row>
         <Col>
@@ -2015,63 +2524,300 @@ const CandidateManagement = () => {
         </Modal.Footer>
       </Modal>
 
-      {/* Candidate Selection Dialog for PDF Download */}
-      <Modal show={showDownloadDialog} onHide={() => setShowDownloadDialog(false)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Select Candidate to Download</Modal.Title>
+      {/* ── Full Pop-up Modal for Candidate Search & Download ─────────────────── */}
+      <Modal
+        show={showDownloadDialog}
+        onHide={() => setShowDownloadDialog(false)}
+        size="xl"
+        centered
+        scrollable
+        dialogClassName="download-candidate-full-modal"
+      >
+        <style>{`
+          .download-candidate-full-modal .modal-dialog {
+            max-width: 92vw !important;
+            width: 92vw !important;
+            margin: 1.5rem auto;
+          }
+          @media (max-width: 768px) {
+            .download-candidate-full-modal .modal-dialog {
+              max-width: 98vw !important;
+              width: 98vw !important;
+              margin: 0.5rem auto;
+            }
+          }
+        `}</style>
+        <Modal.Header
+          closeButton
+          style={{
+            background: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+            color: 'white',
+            borderBottom: 'none',
+            padding: '1.25rem 1.5rem'
+          }}
+        >
+          <Modal.Title style={{ color: 'white', fontWeight: '700', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <FaDownload /> Download Candidate Details & Export Filtered Records
+          </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          <Form.Group className="mb-3">
-            <Form.Label>Select Candidate</Form.Label>
-            <Form.Select
-              value={selectedCandidateForDownload || ''}
-              onChange={(e) => setSelectedCandidateForDownload(e.target.value)}
-            >
-              <option value="">-- Select a candidate --</option>
-              {candidates.map((candidate) => (
-                <option key={candidate._id} value={candidate._id}>
-                  {candidate.user?.name || candidate.personalDetails?.name || 'Unknown'} - {candidate.form?.position || 'N/A'}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
+
+        <Modal.Body style={{ padding: '1.5rem', background: '#f8fafc', maxHeight: '80vh', overflowY: 'auto' }}>
+          {/* Top Search Input inside Modal */}
+          <Row className="mb-3">
+            <Col xs={12}>
+              <InputGroup style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)', borderRadius: '10px', overflow: 'hidden' }}>
+                <InputGroup.Text style={{ background: '#ffffff', borderRight: 'none', color: '#94a3b8' }}>
+                  <FaSearch />
+                </InputGroup.Text>
+                <Form.Control
+                  placeholder="Search by name, admission no, PIN, or roll number..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      setSearchTerm(searchInput);
+                    }
+                  }}
+                  style={{ borderLeft: 'none', borderRight: 'none', padding: '0.65rem 0.75rem', fontSize: '0.92rem' }}
+                />
+                <Button
+                  variant="primary"
+                  onClick={() => setSearchTerm(searchInput)}
+                  style={{
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+                    border: 'none',
+                    fontWeight: '600',
+                    padding: '0 1.25rem'
+                  }}
+                >
+                  Search
+                </Button>
+                {(searchTerm || searchInput) && (
+                  <Button
+                    variant="outline-secondary"
+                    onClick={() => {
+                      setSearchInput('');
+                      setSearchTerm('');
+                    }}
+                    style={{ borderLeft: '1px solid #cbd5e1' }}
+                  >
+                    Reset
+                  </Button>
+                )}
+              </InputGroup>
+            </Col>
+          </Row>
+
+          {/* Full Grid Filters Panel inside Modal */}
+          <Card style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+            <div style={{ padding: '0.875rem 1.25rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: '700', fontSize: '0.85rem', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <FaFilter style={{ color: '#0ea5e9' }} /> Filter Options
+              </div>
+              <Button variant="light" size="sm" onClick={resetAllFilters} style={{ fontWeight: '600', color: '#64748b' }}>
+                Reset All Filters
+              </Button>
+            </div>
+            <Card.Body style={{ padding: '1.25rem' }}>
+              <Row className="g-3">
+                {/* 1. CAMPUS / STREAM */}
+                <Col xs={12} sm={6} md={3}>
+                  <Form.Group>
+                    <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>CAMPUS / STREAM</Form.Label>
+                    <Form.Select size="sm" value={campusFilter} onChange={(e) => setCampusFilter(e.target.value)}>
+                      <option value="all">All Campuses ({candidates.length})</option>
+                      {availableCampuses.map(c => {
+                        const count = candidates.filter(cand => (cand.form?.campus || cand.personalDetails?.college || '').toLowerCase().includes(c.toLowerCase())).length;
+                        return <option key={c} value={c}>{c} ({count})</option>;
+                      })}
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+
+                {/* 2. CATEGORY (Teaching vs Non-Teaching) */}
+                <Col xs={12} sm={6} md={3}>
+                  <Form.Group>
+                    <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>CATEGORY</Form.Label>
+                    <Form.Select size="sm" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                      <option value="all">All Categories ({candidatesAfterCampus.length})</option>
+                      {availableCategories.map(cat => {
+                        const count = candidatesAfterCampus.filter(cand => (cand.form?.formCategory || cand.personalDetails?.formCategory || '').toLowerCase().includes(cat.toLowerCase())).length;
+                        const label = cat === 'teaching' ? 'Teaching Staff' : cat === 'non_teaching' ? 'Non-Teaching Staff' : cat;
+                        return <option key={cat} value={cat}>{label} ({count})</option>;
+                      })}
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+
+                {/* 3. DEPARTMENT */}
+                <Col xs={12} sm={6} md={3}>
+                  <Form.Group>
+                    <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>DEPARTMENT</Form.Label>
+                    <Form.Select size="sm" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+                      <option value="all">All Departments ({candidatesAfterCategory.length})</option>
+                      {availableDepartments.map(d => {
+                        const count = candidatesAfterCategory.filter(cand => (cand.form?.department || cand.personalDetails?.department || '').toLowerCase().includes(d.toLowerCase())).length;
+                        return <option key={d} value={d}>{d} ({count})</option>;
+                      })}
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+
+                {/* 4. POSITION */}
+                <Col xs={12} sm={6} md={3}>
+                  <Form.Group>
+                    <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>POSITION</Form.Label>
+                    <Form.Select size="sm" value={positionFilter} onChange={(e) => setPositionFilter(e.target.value)}>
+                      <option value="all">All Positions ({candidatesAfterDept.length})</option>
+                      {availablePositions.map(p => {
+                        const count = candidatesAfterDept.filter(cand => (cand.form?.position || '').toLowerCase().includes(p.toLowerCase())).length;
+                        return <option key={p} value={p}>{p} ({count})</option>;
+                      })}
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+
+                {/* 5. CANDIDATE STATUS */}
+                <Col xs={12} sm={6} md={3}>
+                  <Form.Group>
+                    <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>STATUS</Form.Label>
+                    <Form.Select size="sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                      <option value="all">All Statuses</option>
+                      <option value="pending">Pending Review</option>
+                      <option value="approved">Approved</option>
+                      <option value="shortlisted">Shortlisted</option>
+                      <option value="selected">Selected / Finalized</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="on_hold">On Hold</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+
+                {/* 6. WORKFLOW STAGE */}
+                <Col xs={12} sm={6} md={3}>
+                  <Form.Group>
+                    <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>WORKFLOW STAGE</Form.Label>
+                    <Form.Select size="sm" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+                      <option value="all">All Stages</option>
+                      {Object.entries(WORKFLOW_STAGE_META).map(([stageKey, meta]) => (
+                        <option key={stageKey} value={stageKey}>{meta.label}</option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+
+                {/* 7. TEST ASSESSMENT STATUS */}
+                <Col xs={12} sm={6} md={3}>
+                  <Form.Group>
+                    <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>TEST ASSESSMENT</Form.Label>
+                    <Form.Select size="sm" value={testStatusFilter} onChange={(e) => setTestStatusFilter(e.target.value)}>
+                      <option value="all">All Test Statuses</option>
+                      <option value="passed">Test Passed</option>
+                      <option value="failed">Test Failed</option>
+                      <option value="pending">Test Pending / In Progress</option>
+                      <option value="assigned">Test Assigned</option>
+                      <option value="none">No Test Assigned</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+
+                {/* 8. INTERVIEW STATUS */}
+                <Col xs={12} sm={6} md={3}>
+                  <Form.Group>
+                    <Form.Label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>INTERVIEW STATUS</Form.Label>
+                    <Form.Select size="sm" value={interviewStatusFilter} onChange={(e) => setInterviewStatusFilter(e.target.value)}>
+                      <option value="all">All Interview Statuses</option>
+                      <option value="scheduled">Interview Scheduled</option>
+                      <option value="completed">Interview Completed</option>
+                      <option value="none">No Interview Scheduled</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+
+          {/* Filtered Candidates Preview Table inside Modal */}
+          <Card style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+            <Card.Header style={{ background: '#f8fafc', padding: '0.875rem 1.25rem', fontWeight: '700', fontSize: '0.85rem', color: '#334155' }}>
+              Preview Matching Candidates ({filteredCandidates.length})
+            </Card.Header>
+            <Card.Body style={{ padding: 0 }}>
+              {filteredCandidates.length === 0 ? (
+                <Alert variant="info" style={{ margin: '1rem' }}>No candidates match the current filter selection.</Alert>
+              ) : (
+                <Table striped bordered hover responsive style={{ marginBottom: 0, fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr>
+                      <th>Candidate ID</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Position</th>
+                      <th>Campus</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'center' }}>Download PDF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCandidates.slice(0, 15).map((candidate) => (
+                      <tr key={candidate._id}>
+                        <td style={{ fontWeight: '700', color: '#0ea5e9' }}>{candidate.candidateNumber || '—'}</td>
+                        <td style={{ fontWeight: '600' }}>{candidate.user?.name || candidate.personalDetails?.name || '—'}</td>
+                        <td>{candidate.user?.email || '—'}</td>
+                        <td>{candidate.form?.position || '—'}</td>
+                        <td>{candidate.form?.campus || candidate.personalDetails?.college || '—'}</td>
+                        <td>
+                          <Badge bg={candidate.status === 'selected' ? 'success' : candidate.status === 'rejected' ? 'danger' : 'info'}>
+                            {candidate.status || 'pending'}
+                          </Badge>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                const response = await api.get(`/candidates/${candidate._id}/pdf`, { responseType: 'blob' });
+                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                const candidateName = candidate.user?.name || candidate.personalDetails?.name || 'candidate';
+                                link.setAttribute('download', `candidate_${candidateName}_${new Date().toISOString().split('T')[0]}.pdf`);
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                                setToast({ type: 'success', message: `Downloaded PDF for ${candidateName}` });
+                              } catch (error) {
+                                setToast({ type: 'danger', message: 'Failed to download candidate details.' });
+                                console.error('PDF download error:', error);
+                              }
+                            }}
+                            style={{ borderRadius: '6px', fontWeight: '600', padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                          >
+                            <FaDownload style={{ fontSize: '0.75rem' }} /> Download PDF
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+              {filteredCandidates.length > 15 && (
+                <div style={{ padding: '0.5rem 1rem', background: '#f8fafc', fontSize: '0.78rem', color: '#64748b', textAlign: 'center' }}>
+                  Showing first 15 of {filteredCandidates.length} candidates.
+                </div>
+              )}
+            </Card.Body>
+          </Card>
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => {
-            setShowDownloadDialog(false);
-            setSelectedCandidateForDownload(null);
-          }}>
-            Cancel
-          </Button>
+
+        <Modal.Footer style={{ background: '#ffffff', borderTop: '1px solid #e2e8f0', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           <Button
-            variant="primary"
-            onClick={async () => {
-              if (!selectedCandidateForDownload) {
-                setToast({ type: 'danger', message: 'Please select a candidate' });
-                return;
-              }
-              try {
-                setShowDownloadDialog(false);
-                const response = await api.get(`/candidates/${selectedCandidateForDownload}/pdf`, { responseType: 'blob' });
-                const url = window.URL.createObjectURL(new Blob([response.data]));
-                const link = document.createElement('a');
-                link.href = url;
-                const candidateName = candidates.find(c => c._id === selectedCandidateForDownload)?.user?.name || 'candidate';
-                link.setAttribute('download', `candidate_${candidateName}_${new Date().toISOString().split('T')[0]}.pdf`);
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                setSelectedCandidateForDownload(null);
-                setToast({ type: 'success', message: 'PDF downloaded successfully' });
-              } catch (error) {
-                setToast({ type: 'danger', message: 'Failed to download candidate details' });
-                console.error('PDF download error:', error);
-              }
-            }}
-            disabled={!selectedCandidateForDownload}
+            variant="secondary"
+            onClick={() => setShowDownloadDialog(false)}
+            style={{ fontWeight: '600', padding: '0.45rem 1.5rem', borderRadius: '6px' }}
           >
-            <FaDownload className="me-2" />
-            Download PDF
+            Close
           </Button>
         </Modal.Footer>
       </Modal>

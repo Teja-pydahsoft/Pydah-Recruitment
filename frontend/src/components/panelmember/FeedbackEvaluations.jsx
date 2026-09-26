@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { FaClipboardCheck, FaUser, FaCalendarAlt, FaExclamationTriangle, FaRedo, FaCheckCircle, FaClock, FaStar } from 'react-icons/fa';
+import { Table, Badge } from 'react-bootstrap';
+import { FaClipboardCheck, FaExclamationTriangle, FaRedo, FaStar } from 'react-icons/fa';
 import api from '../../services/api';
 import SkeletonLoader from '../SkeletonLoader';
 
@@ -128,152 +129,7 @@ const RetryButton = styled.button`
   }
 `;
 
-const FeedbackList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  margin-top: 2rem;
 
-  @media (max-width: 768px) {
-    gap: 1rem;
-    margin-top: 1.5rem;
-  }
-
-  @media (max-width: 480px) {
-    gap: 0.75rem;
-    margin-top: 1rem;
-  }
-`;
-
-const FeedbackCard = styled.div`
-  background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e2e8f0;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: ${props => {
-      if (props.status === 'submitted') return 'linear-gradient(90deg, #10b981, #059669)';
-      if (props.status === 'pending') return 'linear-gradient(90deg, #f59e0b, #d97706)';
-      return 'linear-gradient(90deg, #6b7280, #4b5563)';
-    }};
-  }
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  }
-
-  @media (max-width: 768px) {
-    padding: 1.5rem;
-    border-radius: 12px;
-  }
-
-  @media (max-width: 480px) {
-    padding: 1rem;
-    border-radius: 8px;
-  }
-`;
-
-const FeedbackHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-
-  @media (max-width: 480px) {
-    flex-direction: column;
-    align-items: flex-start;
-    margin-bottom: 1rem;
-  }
-`;
-
-const FeedbackTitle = styled.h3`
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-
-  @media (max-width: 768px) {
-    font-size: 1.1rem;
-  }
-
-  @media (max-width: 480px) {
-    font-size: 1rem;
-  }
-`;
-
-const StatusBadge = styled.span`
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  background: ${props => {
-    if (props.status === 'submitted') return '#dcfce7';
-    if (props.status === 'pending') return '#fef3c7';
-    return '#e5e7eb';
-  }};
-  color: ${props => {
-    if (props.status === 'submitted') return '#166534';
-    if (props.status === 'pending') return '#92400e';
-    return '#374151';
-  }};
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const FeedbackDetails = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-
-  @media (max-width: 480px) {
-    gap: 0.5rem;
-  }
-`;
-
-const DetailItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: #64748b;
-  font-size: 0.95rem;
-
-  @media (max-width: 768px) {
-    font-size: 0.85rem;
-    gap: 0.5rem;
-  }
-
-  @media (max-width: 480px) {
-    font-size: 0.8rem;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-`;
-
-const DetailIcon = styled.span`
-  color: #06b6d4;
-  font-size: 1rem;
-`;
 
 const EmptyState = styled.div`
   text-align: center;
@@ -989,54 +845,53 @@ const FeedbackEvaluations = () => {
             <EmptyText>You don't have any interviews pending feedback at the moment.</EmptyText>
           </EmptyState>
         ) : (
-          <FeedbackList>
-            {feedback.map((item, index) => (
-              <FeedbackCard key={`${item.interviewId}-${item.candidateId}-${index}`} status={item.status}>
-                <FeedbackHeader>
-                  <FeedbackTitle>{item.interviewTitle}</FeedbackTitle>
-                  <StatusBadge status={item.status}>
-                    {item.status === 'submitted' ? (
-                      <>
-                        <FaCheckCircle /> Submitted
-                      </>
-                    ) : (
-                      <>
-                        <FaClock /> Pending
-                      </>
-                    )}
-                  </StatusBadge>
-                </FeedbackHeader>
-
-                <FeedbackDetails>
-                  <DetailItem>
-                    <DetailIcon>
-                      <FaUser />
-                    </DetailIcon>
-                    <span><strong>Candidate:</strong> {item.candidateName}</span>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailIcon>
-                      <FaClipboardCheck />
-                    </DetailIcon>
-                    <span><strong>Position:</strong> {item.formTitle}</span>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailIcon>
-                      <FaCalendarAlt />
-                    </DetailIcon>
-                    <span><strong>Scheduled:</strong> {formatDate(item.scheduledAt)}</span>
-                  </DetailItem>
-                </FeedbackDetails>
-
-                {item.status === 'pending' && (
-                  <FeedbackButton onClick={() => handleOpenFeedbackForm(item.interviewId, item.candidateId)}>
-                    <FaClipboardCheck />
-                    Submit Feedback
-                  </FeedbackButton>
-                )}
-              </FeedbackCard>
-            ))}
-          </FeedbackList>
+          <div className="table-responsive bg-white rounded shadow-sm border p-2">
+            <Table hover className="align-middle mb-0">
+              <thead className="bg-light">
+                <tr>
+                  <th className="py-3 px-3">Candidate</th>
+                  <th className="py-3 px-3">Position</th>
+                  <th className="py-3 px-3">Interview Title</th>
+                  <th className="py-3 px-3">Scheduled Date</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3 text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feedback.map((item, index) => (
+                  <tr key={`${item.interviewId}-${item.candidateId}-${index}`}>
+                    <td className="px-3">
+                      <div className="fw-semibold text-dark">{item.candidateName}</div>
+                    </td>
+                    <td className="px-3">
+                      <div className="text-dark">{item.formTitle}</div>
+                    </td>
+                    <td className="px-3">
+                      <div className="fw-medium">{item.interviewTitle}</div>
+                    </td>
+                    <td className="px-3">
+                      <div className="small text-muted">{formatDate(item.scheduledAt)}</div>
+                    </td>
+                    <td className="px-3">
+                      <Badge bg={item.status === 'submitted' ? 'success' : 'warning'}>
+                        {item.status === 'submitted' ? 'Submitted' : 'Pending'}
+                      </Badge>
+                    </td>
+                    <td className="px-3 text-end">
+                      {item.status === 'pending' ? (
+                        <FeedbackButton onClick={() => handleOpenFeedbackForm(item.interviewId, item.candidateId)}>
+                          <FaClipboardCheck style={{ marginRight: '6px' }} />
+                          Submit Feedback
+                        </FeedbackButton>
+                      ) : (
+                        <span className="text-muted small">Completed</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
         )}
 
         {/* Feedback Submission Modal */}

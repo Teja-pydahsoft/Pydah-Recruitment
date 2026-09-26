@@ -1,23 +1,26 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import SkeletonLoader from './SkeletonLoader';
 
-// Import sub-components
-import DashboardOverview from './panelmember/DashboardOverview';
-import MyInterviews from './panelmember/MyInterviews';
-import FeedbackEvaluations from './panelmember/FeedbackEvaluations';
-import ReportsAnalytics from './panelmember/ReportsAnalytics';
-import ProfileSettings from './panelmember/ProfileSettings';
+// Lazy load sub-components for optimized performance
+const DashboardOverview = lazy(() => import('./panelmember/DashboardOverview'));
+const MyInterviews = lazy(() => import('./panelmember/MyInterviews'));
+const FeedbackEvaluations = lazy(() => import('./panelmember/FeedbackEvaluations'));
+const ReportsAnalytics = lazy(() => import('./panelmember/ReportsAnalytics'));
+const ProfileSettings = lazy(() => import('./panelmember/ProfileSettings'));
 
 const PanelMemberDashboard = () => {
   return (
-    <Routes>
-      <Route index element={<DashboardOverview />} />
-      <Route path="interviews/*" element={<MyInterviews />} />
-      <Route path="feedback/*" element={<FeedbackEvaluations />} />
-      <Route path="reports/*" element={<ReportsAnalytics />} />
-      <Route path="profile/*" element={<ProfileSettings />} />
-      <Route path="*" element={<Navigate to="/panel-member" replace />} />
-    </Routes>
+    <Suspense fallback={<SkeletonLoader loading={true} variant="dashboard" />}>
+      <Routes>
+        <Route index element={<DashboardOverview />} />
+        <Route path="interviews/*" element={<MyInterviews />} />
+        <Route path="feedback/*" element={<FeedbackEvaluations />} />
+        <Route path="reports/*" element={<ReportsAnalytics />} />
+        <Route path="profile/*" element={<ProfileSettings />} />
+        <Route path="*" element={<Navigate to="/panel-member" replace />} />
+      </Routes>
+    </Suspense>
   );
 };
 
