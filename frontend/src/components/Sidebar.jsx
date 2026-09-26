@@ -25,72 +25,49 @@ const SidebarContainer = styled.div`
   top: 0;
   left: 0;
   height: 100vh;
-  width: ${props => props.$isOpen ? '300px' : '70px'};
-  background: linear-gradient(180deg, #164e63 0%, #0e7490 100%);
-  color: white;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: ${props => props.$isOpen ? '264px' : '64px'};
+  background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 60%, #f0f9ff 100%);
+  color: #0f172a;
+  border-right: 1px solid #bae6fd;
+  transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
   z-index: 1000;
-  box-shadow: 6px 0 24px rgba(6, 182, 212, 0.3);
+  box-shadow: 4px 0 24px rgba(14, 165, 233, 0.12);
   overflow: hidden;
   overflow-x: hidden;
   overflow-y: auto;
 
   @media (max-width: 768px) {
-    width: ${props => props.$isOpen ? '280px' : '60px'};
-    transform: ${props => props.$isOpen ? 'translateX(0)' : 'translateX(0)'};
-    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: ${props => props.$isOpen ? '260px' : '56px'};
   }
 
   @media (max-width: 480px) {
-    width: ${props => props.$isOpen ? '100%' : '60px'};
-    transform: ${props => props.$isOpen ? 'translateX(0)' : 'translateX(0)'};
+    width: ${props => props.$isOpen ? '100%' : '56px'};
   }
 
-  /* Custom scrollbar for sidebar */
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: #e0f2fe; }
+  &::-webkit-scrollbar-thumb { background: #0ea5e9; border-radius: 4px; }
+  &::-webkit-scrollbar-thumb:hover { background: #0284c7; }
 `;
 
 const SidebarHeader = styled.div`
-  padding: ${props => props.$isOpen ? '1.5rem' : '1rem'};
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: ${props => props.$isOpen ? '1.25rem 1.25rem' : '0.875rem 0'};
+  border-bottom: 1px solid #bae6fd;
   display: flex;
   align-items: center;
   justify-content: ${props => props.$isOpen ? 'space-between' : 'center'};
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
   transition: padding 0.3s ease;
   position: relative;
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
   flex-shrink: 0;
-  min-height: ${props => props.$isOpen ? 'auto' : '60px'};
+  min-height: 64px;
 
   @media (max-width: 768px) {
-    padding: ${props => props.$isOpen ? '1.25rem' : '0.75rem'};
-    justify-content: center;
-    min-height: 60px;
-  }
-
-  @media (max-width: 480px) {
-    padding: ${props => props.$isOpen ? '1rem' : '0.75rem'};
-    justify-content: center;
-    min-height: 60px;
+    padding: ${props => props.$isOpen ? '1rem' : '0.75rem 0'};
+    min-height: 56px;
   }
 `;
 
@@ -108,7 +85,7 @@ const Logo = styled.div`
   pointer-events: ${props => props.$isOpen ? 'auto' : 'none'};
 
   &:hover {
-    transform: scale(1.05);
+    transform: scale(1.03);
   }
 
   @media (max-width: 768px) {
@@ -121,66 +98,50 @@ const Logo = styled.div`
 `;
 
 const LogoIcon = styled(FaUserTie)`
-  font-size: 1.5rem;
-  color: #22d3ee;
-  filter: drop-shadow(0 2px 6px rgba(6, 182, 212, 0.35));
+  font-size: 1.4rem;
+  color: #0284c7;
+  flex-shrink: 0;
 `;
 
 const LogoText = styled.span`
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 800;
   white-space: nowrap;
   opacity: ${props => props.$isOpen ? 1 : 0};
   width: ${props => props.$isOpen ? 'auto' : '0'};
   overflow: hidden;
   transition: opacity 0.3s ease, width 0.3s ease;
-  background: linear-gradient(135deg, #06b6d4, #22d3ee);
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  letter-spacing: 0.5px;
 `;
 
 const ToggleButton = styled.button`
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 1.2rem;
+  background: #ffffff;
+  border: 1px solid #0ea5e9;
+  color: #0284c7;
+  font-size: 1rem;
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 0.45rem;
   border-radius: 8px;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: ${props => props.$isOpen ? 'static' : 'absolute'};
-  left: ${props => props.$isOpen ? 'auto' : '50%'};
-  top: ${props => props.$isOpen ? 'auto' : '50%'};
-  transform: ${props => props.$isOpen ? 'none' : 'translate(-50%, -50%)'};
-  z-index: 10;
-  width: ${props => props.$isOpen ? 'auto' : '40px'};
-  height: ${props => props.$isOpen ? 'auto' : '40px'};
+  width: 34px;
+  height: 34px;
+  box-shadow: 0 2px 6px rgba(14, 165, 233, 0.15);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.18);
-    transform: ${props => props.$isOpen ? 'scale(1.1)' : 'translate(-50%, -50%) scale(1.1)'};
+    background: #0ea5e9;
+    color: #ffffff;
   }
 
-  @media (max-width: 768px) {
-    position: static;
-    transform: none;
-    width: 40px;
-    height: 40px;
-    margin: 0 auto;
-  }
-
-  @media (max-width: 480px) {
-    position: static;
-    transform: none;
-    width: 40px;
-    height: 40px;
-    margin: 0 auto;
-  }
+  @media (max-width: 768px) { width: 34px; height: 34px; }
+  @media (max-width: 480px) { width: 34px; height: 34px; }
 `;
 
 const SidebarContent = styled.div`
@@ -197,7 +158,7 @@ const SidebarContent = styled.div`
 
 const Navigation = styled.nav`
   flex: 1;
-  padding: ${props => props.$isOpen ? '0 1rem' : '0 0.5rem'};
+  padding: ${props => props.$isOpen ? '0 0.75rem' : '0 0.375rem'};
   overflow-y: auto;
   overflow-x: hidden;
   transition: padding 0.3s ease;
@@ -206,36 +167,37 @@ const Navigation = styled.nav`
   -webkit-overflow-scrolling: touch;
 
   @media (max-width: 768px) {
-    padding: ${props => props.$isOpen ? '0 0.75rem' : '0 0.5rem'};
+    padding: ${props => props.$isOpen ? '0 0.625rem' : '0 0.375rem'};
   }
 
   @media (max-width: 480px) {
-    padding: ${props => props.$isOpen ? '0 0.75rem' : '0 0.5rem'};
+    padding: ${props => props.$isOpen ? '0 0.625rem' : '0 0.375rem'};
   }
 `;
 
 const NavSection = styled.div`
-  margin-bottom: 2rem;
+  margin-bottom: 0.75rem;
 `;
 
 const SectionTitle = styled.h6`
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #0369a1;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.75rem;
-  padding: 0 1rem;
+  letter-spacing: 1px;
+  margin-bottom: 0.4rem;
+  padding: 0 0.875rem;
   opacity: ${props => props.$isOpen ? 1 : 0};
+  height: ${props => props.$isOpen ? 'auto' : '0'};
+  overflow: hidden;
   transition: opacity 0.3s ease;
 `;
 
 const Divider = styled.div`
   height: 1px;
-  background: rgba(255, 255, 255, 0.15);
-  margin: ${props => props.$isOpen ? '1rem 1rem' : '0.75rem 0.5rem'};
-  opacity: ${props => props.$isOpen ? 1 : 0.5};
-  transition: opacity 0.3s ease, margin 0.3s ease;
+  background: #bae6fd;
+  margin: 0.625rem 0.875rem;
+  transition: margin 0.3s ease;
 `;
 
 const NavList = styled.ul`
@@ -263,63 +225,43 @@ const NavLink = styled(Link)`
   display: flex;
   align-items: center;
   justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
-  padding: ${props => props.$isOpen ? '0.875rem 1rem' : '0.875rem 0'};
-  color: rgba(255, 255, 255, 0.8);
+  padding: ${props => props.$isOpen ? '0.7rem 0.875rem' : '0.7rem 0'};
+  color: #1e293b;
   text-decoration: none;
-  border-radius: 12px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 10px;
+  transition: all 0.2s ease;
   position: relative;
-  overflow: visible;
   width: 100%;
   box-sizing: border-box;
-  max-width: 100%;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-    transition: left 0.5s ease;
-  }
+  font-weight: 600;
+  font-size: 0.875rem;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.18);
-    color: #ecfeff;
-    transform: ${props => props.$isOpen ? 'translateX(4px)' : 'scale(1.05)'};
-  }
-
-  &:hover::before {
-    left: 100%;
+    background: #ffffff;
+    color: #0284c7;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.12);
   }
 
   &.active {
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.35), rgba(34, 211, 238, 0.3));
-    color: #ecfeff;
-    border-left: ${props => props.$isOpen ? '3px solid #22d3ee' : 'none'};
-    box-shadow: 0 6px 16px rgba(6, 182, 212, 0.3);
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
   }
 
   svg {
-    font-size: ${props => props.$isOpen ? '1.1rem' : '1.25rem'};
-    margin-right: ${props => props.$isOpen ? '0.75rem' : '0'};
-    margin-left: ${props => props.$isOpen ? '0' : '0'};
-    min-width: ${props => props.$isOpen ? '20px' : '24px'};
-    width: ${props => props.$isOpen ? 'auto' : '24px'};
-    text-align: center;
-    transition: transform 0.3s ease, font-size 0.3s ease, margin 0.3s ease;
+    font-size: 0.95rem;
+    margin-right: ${props => props.$isOpen ? '0.7rem' : '0'};
+    min-width: 16px;
+    width: ${props => props.$isOpen ? 'auto' : '16px'};
+    height: ${props => props.$isOpen ? 'auto' : '16px'};
+    transition: all 0.2s ease;
     flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    color: #0284c7;
   }
 
-  &:hover svg {
-    transform: scale(1.15);
-    color: #22d3ee;
-  }
+  &:hover svg { color: #0ea5e9; }
+  &.active svg { color: #ffffff; }
 `;
 
 const NavText = styled.span`
@@ -335,20 +277,21 @@ const NavText = styled.span`
 
 const Tooltip = styled.div`
   position: fixed;
-  left: ${props => props.$sidebarWidth ? `${props.$sidebarWidth + 10}px` : 'calc(100% + 10px)'};
+  left: ${props => props.$left ? `${props.$left}px` : '74px'};
   top: ${props => props.$top ? `${props.$top}px` : '50%'};
   transform: translateY(-50%);
-  background: rgba(0, 0, 0, 0.9);
+  background: #1e293b;
   color: white;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
   font-size: 0.875rem;
+  font-weight: 500;
   white-space: nowrap;
   opacity: ${props => props.$show ? 1 : 0};
   pointer-events: none;
-  transition: opacity 0.2s ease;
-  z-index: 1001;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  transition: opacity 0.15s ease;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   visibility: ${props => props.$show ? 'visible' : 'hidden'};
 
   &::before {
@@ -358,7 +301,7 @@ const Tooltip = styled.div`
     top: 50%;
     transform: translateY(-50%);
     border: 6px solid transparent;
-    border-right-color: rgba(0, 0, 0, 0.9);
+    border-right-color: #1e293b;
   }
 
   @media (max-width: 768px) {
@@ -370,7 +313,7 @@ const NotificationBadge = styled.div`
   position: absolute;
   top: 6px;
   right: ${props => props.$isOpen ? '8px' : '6px'};
-  background: #06b6d4;
+  background: #ef4444;
   color: white;
   font-size: 0.65rem;
   font-weight: 700;
@@ -384,15 +327,14 @@ const NotificationBadge = styled.div`
   justify-content: center;
   opacity: ${props => props.count > 0 ? 1 : 0};
   transition: opacity 0.3s ease;
-  box-shadow: 0 2px 4px rgba(6, 182, 212, 0.4);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
   line-height: 1;
 `;
 
 const UserSection = styled.div`
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  padding: ${props => props.$isOpen ? '1rem' : '1rem 0.5rem'};
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
+  border-top: 1px solid #bae6fd;
+  padding: ${props => props.$isOpen ? '0.875rem' : '0.5rem 0.375rem'};
+  background: linear-gradient(180deg, #e0f2fe 0%, #f0f9ff 100%);
   transition: padding 0.3s ease;
   width: 100%;
   box-sizing: border-box;
@@ -403,44 +345,52 @@ const UserSection = styled.div`
 const UserInfo = styled.div`
   display: flex;
   align-items: center;
-  justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
+  justify-content: center;
   gap: ${props => props.$isOpen ? '0.75rem' : '0'};
-  margin-bottom: 1rem;
-  padding: ${props => props.$isOpen ? '0.75rem' : '0.75rem 0'};
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  margin-bottom: ${props => props.$isOpen ? '0.75rem' : '0'};
+  padding: ${props => props.$isOpen ? '0.75rem' : '0'};
+  border-radius: 10px;
+  background: ${props => props.$isOpen ? '#ffffff' : 'transparent'};
+  border: ${props => props.$isOpen ? '1px solid #bae6fd' : 'none'};
+  box-shadow: ${props => props.$isOpen ? '0 2px 8px rgba(14, 165, 233, 0.08)' : 'none'};
   transition: all 0.3s ease;
   width: 100%;
+  height: ${props => props.$isOpen ? 'auto' : '0'};
+  overflow: ${props => props.$isOpen ? 'visible' : 'hidden'};
+  max-height: ${props => props.$isOpen ? '120px' : '0'};
+  opacity: ${props => props.$isOpen ? 1 : 0};
 
   &:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: ${props => props.$isOpen ? '#ffffff' : 'transparent'};
+    box-shadow: ${props => props.$isOpen ? '0 4px 12px rgba(14, 165, 233, 0.15)' : 'none'};
   }
 `;
 
 const UserAvatar = styled.div`
-  width: ${props => props.$isOpen ? '45px' : '40px'};
-  height: ${props => props.$isOpen ? '45px' : '40px'};
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #06b6d4, #22d3ee);
+  background: #0ea5e9;
+  border: 2px solid #bae6fd;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: ${props => props.$isOpen ? '1.2rem' : '1rem'};
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.35);
-  position: relative;
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
   flex-shrink: 0;
   transition: all 0.3s ease;
+  position: relative;
 
   &::after {
     content: '';
     position: absolute;
-    bottom: 0;
-    right: 0;
-    width: ${props => props.$isOpen ? '12px' : '10px'};
-    height: ${props => props.$isOpen ? '12px' : '10px'};
-    background: #16a34a;
-    border: 2px solid #164e63;
+    bottom: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    background: #10b981;
+    border: 2px solid #ffffff;
     border-radius: 50%;
     transition: all 0.3s ease;
   }
@@ -456,15 +406,17 @@ const UserDetails = styled.div`
 
 const UserName = styled.div`
   font-weight: 600;
-  font-size: 0.9rem;
-  margin-bottom: 0.25rem;
-  color: white;
+  font-size: 0.875rem;
+  margin-bottom: 0.15rem;
+  color: #0f172a;
+  white-space: nowrap;
 `;
 
 const UserRole = styled.div`
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.72rem;
+  color: #0284c7;
   text-transform: capitalize;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -475,56 +427,36 @@ const LogoutButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
-  padding: ${props => props.$isOpen ? '0.875rem 1rem' : '0.875rem 0'};
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.25);
-  color: #fecaca;
+  padding: ${props => props.$isOpen ? '0.65rem 0.875rem' : '0.45rem 0'};
+  background: ${props => props.$isOpen ? '#fef2f2' : 'transparent'};
+  border: ${props => props.$isOpen ? '1px solid #fecaca' : 'none'};
+  color: #ef4444;
   text-decoration: none;
-  border-radius: 12px;
-  transition: all 0.3s ease;
+  border-radius: 8px;
+  transition: all 0.2s ease;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
   position: relative;
-  overflow: visible;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.1), transparent);
-    transition: left 0.5s ease;
-  }
+  box-sizing: border-box;
 
   &:hover {
-    background: rgba(220, 38, 38, 0.25);
-    color: #fff5f5;
-    transform: ${props => props.$isOpen ? 'translateX(4px)' : 'scale(1.05)'};
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-  }
-
-  &:hover::before {
-    left: 100%;
+    background: #fee2e2;
+    color: #dc2626;
   }
 
   svg {
-    font-size: ${props => props.$isOpen ? '1rem' : '1.1rem'};
-    margin-right: ${props => props.$isOpen ? '0.75rem' : '0'};
-    margin-left: ${props => props.$isOpen ? '0' : '0'};
-    min-width: ${props => props.$isOpen ? '16px' : '20px'};
-    width: ${props => props.$isOpen ? 'auto' : '20px'};
-    transition: transform 0.3s ease, margin 0.3s ease;
+    font-size: ${props => props.$isOpen ? '0.9rem' : '0.85rem'};
+    margin-right: ${props => props.$isOpen ? '0.6rem' : '0'};
+    min-width: 14px;
+    width: ${props => props.$isOpen ? '14px' : '14px'};
+    height: ${props => props.$isOpen ? '14px' : '14px'};
+    transition: all 0.2s ease;
     flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    color: #ef4444;
   }
 
-  &:hover svg {
-    transform: scale(1.15);
-  }
+  &:hover svg { color: #dc2626; }
 `;
 
 const LogoutText = styled.span`
@@ -719,20 +651,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                         to={item.path}
                         className={location.pathname === item.path || (item.path === '/panel-member/feedback' && location.pathname.startsWith('/panel-member')) ? 'active' : ''}
                         $isOpen={isOpen}
-                        onMouseEnter={() => !isOpen && setHoveredItem(item.path)}
+                        onMouseEnter={(e) => {
+                          if (!isOpen) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setHoveredItem({
+                              id: item.path,
+                              top: rect.top + rect.height / 2,
+                              left: rect.right + 10,
+                              label: item.label,
+                              badge: item.badge
+                            });
+                          }
+                        }}
                         onMouseLeave={() => setHoveredItem(null)}
                       >
                         <item.icon />
                         <NavText $isOpen={isOpen}>{item.label}</NavText>
-                        {!isOpen && (
-                          <Tooltip 
-                            $show={hoveredItem === item.path}
-                            $sidebarWidth={isOpen ? 300 : 70}
-                          >
-                            {item.label}
-                            {item.badge && item.badge > 0 && ` (${item.badge > 99 ? '99+' : item.badge})`}
-                          </Tooltip>
-                        )}
                         {item.badge !== undefined && item.badge > 0 && (
                           <NotificationBadge count={item.badge} $isOpen={isOpen}>
                             {item.badge > 99 ? '99+' : item.badge}
@@ -747,45 +681,55 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </Navigation>
 
           <UserSection $isOpen={isOpen}>
-            <UserInfo 
-              $isOpen={isOpen}
-              onMouseEnter={() => !isOpen && setHoveredItem('user')}
-              onMouseLeave={() => setHoveredItem(null)}
-            >
-              <UserAvatar $isOpen={isOpen}>
-                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-              </UserAvatar>
-              <UserDetails $isOpen={isOpen}>
-                <UserName>{user?.name || 'User'}</UserName>
-                <UserRole>
-                  <FaUserTie style={{ fontSize: '0.7rem' }} />
-                  {formatUserRole(user?.role || 'User')}
-                </UserRole>
-              </UserDetails>
-              {!isOpen && (
-                <Tooltip $show={hoveredItem === 'user'}>
-                  {user?.name || 'User'}
-                </Tooltip>
-              )}
-            </UserInfo>
-
+            {isOpen && (
+              <UserInfo 
+                $isOpen={isOpen}
+              >
+                <UserAvatar $isOpen={isOpen}>
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </UserAvatar>
+                <UserDetails $isOpen={isOpen}>
+                  <UserName>{user?.name || 'User'}</UserName>
+                  <UserRole>
+                    <FaUserTie style={{ fontSize: '0.7rem' }} />
+                    {formatUserRole(user?.role || 'User')}
+                  </UserRole>
+                </UserDetails>
+              </UserInfo>
+            )}
 
             <LogoutButton 
               onClick={handleLogout} 
               $isOpen={isOpen}
-              onMouseEnter={() => !isOpen && setHoveredItem('logout')}
+              onMouseEnter={(e) => {
+                if (!isOpen) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredItem({
+                    id: 'logout',
+                    top: rect.top + rect.height / 2,
+                    left: rect.right + 10,
+                    label: 'Logout'
+                  });
+                }
+              }}
               onMouseLeave={() => setHoveredItem(null)}
             >
               <FaSignOutAlt />
               <LogoutText $isOpen={isOpen}>Logout</LogoutText>
-              {!isOpen && (
-                <Tooltip $show={hoveredItem === 'logout'}>
-                  Logout
-                </Tooltip>
-              )}
             </LogoutButton>
           </UserSection>
         </SidebarContent>
+
+        {!isOpen && hoveredItem && (
+          <Tooltip 
+            $show={!!hoveredItem}
+            $top={hoveredItem.top}
+            $left={hoveredItem.left}
+          >
+            {hoveredItem.label}
+            {hoveredItem.badge && hoveredItem.badge > 0 && ` (${hoveredItem.badge > 99 ? '99+' : hoveredItem.badge})`}
+          </Tooltip>
+        )}
       </SidebarContainer>
     </>
   );

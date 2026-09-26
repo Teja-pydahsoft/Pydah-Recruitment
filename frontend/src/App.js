@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-// Components
-import Login from './components/Login';
-import SuperAdminDashboard from './components/SuperAdminDashboard';
-import SubAdminDashboard from './components/SubAdminDashboard';
-import PanelMemberDashboard from './components/PanelMemberDashboard';
-import CandidateDashboard from './components/CandidateDashboard';
-import PublicForm from './components/PublicForm';
-import TakeTest from './components/TakeTest';
-import TypingTest from './components/TypingTest';
 import Sidebar from './components/Sidebar';
 import SkeletonLoader from './components/SkeletonLoader';
-import CareersPage from './components/CareersPage';
+
+// Lazy Loaded Components for Code-Splitting and Optimized Initial Load
+const Login = lazy(() => import('./components/Login'));
+const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'));
+const SubAdminDashboard = lazy(() => import('./components/SubAdminDashboard'));
+const PanelMemberDashboard = lazy(() => import('./components/PanelMemberDashboard'));
+const CandidateDashboard = lazy(() => import('./components/CandidateDashboard'));
+const PublicForm = lazy(() => import('./components/PublicForm'));
+const TakeTest = lazy(() => import('./components/TakeTest'));
+const TypingTest = lazy(() => import('./components/TypingTest'));
+const CareersPage = lazy(() => import('./components/CareersPage'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
@@ -91,8 +92,8 @@ const AppLayout = ({ children, showSidebar = true }) => {
     } else {
       // On desktop, sidebar pushes content
       return {
-        marginLeft: sidebarOpen ? '300px' : '70px',
-        width: sidebarOpen ? 'calc(100% - 300px)' : 'calc(100% - 70px)',
+        marginLeft: sidebarOpen ? '264px' : '64px',
+        width: sidebarOpen ? 'calc(100% - 264px)' : 'calc(100% - 64px)',
       };
     }
   };
@@ -107,7 +108,7 @@ const AppLayout = ({ children, showSidebar = true }) => {
           ...mainStyle,
           padding: 'clamp(0.75rem, 2vw, 2rem)',
           minHeight: '100vh',
-          background: '#ecfeff',
+          background: 'transparent',
           display: 'flex',
           flexDirection: 'column',
           transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -155,85 +156,87 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          {/* Public Routes - No Sidebar */}
-          <Route path="/login" element={<AppLayout showSidebar={false}><Login /></AppLayout>} />
-          <Route path="/careers" element={<AppLayout showSidebar={false}><CareersPage /></AppLayout>} />
-          <Route path="/form/:uniqueLink" element={<AppLayout showSidebar={false}><PublicForm /></AppLayout>} />
-          <Route path="/test/:testLink" element={<AppLayout showSidebar={false}><TakeTest /></AppLayout>} />
-          <Route path="/typing-test/:testLink" element={<AppLayout showSidebar={false}><TypingTest /></AppLayout>} />
+        <Suspense fallback={<SkeletonLoader loading={true} variant="dashboard" />}>
+          <Routes>
+            {/* Public Routes - No Sidebar */}
+            <Route path="/login" element={<AppLayout showSidebar={false}><Login /></AppLayout>} />
+            <Route path="/careers" element={<AppLayout showSidebar={false}><CareersPage /></AppLayout>} />
+            <Route path="/form/:uniqueLink" element={<AppLayout showSidebar={false}><PublicForm /></AppLayout>} />
+            <Route path="/test/:testLink" element={<AppLayout showSidebar={false}><TakeTest /></AppLayout>} />
+            <Route path="/typing-test/:testLink" element={<AppLayout showSidebar={false}><TypingTest /></AppLayout>} />
 
-          {/* Protected Routes - With Sidebar */}
-          <Route
-            path="/super-admin/*"
-            element={
-              <AppLayout>
-                <ProtectedRoute allowedRoles={['super_admin']}>
-                  <SuperAdminDashboard />
-                </ProtectedRoute>
-              </AppLayout>
-            }
-          />
+            {/* Protected Routes - With Sidebar */}
+            <Route
+              path="/super-admin/*"
+              element={
+                <AppLayout>
+                  <ProtectedRoute allowedRoles={['super_admin']}>
+                    <SuperAdminDashboard />
+                  </ProtectedRoute>
+                </AppLayout>
+              }
+            />
 
-          <Route
-            path="/sub-admin/*"
-            element={
-              <AppLayout>
-                <ProtectedRoute allowedRoles={['sub_admin']}>
-                  <SubAdminDashboard />
-                </ProtectedRoute>
-              </AppLayout>
-            }
-          />
+            <Route
+              path="/sub-admin/*"
+              element={
+                <AppLayout>
+                  <ProtectedRoute allowedRoles={['sub_admin']}>
+                    <SubAdminDashboard />
+                  </ProtectedRoute>
+                </AppLayout>
+              }
+            />
 
-          <Route
-            path="/panel-member/*"
-            element={
-              <AppLayout>
-                <ProtectedRoute allowedRoles={['panel_member', 'super_admin', 'sub_admin']}>
-                  <PanelMemberDashboard />
-                </ProtectedRoute>
-              </AppLayout>
-            }
-          />
+            <Route
+              path="/panel-member/*"
+              element={
+                <AppLayout>
+                  <ProtectedRoute allowedRoles={['panel_member', 'super_admin', 'sub_admin']}>
+                    <PanelMemberDashboard />
+                  </ProtectedRoute>
+                </AppLayout>
+              }
+            />
 
-          <Route
-            path="/candidate/*"
-            element={
-              <AppLayout>
-                <ProtectedRoute allowedRoles={['candidate']}>
-                  <CandidateDashboard />
-                </ProtectedRoute>
-              </AppLayout>
-            }
-          />
+            <Route
+              path="/candidate/*"
+              element={
+                <AppLayout>
+                  <ProtectedRoute allowedRoles={['candidate']}>
+                    <CandidateDashboard />
+                  </ProtectedRoute>
+                </AppLayout>
+              }
+            />
 
-          {/* Default redirect based on user role */}
-          <Route
-            path="/"
-            element={
-              <AppLayout showSidebar={false}>
-                <PublicLanding />
-              </AppLayout>
-            }
-          />
+            {/* Default redirect based on user role */}
+            <Route
+              path="/"
+              element={
+                <AppLayout showSidebar={false}>
+                  <PublicLanding />
+                </AppLayout>
+              }
+            />
 
-          {/* Unauthorized page */}
-          <Route
-            path="/unauthorized"
-            element={
-              <AppLayout showSidebar={false}>
-                <div className="text-center mt-5">
-                  <h2>Access Denied</h2>
-                  <p>You don't have permission to access this page.</p>
-                </div>
-              </AppLayout>
-            }
-          />
+            {/* Unauthorized page */}
+            <Route
+              path="/unauthorized"
+              element={
+                <AppLayout showSidebar={false}>
+                  <div className="text-center mt-5">
+                    <h2>Access Denied</h2>
+                    <p>You don't have permission to access this page.</p>
+                  </div>
+                </AppLayout>
+              }
+            />
 
-          {/* Catch all route */}
-          <Route path="*" element={<AppLayout showSidebar={false}><Navigate to="/" replace /></AppLayout>} />
-        </Routes>
+            {/* Catch all route */}
+            <Route path="*" element={<AppLayout showSidebar={false}><Navigate to="/" replace /></AppLayout>} />
+          </Routes>
+        </Suspense>
       </Router>
     </AuthProvider>
   );

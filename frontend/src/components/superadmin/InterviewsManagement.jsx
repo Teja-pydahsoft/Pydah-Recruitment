@@ -191,12 +191,12 @@ const Header = styled.div`
 
 const TabContainer = styled.div`
   width: 100%;
-  background: white;
-  border-radius: 12px;
+  background: #ffffff;
+  border-radius: 16px;
   padding: 1.5rem;
   margin-bottom: 2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.06);
+  border: 1px solid #e0f2fe;
 `;
 
 const TabButtons = styled.div`
@@ -238,62 +238,7 @@ const Title = styled.h2`
   margin: 0;
 `;
 
-const InterviewCard = styled.div`
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e5e7eb;
-  transition: box-shadow 0.3s ease;
 
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  }
-`;
-
-const InterviewHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #f1f5f9;
-`;
-
-const InterviewTitle = styled.h3`
-  margin: 0 0 0.75rem 0;
-  color: #1e293b;
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1.4;
-`;
-
-const InterviewMeta = styled.div`
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.5rem;
-  align-items: center;
-`;
-
-const MetaItem = styled.span`
-  background: #f3f4f6;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  color: #374151;
-`;
-
-const SectionTitle = styled.h4`
-  margin: 0 0 1rem 0;
-  color: #1e293b;
-  font-size: 1.1rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
 
 const AssignButton = styled.button`
   background: ${props => props.assigned ? '#059669' : '#10b981'};
@@ -833,8 +778,8 @@ const InterviewsManagement = () => {
         </div>
       </Header>
 
-      {/* Category Tabs */}
-      <TabContainer>
+      {/* Unified Interview Workspace Container (One Block) */}
+      <TabContainer style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
         <TabButtons style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             <TabButton
@@ -878,6 +823,7 @@ const InterviewsManagement = () => {
             </FilterSelect>
           </div>
         </TabButtons>
+
         <div style={{
           padding: '0.75rem 1rem',
           background: '#eff6ff',
@@ -887,244 +833,235 @@ const InterviewsManagement = () => {
           fontSize: '0.875rem',
           display: 'inline-flex',
           flexWrap: 'wrap',
-          gap: '0.35rem'
+          gap: '0.35rem',
+          marginBottom: '1.5rem'
         }}>
           Showing <strong>{filteredInterviews.length}</strong> interview(s) for {activeTab === 'teaching' ? 'Teaching' : activeTab === 'non_teaching' ? 'Non-Teaching' : 'All'} positions
           {selectedJobRole !== 'all' && <> - <span>{selectedJobRole}</span></>}
         </div>
-      </TabContainer>
 
-      {filteredInterviews.length === 0 && !loading && (
-        <div style={{
-          textAlign: 'center',
-          padding: '3rem',
-          background: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          border: '1px solid #e5e7eb'
-        }}>
-          <h3 style={{ color: '#6b7280', marginBottom: '1rem' }}>No Interviews Found</h3>
-          <p style={{ color: '#9ca3af', marginBottom: '2rem' }}>
-            {activeTab === 'teaching' ? 'No teaching position interviews found.' : 
-             activeTab === 'non_teaching' ? 'No non-teaching position interviews found.' : 
-             'There are no interviews scheduled yet.'} 
-            {selectedJobRole !== 'all' && ` for ${selectedJobRole}`}
-            <br />
-            Adjust the filters or assign shortlisted candidates to interviews from the candidate management workspace.
-          </p>
-        </div>
-      )}
-
-      {filteredInterviews.map(interview => (
-        <InterviewCard key={interview._id}>
-          <InterviewHeader>
-            <div>
-              <InterviewTitle>{interview.title}</InterviewTitle>
-              <InterviewMeta>
-                              <MetaItem>{interview.form?.title}</MetaItem>
-                              <MetaItem>{interview.form?.department}</MetaItem>
-                              <MetaItem>Round {interview.round}</MetaItem>
-                              <MetaItem>{interview.type}</MetaItem>
-                              {getInterviewStatusBadge(interview)}
-                            </InterviewMeta>
-                          </div>
-                        </InterviewHeader>
-
-          {interview.description && (
-            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
-              {interview.description}
+        {filteredInterviews.length === 0 && !loading ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '2.5rem 1rem',
+            background: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px dashed #cbd5e1'
+          }}>
+            <h4 style={{ color: '#6b7280', marginBottom: '0.5rem' }}>No Interviews Found</h4>
+            <p style={{ color: '#9ca3af', margin: 0 }}>
+              {activeTab === 'teaching' ? 'No teaching position interviews found.' : 
+               activeTab === 'non_teaching' ? 'No non-teaching position interviews found.' : 
+               'There are no interviews scheduled yet.'} 
+              {selectedJobRole !== 'all' && ` for ${selectedJobRole}`}
             </p>
-          )}
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <Table hover className="align-middle mb-0">
+              <thead className="bg-light">
+                <tr>
+                  <th className="py-3 px-3">Interview Details</th>
+                  <th className="py-3 px-3">Candidate</th>
+                  <th className="py-3 px-3">Position & Dept</th>
+                  <th className="py-3 px-3">Scheduled (IST)</th>
+                  <th className="py-3 px-3">Panel Members</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3 text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredInterviews.flatMap((interview) => {
+                  if (!interview.candidates || interview.candidates.length === 0) {
+                    return [(
+                      <tr key={interview._id}>
+                        <td className="px-3">
+                          <div className="fw-bold text-dark">{interview.title}</div>
+                          <div className="small text-muted">Round {interview.round} • {interview.type}</div>
+                        </td>
+                        <td colSpan={4} className="px-3 text-muted fst-italic">
+                          No candidates assigned to this interview yet
+                        </td>
+                        <td className="px-3">{getInterviewStatusBadge(interview)}</td>
+                        <td className="px-3 text-end">
+                          <div className="d-flex flex-wrap gap-2 justify-content-end">
+                            <StyledButton
+                              variant="info"
+                              configured={interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0}
+                              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                              onClick={() => {
+                                setSelectedInterview(interview);
+                                handleConfigureFeedbackForm(interview);
+                              }}
+                            >
+                              Config Form
+                            </StyledButton>
+                            <StyledButton 
+                              danger 
+                              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                              onClick={() => handleDeleteInterview(interview._id)}
+                            >
+                              Delete Interview
+                            </StyledButton>
+                          </div>
+                        </td>
+                      </tr>
+                    )];
+                  }
 
-          {/* Candidates Section */}
-                    {interview.candidates && interview.candidates.length > 0 && (
-                      <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e5e7eb' }}>
-                        <SectionTitle>
-                          <span>Candidates</span>
-                          <Badge bg="info" style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}>
-                            {interview.candidates.length}
+                  return interview.candidates.map((candidateEntry, idx) => {
+                    const candidate = candidateEntry.candidate || {};
+                    const candidateForm = candidate.form || interview.form || {};
+                    const scheduledDisplay = candidateEntry.scheduledDate
+                      ? formatISTDateTime(candidateEntry.scheduledDate, candidateEntry.scheduledTime)
+                      : 'Not scheduled';
+
+                    return (
+                      <tr key={candidateEntry._id || candidate?._id || `${interview._id}_${idx}`}>
+                        <td className="px-3">
+                          <div className="fw-bold text-dark">{interview.title}</div>
+                          <div className="small text-muted">Round {interview.round} • {interview.type}</div>
+                        </td>
+                        <td className="px-3">
+                          <div className="fw-semibold text-dark">{candidate.user?.name || 'Unknown Candidate'}</div>
+                          <div className="text-muted small">{candidate.user?.email || '—'}</div>
+                          {candidate.candidateNumber && (
+                            <Badge bg="light" text="dark" className="border mt-1 small">
+                              {candidate.candidateNumber}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="px-3">
+                          <div className="fw-medium text-dark">{candidateForm.position || interview.form?.position || '—'}</div>
+                          <div className="text-muted small">{candidateForm.department || interview.form?.department || '—'}</div>
+                        </td>
+                        <td className="px-3">
+                          <div className="fw-medium small">{scheduledDisplay}</div>
+                          {candidateEntry.duration && (
+                            <div className="text-muted small">Duration: {candidateEntry.duration} min</div>
+                          )}
+                          {candidateEntry.meetingLink && (
+                            <div className="mt-1">
+                              <a href={candidateEntry.meetingLink} target="_blank" rel="noopener noreferrer" className="small text-primary fw-bold">
+                                Join Meeting
+                              </a>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3">
+                          <AssignButton
+                            assigned={candidateEntry.panelMembers && Array.isArray(candidateEntry.panelMembers) && candidateEntry.panelMembers.length > 0}
+                            style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                            onClick={() => handleAssignPanelMembers(interview, candidateEntry)}
+                          >
+                            {candidateEntry.panelMembers && Array.isArray(candidateEntry.panelMembers) && candidateEntry.panelMembers.length > 0 ? (
+                              <>✓ Assigned ({candidateEntry.panelMembers.length})</>
+                            ) : (
+                              'Assign Panel'
+                            )}
+                          </AssignButton>
+                        </td>
+                        <td className="px-3">
+                          <Badge
+                            bg={
+                              candidateEntry.status === 'completed'
+                                ? 'success'
+                                : candidateEntry.status === 'scheduled'
+                                  ? 'warning'
+                                  : candidateEntry.status === 'cancelled'
+                                    ? 'danger'
+                                    : 'secondary'
+                            }
+                          >
+                            {candidateEntry.status || 'pending'}
                           </Badge>
-                        </SectionTitle>
-                        <div className="mt-3">
-                          <Table responsive bordered hover size="sm" className="align-middle">
-                            <thead>
-                              <tr>
-                                <th>Candidate</th>
-                                <th>Email</th>
-                                <th>Job Role</th>
-                                <th>Department</th>
-                                <th>Scheduled</th>
-                                <th>Status</th>
-                                <th className="text-end">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {interview.candidates.map((candidateEntry, idx) => {
-                                const candidate = candidateEntry.candidate || {};
-                                const candidateForm = candidate.form || interview.form || {};
-                                const scheduledDisplay = candidateEntry.scheduledDate
-                                  ? formatISTDateTime(candidateEntry.scheduledDate, candidateEntry.scheduledTime)
-                                  : 'Not scheduled';
-
-                                return (
-                                  <tr key={candidateEntry._id || candidate?._id || `${interview._id}_${idx}`}>
-                                    <td>
-                                      <div className="fw-semibold">{candidate.user?.name || 'Unknown Candidate'}</div>
-                                      {candidate.candidateNumber && (
-                                        <div className="text-muted small">{candidate.candidateNumber}</div>
-                                      )}
-                                    </td>
-                                    <td>{candidate.user?.email || '—'}</td>
-                                    <td>{candidateForm.position || '—'}</td>
-                                    <td>{candidateForm.department || '—'}</td>
-                                    <td>
-                                      <div>{scheduledDisplay}</div>
-                                      {candidateEntry.duration && (
-                                        <div className="text-muted small">Duration: {candidateEntry.duration} min</div>
-                                      )}
-                                      {candidateEntry.notes && (
-                                        <div className="text-muted small">Notes: {candidateEntry.notes}</div>
-                                      )}
-                                    </td>
-                                    <td>
-                                      <Badge
-                                        bg={
-                                          candidateEntry.status === 'completed'
-                                            ? 'success'
-                                            : candidateEntry.status === 'scheduled'
-                                              ? 'warning'
-                                              : candidateEntry.status === 'cancelled'
-                                                ? 'danger'
-                                                : 'secondary'
-                                        }
-                                      >
-                                        {candidateEntry.status || 'pending'}
-                                      </Badge>
-                                    </td>
-                                    <td>
-                                      <div className="d-flex flex-wrap gap-2 justify-content-end">
-                                        <AssignButton
-                                          assigned={candidateEntry.panelMembers && Array.isArray(candidateEntry.panelMembers) && candidateEntry.panelMembers.length > 0}
-                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
-                                          onClick={() => handleAssignPanelMembers(interview, candidateEntry)}
-                                        >
-                                          {candidateEntry.panelMembers && Array.isArray(candidateEntry.panelMembers) && candidateEntry.panelMembers.length > 0 ? (
-                                            <>
-                                              <span style={{ fontSize: '1rem' }}>✓</span>
-                                              Assigned ({candidateEntry.panelMembers.length})
-                                            </>
-                                          ) : (
-                                            'Assign Panel Members'
-                                          )}
-                                        </AssignButton>
-                                        <StyledButton
-                                          variant="info"
-                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
-                                          onClick={() => {
-                                            setSelectedInterview(interview);
-                                            setSelectedCandidate(candidateEntry);
-                                            // Fix date conversion to handle timezone properly
-                                            let formattedDate = '';
-                                            if (candidateEntry.scheduledDate) {
-                                              const date = new Date(candidateEntry.scheduledDate);
-                                              // Get local date string in YYYY-MM-DD format
-                                              const year = date.getFullYear();
-                                              const month = String(date.getMonth() + 1).padStart(2, '0');
-                                              const day = String(date.getDate()).padStart(2, '0');
-                                              formattedDate = `${year}-${month}-${day}`;
-                                            }
-                                            setScheduleFormData({
-                                              scheduledDate: formattedDate,
-                                              scheduledTime: candidateEntry.scheduledTime || '',
-                                              duration: candidateEntry.duration || 30,
-                                              meetingLink: candidateEntry.meetingLink || '',
-                                              notes: candidateEntry.notes || '',
-                                              status: candidateEntry.status || 'scheduled'
-                                            });
-                                            setShowScheduleModal(true);
-                                          }}
-                                        >
-                                          Edit Schedule
-                                        </StyledButton>
-                                        <StyledButton
-                                          variant="info"
-                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
-                                          onClick={async () => {
-                                            try {
-                                              setSelectedInterview(interview);
-                                              setSelectedCandidate(candidateEntry);
-                                              // Pass candidateId to get feedback for this specific candidate only
-                                              const candidateId = candidateEntry.candidate?._id || candidateEntry.candidate;
-                                              const response = await api.get(`/interviews/${interview._id}/feedback-summary${candidateId ? `?candidateId=${candidateId}` : ''}`);
-                                              setFeedbackSummary(response.data);
-                                              setShowFeedbackModal(true);
-                                            } catch {
-                                              setToast({ type: 'danger', message: 'Error fetching feedback data.' });
-                                            }
-                                          }}
-                                        >
-                                          View Feedback
-                                        </StyledButton>
-                                        <StyledButton
-                                          variant="info"
-                                          configured={interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0}
-                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
-                                          onClick={() => {
-                                            setSelectedInterview(interview);
-                                            handleConfigureFeedbackForm(interview);
-                                          }}
-                                        >
-                                          {interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0 ? (
-                                            <>
-                                              <span style={{ fontSize: '1rem' }}>✓</span>
-                                              Configured
-                                            </>
-                                          ) : (
-                                            'Configure Feedback Form'
-                                          )}
-                                        </StyledButton>
-                                        <StyledButton
-                                          danger
-                                          style={{ fontSize: '0.875rem', padding: '0.4rem 0.9rem' }}
-                                          onClick={async () => {
-                                            if (window.confirm(`Are you sure you want to remove ${candidate.user?.name || 'this candidate'} from this interview?`)) {
-                                              try {
-                                                await api.delete(`/interviews/${interview._id}/candidate/${candidate._id}`);
-                                                await fetchInterviews();
-                                                setToast({ type: 'success', message: 'Candidate removed from interview successfully!' });
-                                              } catch {
-                                                setToast({ type: 'danger', message: 'Error removing candidate from interview. Please try again.' });
-                                              }
-                                            }
-                                          }}
-                                        >
-                                          Remove
-                                        </StyledButton>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </Table>
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                      <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-                        Interview ID: {interview._id.toString().slice(-8)}
-                      </div>
-                      <StyledButton 
-                        danger 
-                        style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                        onClick={() => handleDeleteInterview(interview._id)}
-                      >
-                        Delete Interview
-                      </StyledButton>
-                    </div>
-                  </InterviewCard>
-      ))}
+                        </td>
+                        <td className="px-3 text-end">
+                          <div className="d-flex flex-wrap gap-1 justify-content-end">
+                            <StyledButton
+                              variant="info"
+                              style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
+                              onClick={() => {
+                                setSelectedInterview(interview);
+                                setSelectedCandidate(candidateEntry);
+                                let formattedDate = '';
+                                if (candidateEntry.scheduledDate) {
+                                  const date = new Date(candidateEntry.scheduledDate);
+                                  const year = date.getFullYear();
+                                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                                  const day = String(date.getDate()).padStart(2, '0');
+                                  formattedDate = `${year}-${month}-${day}`;
+                                }
+                                setScheduleFormData({
+                                  scheduledDate: formattedDate,
+                                  scheduledTime: candidateEntry.scheduledTime || '',
+                                  duration: candidateEntry.duration || 30,
+                                  meetingLink: candidateEntry.meetingLink || '',
+                                  notes: candidateEntry.notes || '',
+                                  status: candidateEntry.status || 'scheduled'
+                                });
+                                setShowScheduleModal(true);
+                              }}
+                            >
+                              Edit
+                            </StyledButton>
+                            <StyledButton
+                              variant="info"
+                              style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
+                              onClick={async () => {
+                                try {
+                                  setSelectedInterview(interview);
+                                  setSelectedCandidate(candidateEntry);
+                                  const candidateId = candidateEntry.candidate?._id || candidateEntry.candidate;
+                                  const response = await api.get(`/interviews/${interview._id}/feedback-summary${candidateId ? `?candidateId=${candidateId}` : ''}`);
+                                  setFeedbackSummary(response.data);
+                                  setShowFeedbackModal(true);
+                                } catch {
+                                  setToast({ type: 'danger', message: 'Error fetching feedback data.' });
+                                }
+                              }}
+                            >
+                              Feedback
+                            </StyledButton>
+                            <StyledButton
+                              variant="info"
+                              configured={interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0}
+                              style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
+                              onClick={() => {
+                                setSelectedInterview(interview);
+                                handleConfigureFeedbackForm(interview);
+                              }}
+                            >
+                              Config Form
+                            </StyledButton>
+                            <StyledButton
+                              danger
+                              style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
+                              onClick={async () => {
+                                if (window.confirm(`Are you sure you want to remove ${candidate.user?.name || 'this candidate'} from this interview?`)) {
+                                  try {
+                                    await api.delete(`/interviews/${interview._id}/candidate/${candidate._id}`);
+                                    await fetchInterviews();
+                                    setToast({ type: 'success', message: 'Candidate removed from interview successfully!' });
+                                  } catch {
+                                    setToast({ type: 'danger', message: 'Error removing candidate from interview. Please try again.' });
+                                  }
+                                }
+                              }}
+                            >
+                              Remove
+                            </StyledButton>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })}
+              </tbody>
+            </Table>
+          </div>
+        )}
+      </TabContainer>
 
       {showAssignModal && (
         <ModalOverlay>

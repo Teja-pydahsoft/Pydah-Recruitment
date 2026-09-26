@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Container, Row, Col, Card, Badge, Alert, Form, ButtonGroup, ToggleButton } from 'react-bootstrap';
+import { Container, Row, Col, Badge, Alert, Form, ButtonGroup, ToggleButton, Table } from 'react-bootstrap';
 import api from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -19,7 +19,10 @@ const InterviewFeedback = () => {
       const response = await api.get('/candidates');
       // Filter candidates who have interview feedback and fetch full profile for each
       const candidatesWithFeedback = response.data.candidates.filter(c => 
-        c.interviewFeedback && c.interviewFeedback.length > 0
+        c.interviewFeedback && (
+          (Array.isArray(c.interviewFeedback) && c.interviewFeedback.length > 0) ||
+          (c.interviewFeedback.feedback && c.interviewFeedback.feedback.length > 0)
+        )
       );
       
       // Fetch full profile for each candidate to get detailed feedback
@@ -52,7 +55,7 @@ const InterviewFeedback = () => {
       accept: 'info',
       strong_accept: 'success'
     };
-    return <Badge bg={variants[recommendation] || 'secondary'}>{recommendation?.replace('_', ' ')}</Badge>;
+    return <Badge bg={variants[recommendation] || 'secondary'}>{recommendation?.replace('_', ' ') || 'N/A'}</Badge>;
   };
 
   const teachingCount = useMemo(
@@ -101,15 +104,15 @@ const InterviewFeedback = () => {
   }
 
   return (
-    <Container fluid className="super-admin-fluid">
+    <Container fluid className="super-admin-fluid p-4">
       <Row className="mb-4">
         <Col>
-          <h2>Interview Feedback</h2>
-          <p>View all candidate interview feedback and panel member evaluations.</p>
+          <h2 className="fw-bold text-dark mb-1">Interview Feedback & Evaluations</h2>
+          <p className="text-muted mb-0">View candidate evaluation metrics, scores, and panel feedback in structured table format.</p>
         </Col>
       </Row>
 
-      <Row className="mb-3 align-items-end g-2">
+      <Row className="mb-3 align-items-center justify-content-between g-2">
         <Col xs="auto">
           <ButtonGroup size="sm">
             <ToggleButton
@@ -153,7 +156,7 @@ const InterviewFeedback = () => {
             value={selectedRole}
             onChange={(event) => setSelectedRole(event.target.value)}
           >
-            <option value="all">All Roles</option>
+            <option value="all">All Job Roles</option>
             {roleOptions.map(role => (
               <option key={role} value={role}>{role}</option>
             ))}
@@ -172,92 +175,88 @@ const InterviewFeedback = () => {
       )}
 
       {filteredCandidates.length === 0 ? (
-        <Alert variant="info">No interview feedback available yet.</Alert>
+        <Alert variant="info" className="text-center py-4">No interview feedback available for the selected filters.</Alert>
       ) : (
-        <Row>
-          {filteredCandidates.map((candidate) => {
-            const totalInterviews = candidate.interviewFeedback?.length || 0;
-            const averageRating = candidate.consolidatedInterviewRating || 0;
+        <div className="table-responsive bg-white rounded shadow-sm border">
+          <Table hover className="align-middle mb-0">
+            <thead className="bg-light">
+              <tr>
+                <th className="py-3 px-3">Candidate</th>
+                <th className="py-3 px-3">Position & Dept</th>
+                <th className="py-3 px-3">Interview & Round</th>
+                <th className="py-3 px-3">Panel Member</th>
+                <th className="py-3 px-3">Ratings</th>
+                <th className="py-3 px-3">Recommendation</th>
+                <th className="py-3 px-3">Comments & Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCandidates.flatMap((candidate) => {
+                const rawFeedback = candidate.interviewFeedback;
+                const feedbackItems = Array.isArray(rawFeedback)
+                  ? rawFeedback
+                  : rawFeedback?.feedback || [];
 
-            return (
-              <Col md={12} key={candidate._id} className="mb-4">
-                <Card>
-                  <Card.Header>
-                    <h5>{candidate.user.name} - {candidate.form.position}</h5>
-                    <small className="text-muted">{candidate.user.email}</small>
-                  </Card.Header>
-                  <Card.Body>
-                    <Row className="mb-3">
-                      <Col md={4}>
-                        <Card className="text-center">
-                          <Card.Body>
-                            <h3 className="text-primary">{totalInterviews}</h3>
-                            <p className="text-muted mb-0">Total Interviews</p>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                      <Col md={4}>
-                        <Card className="text-center">
-                          <Card.Body>
-                            <h3 className="text-success">{averageRating.toFixed(1)}</h3>
-                            <p className="text-muted mb-0">Average Rating</p>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                      <Col md={4}>
-                        <Card className="text-center">
-                          <Card.Body>
-                            <h3 className="text-info">{totalInterviews}</h3>
-                            <p className="text-muted mb-0">Feedback Count</p>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                    </Row>
+                if (feedbackItems.length === 0) {
+                  return [(
+                    <tr key={candidate._id}>
+                      <td className="px-3">
+                        <div className="fw-semibold text-dark">{candidate.user?.name || 'N/A'}</div>
+                        <div className="text-muted small">{candidate.user?.email || ''}</div>
+                      </td>
+                      <td className="px-3">
+                        <div className="fw-medium">{candidate.form?.position || 'N/A'}</div>
+                        <div className="text-muted small">{candidate.form?.department || 'N/A'}</div>
+                      </td>
+                      <td colSpan={5} className="text-muted px-3 fst-italic">
+                        No detailed evaluations recorded yet
+                      </td>
+                    </tr>
+                  )];
+                }
 
-                    {(candidate.interviewFeedback?.feedback || candidate.interviewFeedback)?.map((feedback, index) => {
-                      const fb = feedback.interviewTitle ? feedback : candidate.interviewFeedback[index];
-                      return (
-                        <Card key={index} className="mb-3">
-                          <Card.Header>
-                            <h6>{fb?.interviewTitle || fb?.interview?.title || 'Interview'} - Round {fb?.round || fb?.interview?.round || 'N/A'}</h6>
-                            <small className="text-muted">
-                              Panel Member: {fb?.panelMember?.name || 'N/A'} | 
-                              Type: {fb?.type || fb?.interview?.type || 'N/A'}
-                            </small>
-                          </Card.Header>
-                          <Card.Body>
-                            <Row>
-                              <Col md={6}>
-                                <h6>Ratings:</h6>
-                                <p>Technical Skills: {fb?.ratings?.technicalSkills || 0}/5</p>
-                                <p>Communication: {fb?.ratings?.communication || 0}/5</p>
-                                <p>Problem Solving: {fb?.ratings?.problemSolving || 0}/5</p>
-                                <p><strong>Overall: {fb?.ratings?.overallRating || 0}/5</strong></p>
-                              </Col>
-                              <Col md={6}>
-                                <h6>Recommendation:</h6>
-                                <p>{getStatusBadge(fb?.recommendation)}</p>
-                                {fb?.comments && (
-                                  <>
-                                    <h6>Comments:</h6>
-                                    <p>{fb.comments}</p>
-                                  </>
-                                )}
-                                <small className="text-muted">
-                                  Submitted: {fb?.submittedAt ? new Date(fb.submittedAt).toLocaleDateString() : 'N/A'}
-                                </small>
-                              </Col>
-                            </Row>
-                          </Card.Body>
-                        </Card>
-                      );
-                    })}
-                  </Card.Body>
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
+                return feedbackItems.map((fb, fbIndex) => (
+                  <tr key={`${candidate._id}-${fbIndex}`}>
+                    <td className="px-3">
+                      <div className="fw-semibold text-dark">{candidate.user?.name || 'N/A'}</div>
+                      <div className="text-muted small">{candidate.user?.email || ''}</div>
+                      {candidate.candidateNumber && (
+                        <Badge bg="light" text="dark" className="border mt-1">
+                          {candidate.candidateNumber}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-3">
+                      <div className="fw-medium text-dark">{candidate.form?.position || 'N/A'}</div>
+                      <div className="text-muted small">{candidate.form?.department || 'N/A'}</div>
+                    </td>
+                    <td className="px-3">
+                      <div className="fw-medium">{fb?.interviewTitle || fb?.interview?.title || 'Interview'}</div>
+                      <Badge bg="secondary" className="mt-1">Round {fb?.round || fb?.interview?.round || '1'}</Badge>
+                    </td>
+                    <td className="px-3">
+                      <div className="fw-medium">{fb?.panelMember?.name || 'Panel Member'}</div>
+                      <small className="text-muted">{fb?.type || fb?.interview?.type || 'Online'}</small>
+                    </td>
+                    <td className="px-3">
+                      <div className="small">Tech: <strong>{fb?.ratings?.technicalSkills || 0}/5</strong></div>
+                      <div className="small">Comm: <strong>{fb?.ratings?.communication || 0}/5</strong></div>
+                      <div className="small">Problem: <strong>{fb?.ratings?.problemSolving || 0}/5</strong></div>
+                      <div className="fw-bold text-primary mt-1">Overall: {fb?.ratings?.overallRating || 0}/5</div>
+                    </td>
+                    <td className="px-3">{getStatusBadge(fb?.recommendation)}</td>
+                    <td className="px-3">
+                      <div className="small text-dark mb-1" style={{ maxWidth: '280px' }}>{fb?.comments || 'No comments'}</div>
+                      <div className="text-muted small" style={{ fontSize: '0.8rem' }}>
+                        Submitted: {fb?.submittedAt ? new Date(fb.submittedAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </td>
+                  </tr>
+                ));
+              })}
+            </tbody>
+          </Table>
+        </div>
       )}
     </Container>
   );
