@@ -15,7 +15,12 @@ import {
   FaClock,
   FaPlus,
   FaEdit,
-  FaTrash
+  FaTrash,
+  FaGraduationCap,
+  FaBuilding,
+  FaArrowLeft,
+  FaCheck,
+  FaAward
 } from 'react-icons/fa';
 import api, { uploadWithProgress } from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
@@ -50,6 +55,7 @@ const PublicForm = () => {
   const [editingExperienceIndex, setEditingExperienceIndex] = useState(null);
   const [tempEducationEntry, setTempEducationEntry] = useState({ type: 'Graduation', college: '', percentage: '' });
   const [tempExperienceEntry, setTempExperienceEntry] = useState({ organization: '', designation: '', duration: '', responsibilities: '' });
+  const [showOverviewModal, setShowOverviewModal] = useState(false);
 
   const fetchForm = useCallback(async () => {
     try {
@@ -239,19 +245,22 @@ const PublicForm = () => {
 
   // Render education field with Add button system
   const renderEducationField = (field) => {
-
     return (
       <div className={styles.entryContainer}>
         {educationEntries.map((entry, index) => (
           <div key={index} className={styles.entryCard}>
             <div className={styles.entryContent}>
               <div className={styles.entryHeader}>
-                <span className={styles.entryType}>{entry.type}</span>
+                <span className={styles.entryType}>
+                  <FaGraduationCap className={styles.entryTypeIcon} />
+                  {entry.type}
+                </span>
                 <div className={styles.entryActions}>
                   <button
                     type="button"
                     className={styles.entryEditButton}
                     onClick={() => handleEditEducation(index)}
+                    title="Edit Entry"
                   >
                     <FaEdit />
                   </button>
@@ -259,14 +268,15 @@ const PublicForm = () => {
                     type="button"
                     className={styles.entryDeleteButton}
                     onClick={() => handleDeleteEducation(index)}
+                    title="Delete Entry"
                   >
                     <FaTrash />
                   </button>
                 </div>
               </div>
               <div className={styles.entryDetails}>
-                <span><strong>College:</strong> {entry.college || 'Not specified'}</span>
-                <span><strong>Percentage:</strong> {entry.percentage || 'Not specified'}</span>
+                <span><strong>College / University:</strong> {entry.college || 'Not specified'}</span>
+                <span><strong>Percentage / CGPA:</strong> <span className={styles.percentageBadge}>{entry.percentage || 'Not specified'}</span></span>
               </div>
             </div>
           </div>
@@ -276,7 +286,7 @@ const PublicForm = () => {
           className={styles.addEntryButton}
           onClick={handleAddEducation}
         >
-          <FaPlus /> Add Education Entry
+          <FaPlus /> Add Education Details
         </button>
       </div>
     );
@@ -284,19 +294,22 @@ const PublicForm = () => {
 
   // Render experience field with Add button system
   const renderExperienceField = (field) => {
-
     return (
       <div className={styles.entryContainer}>
         {experienceEntries.map((entry, index) => (
           <div key={index} className={styles.entryCard}>
             <div className={styles.entryContent}>
               <div className={styles.entryHeader}>
-                <span className={styles.entryType}>{entry.organization || 'Organization'}</span>
+                <span className={styles.entryType}>
+                  <FaBriefcase className={styles.entryTypeIcon} />
+                  {entry.organization || 'Organization'}
+                </span>
                 <div className={styles.entryActions}>
                   <button
                     type="button"
                     className={styles.entryEditButton}
                     onClick={() => handleEditExperience(index)}
+                    title="Edit Entry"
                   >
                     <FaEdit />
                   </button>
@@ -304,6 +317,7 @@ const PublicForm = () => {
                     type="button"
                     className={styles.entryDeleteButton}
                     onClick={() => handleDeleteExperience(index)}
+                    title="Delete Entry"
                   >
                     <FaTrash />
                   </button>
@@ -324,7 +338,7 @@ const PublicForm = () => {
           className={styles.addEntryButton}
           onClick={handleAddExperience}
         >
-          <FaPlus /> Add Experience Entry
+          <FaPlus /> Add Experience Details
         </button>
       </div>
     );
@@ -380,7 +394,7 @@ const PublicForm = () => {
             value={value}
             onChange={(e) => handleFormDataChange(field.fieldName, e.target.value)}
             required={field.required}
-            rows={4}
+            rows={2}
           />
         );
 
@@ -475,12 +489,15 @@ const PublicForm = () => {
       case 'checkbox': {
         const options = field.options && field.options.length > 0 ? field.options : ['Yes'];
         const selected = Array.isArray(value) ? value : (value ? [options[0]] : []);
+        const fieldNameLower = field.fieldName?.toLowerCase() || '';
+        const isDeclaration = fieldNameLower.includes('declaration') || fieldNameLower.includes('declare');
+
         return (
-          <div className={styles.checkboxGroup}>
+          <div className={cx(styles.checkboxGroup, isDeclaration && styles.checkboxGroupFull)}>
             {options.map((opt, idx) => {
               const checked = selected.includes(opt);
               return (
-                <label key={idx} className={styles.checkboxOption}>
+                <label key={idx} className={cx(styles.checkboxOption, isDeclaration && styles.declarationOption)}>
                   <input
                     type="checkbox"
                     checked={checked}
@@ -492,7 +509,8 @@ const PublicForm = () => {
                     }}
                     required={field.required && options.length === 1}
                   />
-                  {opt}
+                  <span>{opt}</span>
+                  {field.required && isDeclaration && <span className={styles.requiredStar}>*</span>}
                 </label>
               );
             })}
@@ -703,9 +721,11 @@ const PublicForm = () => {
         const priorityIndex = prioritizedFieldNames.findIndex((key) =>
           normalized === key || normalized.startsWith(key)
         );
+        const isTextarea = field.fieldType === 'textarea';
+        const priority = priorityIndex > -1 ? priorityIndex : (isTextarea ? 900 : 100);
         return {
           field,
-          priority: priorityIndex > -1 ? priorityIndex : Number.MAX_SAFE_INTEGER,
+          priority,
           originalIndex: index
         };
       })
@@ -758,253 +778,137 @@ const PublicForm = () => {
     );
   }
 
+  const formatFieldName = (name) => {
+    if (!name) return '';
+    const specialCases = {
+      'ratifiedByUniversity': 'Ratified by University',
+      'nbaNccExperience': 'NBA/NCC Experience',
+      'nssExperience': 'NSS Experience',
+      'dateOfBirth': 'Date of Birth',
+      'mobileNumber': 'Mobile Number',
+      'aadhaarNumber': 'Aadhaar Number',
+      'totalExperienceYears': 'Total Experience (Years)',
+      'teachingExperience': 'Teaching Experience (Years)',
+      'salaryInCTC': 'Salary in CTC',
+      'currentSalary': 'Current Salary',
+      'expectedSalary': 'Expected Salary',
+      'passportPhoto': 'Passport Size Photo'
+    };
+    if (specialCases[name]) return specialCases[name];
+    return name
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (str) => str.toUpperCase())
+      .trim();
+  };
+
+  const renderFieldItem = (field, index) => {
+    const fieldNameLower = field.fieldName?.toLowerCase() || '';
+    const isDeclaration = fieldNameLower.includes('declaration') || fieldNameLower.includes('declare');
+    const isFullWidth = field.fieldType === 'textarea' || isDeclaration;
+    const displayName = formatFieldName(field.fieldName);
+
+    return (
+      <div
+        key={field.fieldName || index}
+        className={cx(styles.fieldGroupDense, isFullWidth && styles.fieldGroupFull)}
+      >
+        {!isDeclaration && (
+          <label className={styles.fieldLabel}>
+            {displayName}
+            {field.required && <span>*</span>}
+          </label>
+        )}
+        {renderFormField(field)}
+      </div>
+    );
+  };
+
   const closingDate = form?.closingDate ? new Date(form.closingDate) : null;
   const daysLeft = closingDate ? Math.ceil((closingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
 
   return (
     <div className={styles.layout}>
-      <header className={styles.headerBar}>
-        <h1 className={styles.title}>{form.title}</h1>
-        {form.description && <p className={styles.subtitle}>{form.description}</p>}
+      {/* Dense Thin Header Bar */}
+      <header className={styles.headerBarDense}>
+        <div className={styles.headerLeftDense}>
+          <div className={styles.brandBadgeDense}>
+            <FaBuilding /> <span>PYDAH GROUP</span>
+          </div>
+          <h1 className={styles.titleDense}>{form.title}</h1>
+          {form.position && <span className={styles.tagDense}>{form.position}</span>}
+          {form.department && <span className={styles.tagDense}>{form.department}</span>}
+          {daysLeft !== null && daysLeft > 0 && (
+            <span className={cx(styles.tagDense, daysLeft <= 3 && styles.tagUrgent)}>
+              <FaClock /> {daysLeft} Days Left
+            </span>
+          )}
+        </div>
+
+        <div className={styles.headerActionsDense}>
+          <button
+            type="button"
+            className={styles.jobDetailsButtonDense}
+            onClick={() => setShowOverviewModal(true)}
+            title="View Position Details"
+          >
+            <FaInfoCircle /> Job Details
+          </button>
+          <button type="button" className={styles.homeLinkDense} onClick={() => navigate('/careers')}>
+            <FaArrowLeft /> Openings
+          </button>
+        </div>
       </header>
 
-      <div className={styles.pageGrid}>
-        <section className={styles.jobSummaryCard}>
-          <div className={styles.jobSummaryHeader}>
-            <h2 className={styles.jobSummaryTitle}>Position Overview</h2>
-            {form.requirements?.experience?.preferred && (
-              <p className={styles.sectionSubtitle}>{form.requirements.experience.preferred}</p>
-            )}
+      {/* Main Single Page Dense Workspace */}
+      <div className={styles.workspaceDense}>
+        {error && (
+          <div className={styles.errorAlertDense}>
+            <FaExclamationTriangle />
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className={styles.formDense}>
+          {/* Dense Multi-Column Grid */}
+          <div className={styles.fieldsGridDense}>
+            <div className={styles.fieldGroupDense}>
+              <label className={styles.fieldLabelDense}>
+                Full Name<span>*</span>
+              </label>
+              <input
+                className={styles.inputDense}
+                type="text"
+                value={userDetails.name}
+                onChange={(e) => handleUserDetailsChange('name', e.target.value)}
+                placeholder="Enter full name"
+                required
+              />
+            </div>
+
+            <div className={styles.fieldGroupDense}>
+              <label className={styles.fieldLabelDense}>
+                Email Address<span>*</span>
+              </label>
+              <input
+                className={styles.inputDense}
+                type="email"
+                value={userDetails.email}
+                onChange={(e) => handleUserDetailsChange('email', e.target.value)}
+                placeholder="Enter email address"
+                required
+              />
+            </div>
+
+            {/* Render all application fields together */}
+            {sortedFields.map((field, idx) => renderFieldItem(field, idx))}
           </div>
 
-          <div className={styles.jobMeta}>
-            {form.formCategory && (
-              <div className={styles.jobTag}>
-                <FaBriefcase />
-                {form.formCategory === 'teaching' ? 'Teaching Role' : 'Administrative Role'}
-              </div>
-            )}
-            {form.department && (
-              <div className={styles.jobTag}>
-                <FaInfoCircle />
-                {form.department}
-              </div>
-            )}
-            {form.vacancies && (
-              <div className={styles.jobTag}>
-                <FaUser />
-                {form.filledVacancies || 0}/{form.vacancies} filled
-              </div>
-            )}
-            {daysLeft !== null && daysLeft > 0 && (
-              <div className={styles.jobTag}>
-                <FaClock />
-                {daysLeft === 1 ? '1 day left' : `${daysLeft} days left`}
-              </div>
-            )}
-          </div>
-
-          <dl className={styles.jobDetailsList}>
-            {form.position && (
-              <div className={styles.jobDetailItem}>
-                <dt className={styles.jobDetailTerm}>{form.formCategory === 'teaching' ? 'Subject' : 'Position'}</dt>
-                <dd className={styles.jobDetailDescription}>{form.position}</dd>
-              </div>
-            )}
-            {form.description && (
-              <div className={styles.jobDetailItem}>
-                <dt className={styles.jobDetailTerm}>Summary</dt>
-                <dd className={styles.jobDetailDescription}>{form.description}</dd>
-              </div>
-            )}
-            {closingDate && (
-              <div className={styles.jobDetailItem}>
-                <dt className={styles.jobDetailTerm}>Closing Date</dt>
-                <dd className={styles.jobDetailDescription}>
-                  {closingDate.toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                  {daysLeft !== null && daysLeft <= 3 && daysLeft > 0 && (
-                    <span className={cx(styles.closingBadge, daysLeft <= 1 && styles.closingBadgeUrgent)} style={{ marginLeft: '0.5rem' }}>
-                      <FaClock />
-                      {daysLeft === 1 ? '1 day remaining' : `${daysLeft} days remaining`}
-                    </span>
-                  )}
-                </dd>
-              </div>
-            )}
-          </dl>
-
-          {form.requirements && (
-            <div className={styles.requirementsCard}>
-              {form.requirements.experience && (form.requirements.experience.min || form.requirements.experience.max) && (
-                <div>
-                  <h4 className={cx(styles.sectionTitle, styles.sectionTitleSmall)}>
-                    <FaBriefcase />
-                    Experience
-                  </h4>
-                  <p className={styles.sectionSubtitle} style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-                    {form.requirements.experience.min || 0} - {form.requirements.experience.max || 'N/A'} years
-                  </p>
-                </div>
-              )}
-              {form.requirements.qualifications && form.requirements.qualifications.length > 0 && (
-                <div>
-                  <h4 className={cx(styles.sectionTitle, styles.sectionTitleSmall)}>
-                    <FaInfoCircle />
-                    Qualifications
-                  </h4>
-                  <ul className={styles.requirementsList}>
-                    {form.requirements.qualifications.map((qual, idx) => (
-                      <li key={idx}>{qual}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {form.requirements.skills && form.requirements.skills.length > 0 && (
-                <div>
-                  <h4 className={cx(styles.sectionTitle, styles.sectionTitleSmall)}>
-                    <FaInfoCircle />
-                    Skills
-                  </h4>
-                  <ul className={styles.requirementsList}>
-                    {form.requirements.skills.map((skill, idx) => (
-                      <li key={idx}>{skill}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {form.requirements.responsibilities && form.requirements.responsibilities.length > 0 && (
-                <div>
-                  <h4 className={cx(styles.sectionTitle, styles.sectionTitleSmall)}>
-                    <FaInfoCircle />
-                    Responsibilities
-                  </h4>
-                  <ul className={styles.requirementsList}>
-                    {form.requirements.responsibilities.map((resp, idx) => (
-                      <li key={idx}>{resp}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        <section className={styles.formWorkspace}>
-          {error && (
-            <div className={styles.errorAlert}>
-              <FaExclamationTriangle />
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div className={styles.formSection}>
-              <div className={styles.sectionHeader}>
-                <h3 className={styles.sectionTitle}>
-                  <FaUser />
-                  <span>Personal Information</span>
-                </h3>
-                <p className={styles.sectionSubtitle}>We’ll use these details to contact you.</p>
-              </div>
-              <div className={styles.twoColumnGrid} style={{ marginTop: '1rem' }}>
-                <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel}>
-                    Full Name<span>*</span>
-                  </label>
-                  <input
-                    className={styles.input}
-                    type="text"
-                    value={userDetails.name}
-                    onChange={(e) => handleUserDetailsChange('name', e.target.value)}
-                    placeholder="Enter your full name"
-                    required
-                  />
-                </div>
-                <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel}>
-                    Email Address<span>*</span>
-                  </label>
-                  <input
-                    className={styles.input}
-                    type="email"
-                    value={userDetails.email}
-                    onChange={(e) => handleUserDetailsChange('email', e.target.value)}
-                    placeholder="Enter your email address"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.formSection}>
-              <div className={styles.sectionHeader}>
-                <h3 className={styles.sectionTitle}>
-                  <FaFileAlt />
-                  <span>Application Details</span>
-                </h3>
-                <p className={styles.sectionSubtitle}>Provide the required information and upload supporting documents.</p>
-              </div>
-              <div className={cx(styles.fieldsGrid, styles.fieldsGridSpacing)}>
-                {sortedFields.map((field, index) => {
-                  const fullWidthTypes = ['textarea', 'radio', 'checkbox'];
-                  const isFullWidth = fullWidthTypes.includes(field.fieldType);
-
-                  // Format field name for display
-                  const formatFieldName = (name) => {
-                    if (!name) return '';
-                    // Handle special cases
-                    const specialCases = {
-                      'ratifiedByUniversity': 'Ratified by University',
-                      'nbaNccExperience': 'NBA/NCC Experience',
-                      'nssExperience': 'NSS Experience',
-                      'dateOfBirth': 'Date of Birth',
-                      'mobileNumber': 'Mobile Number',
-                      'aadhaarNumber': 'Aadhaar Number',
-                      'totalExperienceYears': 'Total Experience (Years)',
-                      'teachingExperience': 'Teaching Experience (Years)',
-                      'salaryInCTC': 'Salary in CTC',
-                      'currentSalary': 'Current Salary',
-                      'expectedSalary': 'Expected Salary',
-                      'passportPhoto': 'Passport Size Photo'
-                    };
-                    
-                    if (specialCases[name]) {
-                      return specialCases[name];
-                    }
-                    
-                    // Convert camelCase to Title Case
-                    return name
-                      .replace(/([A-Z])/g, ' $1')
-                      .replace(/^./, str => str.toUpperCase())
-                      .trim();
-                  };
-
-                  const displayName = formatFieldName(field.fieldName);
-
-                  return (
-                    <div
-                      key={index}
-                      className={cx(styles.fieldGroup, isFullWidth && styles.fieldGroupFull)}
-                    >
-                      <label className={styles.fieldLabel}>
-                        {displayName}
-                        {field.required && <span>*</span>}
-                      </label>
-                      {renderFormField(field)}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
+          {/* Bottom Action Submit */}
+          <div className={styles.bottomBarDense}>
             <button
               type="submit"
               className={cx(
-                styles.submitButton,
+                styles.submitButtonDense,
                 submissionState === 'processing' && 'processing',
                 submissionState === 'uploading' && 'uploading'
               )}
@@ -1012,47 +916,100 @@ const PublicForm = () => {
             >
               {submitting ? (
                 <>
-                  {submissionState === 'pending' && (
-                    <>
-                      <FaSpinner className={styles.spin} style={{ color: '#06b6d4' }} />
-                      Preparing...
-                    </>
-                  )}
-                  {submissionState === 'processing' && (
-                    <>
-                      <FaSpinner className={styles.spin} style={{ color: '#06b6d4' }} />
-                      Processing...
-                    </>
-                  )}
-                  {submissionState === 'uploading' && (
-                    <>
-                      <FaCloudUploadAlt className={styles.bounce} style={{ color: '#06b6d4' }} />
-                      Uploading... {uploadProgress}%
-                    </>
-                  )}
-                  {submissionState === 'complete' && (
-                    <>
-                      <FaCheckCircle />
-                      Completing...
-                    </>
-                  )}
-                  {(!submissionState || submissionState === 'idle') && (
-                    <>
-                      <FaSpinner className={styles.spin} style={{ color: '#06b6d4' }} />
-                      Submitting Application...
-                    </>
-                  )}
+                  <FaSpinner className={styles.spin} />
+                  {submissionState === 'uploading' ? `Uploading ${uploadProgress}%` : 'Submitting Application...'}
                 </>
               ) : (
                 <>
-                  <FaPaperPlane />
-                  Submit Application
+                  <FaPaperPlane /> Submit Application Form
                 </>
               )}
             </button>
-          </form>
-        </section>
+          </div>
+        </form>
       </div>
+
+      {/* Position Overview Modal */}
+      {showOverviewModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowOverviewModal(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>
+                <FaAward style={{ color: '#2563eb' }} /> Position Overview
+              </h3>
+              <button className={styles.closeButton} onClick={() => setShowOverviewModal(false)}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.jobMeta}>
+                {form.formCategory && (
+                  <div className={styles.jobTag}>
+                    <FaBriefcase />
+                    {form.formCategory === 'teaching' ? 'Teaching Role' : 'Administrative Role'}
+                  </div>
+                )}
+                {form.department && (
+                  <div className={styles.jobTag}>
+                    <FaInfoCircle />
+                    {form.department}
+                  </div>
+                )}
+                {form.vacancies && (
+                  <div className={styles.jobTag}>
+                    <FaUser />
+                    {form.filledVacancies || 0}/{form.vacancies} filled
+                  </div>
+                )}
+                {daysLeft !== null && daysLeft > 0 && (
+                  <div className={styles.jobTag}>
+                    <FaClock />
+                    {daysLeft === 1 ? '1 day remaining' : `${daysLeft} days remaining`}
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.requirementsCard}>
+                {form.position && <p style={{ margin: '0 0 0.5rem 0' }}><strong>Position:</strong> {form.position}</p>}
+                {form.description && <p style={{ margin: '0 0 0.5rem 0' }}><strong>Summary:</strong> {form.description}</p>}
+                {form.requirements?.experience?.preferred && (
+                  <p style={{ margin: '0 0 0.5rem 0' }}><strong>Preferred Experience:</strong> {form.requirements.experience.preferred}</p>
+                )}
+                {form.requirements?.qualifications?.length > 0 && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <strong>Qualifications:</strong>
+                    <ul className={styles.requirementsList}>
+                      {form.requirements.qualifications.map((q, i) => (
+                        <li key={i}><FaCheck className={styles.checkIcon} /> {q}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {form.requirements?.skills?.length > 0 && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <strong>Key Skills:</strong>
+                    <ul className={styles.requirementsList}>
+                      {form.requirements.skills.map((s, i) => (
+                        <li key={i}><FaCheck className={styles.checkIcon} /> {s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.modalFooter}>
+                <button
+                  type="button"
+                  className={styles.modalSaveButton}
+                  onClick={() => setShowOverviewModal(false)}
+                >
+                  Close Overview
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(submissionState === 'pending' || submissionState === 'processing' || submissionState === 'uploading' || submissionState === 'complete') && (
         <div className={styles.submissionModal}>
