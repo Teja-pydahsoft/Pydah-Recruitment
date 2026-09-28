@@ -82,42 +82,90 @@ const TableRow = styled.div`
 
 // Dashboard Skeleton - For dashboard pages
 export const DashboardSkeleton = () => (
-  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
     {/* Header Skeleton */}
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <SkeletonBox width="300px" height="40px" />
-      <SkeletonBox width="500px" height="20px" />
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <SkeletonBox width="280px" height="32px" />
+        <SkeletonBox width="420px" height="16px" />
+      </div>
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <SkeletonBox width="140px" height="16px" />
+        <SkeletonBox width="100px" height="36px" style={{ borderRadius: '8px' }} />
+      </div>
     </div>
 
-    {/* Stats Cards Skeleton */}
+    {/* Stats Cards Skeleton (4 blocks) */}
     <div style={{ 
       display: 'grid', 
-      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-      gap: '1.5rem' 
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+      gap: '1rem' 
     }}>
       {[1, 2, 3, 4].map((i) => (
-        <SkeletonCard key={i}>
-          <SkeletonBox width="60px" height="60px" />
-          <SkeletonBox width="80%" height="24px" />
-          <SkeletonBox width="60%" height="16px" />
+        <SkeletonCard key={i} style={{ padding: '1rem', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <SkeletonCircle size="28px" />
+            <SkeletonBox width="40px" height="24px" style={{ borderRadius: '6px' }} />
+          </div>
+          <SkeletonBox width="70%" height="16px" />
+          <SkeletonBox width="50%" height="12px" />
         </SkeletonCard>
       ))}
     </div>
 
-    {/* Content Cards Skeleton */}
+    {/* Campus & Stream Analytics Full Section Skeleton */}
+    <SkeletonCard style={{ padding: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <SkeletonBox width="280px" height="24px" />
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {[1, 2, 3, 4, 5].map((k) => (
+            <SkeletonBox key={k} width="70px" height="28px" style={{ borderRadius: '8px' }} />
+          ))}
+        </div>
+      </div>
+      <SkeletonBox width="100%" height="90px" style={{ borderRadius: '12px', marginTop: '0.5rem' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+        {[1, 2, 3, 4].map((j) => (
+          <SkeletonBox key={j} width="100%" height="95px" style={{ borderRadius: '12px' }} />
+        ))}
+      </div>
+    </SkeletonCard>
+
+    {/* Content Charts Grid Skeleton (2 Side-by-Side Cards) */}
     <div style={{ 
       display: 'grid', 
-      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-      gap: '1.5rem' 
+      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+      gap: '1.25rem' 
     }}>
-      {[1, 2].map((i) => (
-        <SkeletonCard key={i}>
-          <SkeletonBox width="100%" height="200px" />
-          <SkeletonBox width="70%" height="20px" />
-          <SkeletonBox width="100%" height="16px" />
-          <SkeletonBox width="100%" height="16px" />
-        </SkeletonCard>
-      ))}
+      <SkeletonCard style={{ padding: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <SkeletonBox width="200px" height="22px" />
+          <SkeletonBox width="70px" height="22px" style={{ borderRadius: '12px' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', gap: '1rem' }}>
+          <SkeletonCircle size="140px" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', flex: 1 }}>
+            {[1, 2, 3, 4, 5].map((m) => (
+              <SkeletonBox key={m} width="100%" height="16px" />
+            ))}
+          </div>
+        </div>
+      </SkeletonCard>
+
+      <SkeletonCard style={{ padding: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <SkeletonBox width="200px" height="22px" />
+          <SkeletonBox width="60px" height="22px" style={{ borderRadius: '12px' }} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <div key={n} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <SkeletonBox width="100%" height="14px" />
+              <SkeletonBox width="100%" height="8px" style={{ borderRadius: '4px' }} />
+            </div>
+          ))}
+        </div>
+      </SkeletonCard>
     </div>
   </div>
 );
@@ -234,6 +282,37 @@ export const TestCardSkeleton = ({ count = 3 }) => (
   </div>
 );
 
+// Section Table Page Skeleton (For Candidate Application, Submissions, Candidates, Interviews, etc.)
+export const TablePageSkeleton = ({ rows = 6, columns = 'repeat(6, 1fr)' }) => (
+  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    {/* Page Header Skeleton */}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <SkeletonBox width="260px" height="30px" />
+        <SkeletonBox width="420px" height="16px" />
+      </div>
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <SkeletonBox width="140px" height="36px" style={{ borderRadius: '8px' }} />
+      </div>
+    </div>
+
+    {/* Section Card with Controls & Table */}
+    <SkeletonCard style={{ padding: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid #e0f2fe', paddingBottom: '0.875rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {[1, 2, 3, 4].map((k) => (
+            <SkeletonBox key={k} width="110px" height="32px" style={{ borderRadius: '8px' }} />
+          ))}
+        </div>
+        <SkeletonBox width="220px" height="32px" style={{ borderRadius: '8px' }} />
+      </div>
+      <div style={{ marginTop: '0.5rem' }}>
+        <TableSkeleton rows={rows} columns={columns} />
+      </div>
+    </SkeletonCard>
+  </div>
+);
+
 // Main SkeletonLoader component - Can be used as a wrapper
 const SkeletonLoader = ({ children, loading, variant = 'dashboard', ...props }) => {
   if (!loading) {
@@ -243,6 +322,8 @@ const SkeletonLoader = ({ children, loading, variant = 'dashboard', ...props }) 
   switch (variant) {
     case 'dashboard':
       return <DashboardSkeleton />;
+    case 'table-page':
+      return <TablePageSkeleton {...props} />;
     case 'table':
       return <TableSkeleton {...props} />;
     case 'card-grid':

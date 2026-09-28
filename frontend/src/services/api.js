@@ -83,11 +83,30 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
+    const status = error.response?.status;
+    const message = (error.response?.data?.message || '').toLowerCase();
+
+    // Check if error is 401 Unauthorized or 403 with token expiration/auth failure messages
+    const isAuthError =
+      status === 401 ||
+      (status === 403 &&
+        (message.includes('expired') ||
+          message.includes('invalid') ||
+          message.includes('token') ||
+          message.includes('authentication required')));
+
+    if (isAuthError) {
+      console.warn('[API Interceptor] Auth session expired or failed. Triggering automatic logout.');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      sessionStorage.removeItem('dashboard_cache_data');
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:logout'));
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
     }
     return Promise.reject(error);
   }

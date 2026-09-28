@@ -399,9 +399,15 @@ const SubmitButton = styled.button`
 `;
 
 const InterviewsManagement = () => {
-  const [interviews, setInterviews] = useState([]);
+  const [interviews, setInterviews] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('interviews_cache_data');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return [];
+  });
   const [panelMembers, setPanelMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => interviews.length === 0);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -465,7 +471,7 @@ const InterviewsManagement = () => {
 
   const fetchInterviews = useCallback(async () => {
     try {
-      setLoading(true);
+      if (interviews.length === 0) setLoading(true);
       const response = await api.get('/interviews');
       if (response.data && response.data.interviews) {
         const interviewsWithFeedback = await Promise.all(
@@ -494,6 +500,9 @@ const InterviewsManagement = () => {
           })
         );
         setInterviews(interviewsWithFeedback);
+        try {
+          sessionStorage.setItem('interviews_cache_data', JSON.stringify(interviewsWithFeedback));
+        } catch (e) {}
       } else {
         setInterviews([]);
       }
@@ -503,7 +512,7 @@ const InterviewsManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [getDefaultFeedbackForm]);
+  }, [getDefaultFeedbackForm, interviews.length]);
 
   const fetchPanelMembers = useCallback(async () => {
     try {
@@ -763,10 +772,6 @@ const InterviewsManagement = () => {
 
     const filteredInterviews = getFilteredInterviews();
 
-  if (loading) {
-    return <SkeletonLoader loading={true} variant="table" rows={8} columns="repeat(6, 1fr)" />;
-  }
-
   return (
     <Container>
       <Header>
@@ -840,7 +845,11 @@ const InterviewsManagement = () => {
           {selectedJobRole !== 'all' && <> - <span>{selectedJobRole}</span></>}
         </div>
 
-        {filteredInterviews.length === 0 && !loading ? (
+        {loading ? (
+          <div style={{ background: '#ffffff', borderRadius: '8px', padding: '1rem', border: '1px solid #e2e8f0' }}>
+            <SkeletonLoader loading={true} variant="table" rows={6} columns="1.5fr 1.5fr 1.5fr 1.2fr 1.5fr 1fr 1.2fr" />
+          </div>
+        ) : filteredInterviews.length === 0 ? (
           <div style={{
             textAlign: 'center',
             padding: '2.5rem 1rem',

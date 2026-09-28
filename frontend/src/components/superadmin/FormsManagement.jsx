@@ -599,10 +599,6 @@ const FormsManagement = () => {
       return null;
     };
 
-  if (loading) {
-    return <SkeletonLoader loading={true} variant="table" rows={8} columns="repeat(6, 1fr)" />;
-  }
-
   return (
     <Container fluid className="super-admin-fluid">
       <Row className="mb-4">
@@ -633,7 +629,10 @@ const FormsManagement = () => {
               </Tabs>
             </Card.Header>
             <Card.Body>
-              <Table striped bordered hover responsive>
+              {loading ? (
+                <SkeletonLoader loading={true} variant="table" rows={6} columns="1.5fr 1.5fr 1fr 1fr 1fr 1fr 1.2fr" />
+              ) : (
+                <Table striped bordered hover responsive>
                 <thead>
                   <tr>
                     <th>Title</th>
@@ -736,17 +735,18 @@ const FormsManagement = () => {
                   ))}
                 </tbody>
               </Table>
-              {getCurrentForms().length === 0 && (
-                <div className="text-center py-4">
-                  <p className="text-muted">
-                    {activeTab === 'all' ? 'No forms found.' :
-                     activeTab === 'teaching' ? 'No teaching forms found.' :
-                     activeTab === 'non_teaching' ? 'No non-teaching forms found.' :
-                     activeTab === 'feedback' ? 'No feedback forms found.' :
-                     'No forms found.'}
-                  </p>
-                </div>
-              )}
+            )}
+            {!loading && getCurrentForms().length === 0 && (
+              <div className="text-center py-4">
+                <p className="text-muted">
+                  {activeTab === 'all' ? 'No forms found.' :
+                   activeTab === 'teaching' ? 'No teaching forms found.' :
+                   activeTab === 'non_teaching' ? 'No non-teaching forms found.' :
+                   activeTab === 'feedback' ? 'No feedback forms found.' :
+                   'No forms found.'}
+                </p>
+              </div>
+            )}
             </Card.Body>
           </Card>
         </Col>

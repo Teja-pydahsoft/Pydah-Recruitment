@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const Container = styled.div`
@@ -821,10 +821,6 @@ const SubAdminManagement = () => {
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
   return (
     <Container>
       <Header>
@@ -838,7 +834,12 @@ const SubAdminManagement = () => {
         <AddButton onClick={openCreateModal}>Add Sub Admin</AddButton>
       </Toolbar>
 
-      <Table>
+      {loading ? (
+        <div style={{ padding: '1rem', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+          <SkeletonLoader loading={true} variant="table" rows={6} columns="1.5fr 1.5fr 1fr 1fr 1.2fr" />
+        </div>
+      ) : (
+        <Table>
         <thead>
           <tr>
             <Th>Name</Th>
@@ -963,6 +964,7 @@ const SubAdminManagement = () => {
           ))}
         </tbody>
       </Table>
+      )}
 
       {showModal && (
         <Modal>

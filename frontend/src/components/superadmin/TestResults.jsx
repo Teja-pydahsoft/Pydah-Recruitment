@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Container, Row, Col, Card, Table, Badge, Alert, Button, Modal, Form, Spinner, Image, Tabs, Tab } from 'react-bootstrap';
 import { FaCheckCircle, FaEye, FaCamera, FaClipboardCheck, FaListUl } from 'react-icons/fa';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 
 const CATEGORY_ORDER = ['teaching', 'non_teaching', 'uncategorized'];
 
@@ -605,7 +605,7 @@ const TestResults = ({ embedded = false, refreshToken = 0 }) => {
         <p className="mt-2 text-muted">Loading test results...</p>
       </div>
     ) : (
-      <LoadingSpinner message="Loading test results..." />
+      <SkeletonLoader loading={true} variant="table-page" rows={6} columns="repeat(6, 1fr)" />
     );
   }
 
