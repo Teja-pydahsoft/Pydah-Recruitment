@@ -17,24 +17,25 @@ const CandidateManagement = lazy(() => import('./superadmin/CandidateManagement'
 const NotificationSettings = lazy(() => import('./superadmin/NotificationSettings'));
 
 const SuperAdminDashboard = () => {
+  const dashFallback = <SkeletonLoader loading={true} variant="dashboard" />;
+  const tableFallback = <SkeletonLoader loading={true} variant="table-page" />;
+
   return (
-    <Suspense fallback={<SkeletonLoader loading={true} variant="dashboard" />}>
-      <Routes>
-        <Route index element={<DashboardOverview />} />
-        <Route path="creation/*" element={<FormsManagement />} />
-        <Route path="submissions/*" element={<FormSubmissions />} />
-        <Route path="tests/*" element={<TestsManagement />} />
-        <Route path="users/*" element={<UsersManagement />} />
-        <Route path="sub-admins/*" element={<SubAdminManagement />} />
-        <Route path="courses/*" element={<CourseManagement />} />
-        <Route path="interviews/*" element={<InterviewsManagement />} />
-        <Route path="test-results/*" element={<TestResults />} />
-        <Route path="interview-feedback/*" element={<InterviewFeedback />} />
-        <Route path="candidates/*" element={<CandidateManagement />} />
-        <Route path="settings" element={<NotificationSettings />} />
-        <Route path="*" element={<Navigate to="/super-admin" replace />} />
-      </Routes>
-    </Suspense>
+    <Routes>
+      <Route index element={<Suspense fallback={dashFallback}><DashboardOverview /></Suspense>} />
+      <Route path="creation/*" element={<Suspense fallback={tableFallback}><FormsManagement /></Suspense>} />
+      <Route path="submissions/*" element={<Suspense fallback={tableFallback}><FormSubmissions /></Suspense>} />
+      <Route path="tests/*" element={<Suspense fallback={tableFallback}><TestsManagement /></Suspense>} />
+      <Route path="users/*" element={<Suspense fallback={tableFallback}><UsersManagement /></Suspense>} />
+      <Route path="sub-admins/*" element={<Suspense fallback={tableFallback}><SubAdminManagement /></Suspense>} />
+      <Route path="courses/*" element={<Suspense fallback={tableFallback}><CourseManagement /></Suspense>} />
+      <Route path="interviews/*" element={<Suspense fallback={tableFallback}><InterviewsManagement /></Suspense>} />
+      <Route path="test-results/*" element={<Suspense fallback={tableFallback}><TestResults /></Suspense>} />
+      <Route path="interview-feedback/*" element={<Suspense fallback={tableFallback}><InterviewFeedback /></Suspense>} />
+      <Route path="candidates/*" element={<Suspense fallback={tableFallback}><CandidateManagement /></Suspense>} />
+      <Route path="settings" element={<Suspense fallback={tableFallback}><NotificationSettings /></Suspense>} />
+      <Route path="*" element={<Navigate to="/super-admin" replace />} />
+    </Routes>
   );
 };
 

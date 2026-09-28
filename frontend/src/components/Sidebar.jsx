@@ -10,7 +10,6 @@ import {
   FaChartBar,
   FaSignOutAlt,
   FaBars,
-  FaTimes,
   FaUser,
   FaHome,
   FaUserShield,
@@ -309,37 +308,18 @@ const Tooltip = styled.div`
   }
 `;
 
-const NotificationBadge = styled.div`
-  position: absolute;
-  top: 6px;
-  right: ${props => props.$isOpen ? '8px' : '6px'};
-  background: #ef4444;
-  color: white;
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 0.15rem 0.35rem;
-  border-radius: 8px;
-  min-width: ${props => props.count > 9 ? '20px' : '16px'};
-  height: 16px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: ${props => props.count > 0 ? 1 : 0};
-  transition: opacity 0.3s ease;
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
-  line-height: 1;
-`;
-
 const UserSection = styled.div`
   border-top: 1px solid #bae6fd;
-  padding: ${props => props.$isOpen ? '0.875rem' : '0.5rem 0.375rem'};
+  padding: ${props => props.$isOpen ? '0.875rem' : '0.5rem 0.25rem'};
   background: linear-gradient(180deg, #e0f2fe 0%, #f0f9ff 100%);
   transition: padding 0.3s ease;
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 `;
 
 const UserInfo = styled.div`
@@ -423,13 +403,14 @@ const UserRole = styled.div`
 `;
 
 const LogoutButton = styled.button`
-  width: 100%;
+  width: ${props => props.$isOpen ? '100%' : '36px'};
+  height: ${props => props.$isOpen ? 'auto' : '36px'};
   display: flex;
   align-items: center;
   justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
-  padding: ${props => props.$isOpen ? '0.65rem 0.875rem' : '0.45rem 0'};
-  background: ${props => props.$isOpen ? '#fef2f2' : 'transparent'};
-  border: ${props => props.$isOpen ? '1px solid #fecaca' : 'none'};
+  padding: ${props => props.$isOpen ? '0.65rem 0.875rem' : '0'};
+  background: #fef2f2;
+  border: 1px solid #fecaca;
   color: #ef4444;
   text-decoration: none;
   border-radius: 8px;
@@ -439,18 +420,21 @@ const LogoutButton = styled.button`
   font-weight: 500;
   position: relative;
   box-sizing: border-box;
+  margin: 0 auto;
 
   &:hover {
     background: #fee2e2;
     color: #dc2626;
+    border-color: #fca5a5;
+    transform: ${props => props.$isOpen ? 'none' : 'scale(1.05)'};
   }
 
   svg {
-    font-size: ${props => props.$isOpen ? '0.9rem' : '0.85rem'};
+    font-size: 0.9rem;
     margin-right: ${props => props.$isOpen ? '0.6rem' : '0'};
     min-width: 14px;
-    width: ${props => props.$isOpen ? '14px' : '14px'};
-    height: ${props => props.$isOpen ? '14px' : '14px'};
+    width: 14px;
+    height: 14px;
     transition: all 0.2s ease;
     flex-shrink: 0;
     color: #ef4444;
@@ -462,6 +446,7 @@ const LogoutButton = styled.button`
 const LogoutText = styled.span`
   opacity: ${props => props.$isOpen ? 1 : 0};
   width: ${props => props.$isOpen ? 'auto' : '0'};
+  display: ${props => props.$isOpen ? 'inline-block' : 'none'};
   overflow: hidden;
   transition: opacity 0.3s ease, width 0.3s ease;
   font-weight: 500;
@@ -634,7 +619,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             <LogoText $isOpen={isOpen}>SRS</LogoText>
           </Logo>
           <ToggleButton onClick={toggleSidebar} $isOpen={isOpen}>
-            {isOpen ? <FaTimes /> : <FaBars />}
+            <FaBars />
           </ToggleButton>
         </SidebarHeader>
 
@@ -658,8 +643,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                               id: item.path,
                               top: rect.top + rect.height / 2,
                               left: rect.right + 10,
-                              label: item.label,
-                              badge: item.badge
+                              label: item.label
                             });
                           }
                         }}
@@ -667,11 +651,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                       >
                         <item.icon />
                         <NavText $isOpen={isOpen}>{item.label}</NavText>
-                        {item.badge !== undefined && item.badge > 0 && (
-                          <NotificationBadge count={item.badge} $isOpen={isOpen}>
-                            {item.badge > 99 ? '99+' : item.badge}
-                          </NotificationBadge>
-                        )}
                       </NavLink>
                     </NavItem>
                   </React.Fragment>
@@ -727,7 +706,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             $left={hoveredItem.left}
           >
             {hoveredItem.label}
-            {hoveredItem.badge && hoveredItem.badge > 0 && ` (${hoveredItem.badge > 99 ? '99+' : hoveredItem.badge})`}
           </Tooltip>
         )}
       </SidebarContainer>

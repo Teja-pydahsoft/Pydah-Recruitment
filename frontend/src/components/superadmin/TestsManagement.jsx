@@ -1899,10 +1899,6 @@ const TestsManagement = () => {
       .join(', ');
   };
 
-  if (loading) {
-    return <SkeletonLoader loading={true} variant="table" rows={8} columns="repeat(5, 1fr)" />;
-  }
-
   return (
     <Container fluid className="super-admin-fluid">
       <ToastNotificationContainer 
@@ -2098,10 +2094,8 @@ const TestsManagement = () => {
                   </Badge>
                 </Card.Header>
                 <Card.Body style={{ padding: '1.25rem', background: '#ffffff', minHeight: 'calc(100vh - 450px)' }}>
-                  {candidatesLoading ? (
-                    <div className="text-center py-4">
-                      <Spinner animation="border" />
-                    </div>
+                  {candidatesLoading || loading ? (
+                    <SkeletonLoader loading={true} variant="table" rows={6} columns="1.5fr 1.2fr 1.5fr 1.5fr 1.2fr 1fr" />
                   ) : filteredAssessmentCandidates.length === 0 ? (
                     <Alert variant="light">No candidates match the current filters.</Alert>
                   ) : (
@@ -2689,10 +2683,8 @@ const TestsManagement = () => {
                 padding: '0',
                 paddingTop: '1rem'
               }}>
-                {questionLoading ? (
-                  <div className="text-center py-5">
-                    <Spinner animation="border" />
-                  </div>
+                {questionLoading || loading ? (
+                  <SkeletonLoader loading={true} variant="table" rows={6} columns="0.5fr 2fr 1fr 1fr 1fr" />
                 ) : questions.length === 0 ? (
                   <Alert variant="light" className="text-center py-5">
                     No questions match the selected filters.
@@ -3104,11 +3096,8 @@ const TestsManagement = () => {
           {/* Results Table */}
           <Card className="border-0 shadow-sm" style={{ borderRadius: '12px' }}>
             <Card.Body style={{ padding: '1.5rem' }}>
-              {typingTestResultsLoading ? (
-                <div className="text-center py-5">
-                  <Spinner animation="border" variant="primary" style={{ width: '3rem', height: '3rem' }} />
-                  <p className="mt-3 text-muted" style={{ fontSize: '1.1rem' }}>Loading typing test results...</p>
-                </div>
+              {typingTestResultsLoading || loading ? (
+                <SkeletonLoader loading={true} variant="table" rows={6} columns="1.5fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1.2fr 1fr" />
               ) : filteredAndSortedTypingResults.length === 0 ? (
                 <Alert variant="info" className="text-center border-0" style={{ 
                   borderRadius: '12px',

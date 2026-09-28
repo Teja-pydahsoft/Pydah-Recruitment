@@ -17,6 +17,8 @@ const PermissionDenied = lazy(() => import('./subadmin/SubAdminPermissionDenied'
 
 const SubAdminDashboard = () => {
   const { hasPermission } = useAuth();
+  const dashFallback = <SkeletonLoader loading={true} variant="dashboard" />;
+  const tableFallback = <SkeletonLoader loading={true} variant="table-page" />;
 
   const guard = (permission, element) => {
     if (!permission) {
@@ -27,20 +29,18 @@ const SubAdminDashboard = () => {
   };
 
   return (
-    <Suspense fallback={<SkeletonLoader loading={true} variant="dashboard" />}>
-      <Routes>
-        <Route index element={<SubAdminOverview />} />
-        <Route path="forms/*" element={guard('forms.manage', <FormsManagement />)} />
-        <Route path="submissions/*" element={guard('forms.manage', <FormSubmissions />)} />
-        <Route path="candidates/*" element={guard('candidates.manage', <CandidateManagement />)} />
-        <Route path="tests/*" element={guard('tests.manage', <TestsManagement />)} />
-        <Route path="test-results/*" element={guard('tests.manage', <TestResults />)} />
-        <Route path="interviews/*" element={guard('interviews.manage', <InterviewsManagement />)} />
-        <Route path="interview-feedback/*" element={guard('interviews.manage', <InterviewFeedback />)} />
-        <Route path="users/*" element={guard('panel_members.manage', <UsersManagement />)} />
-        <Route path="*" element={<Navigate to="/sub-admin" replace />} />
-      </Routes>
-    </Suspense>
+    <Routes>
+      <Route index element={<Suspense fallback={dashFallback}><SubAdminOverview /></Suspense>} />
+      <Route path="forms/*" element={guard('forms.manage', <Suspense fallback={tableFallback}><FormsManagement /></Suspense>)} />
+      <Route path="submissions/*" element={guard('forms.manage', <Suspense fallback={tableFallback}><FormSubmissions /></Suspense>)} />
+      <Route path="candidates/*" element={guard('candidates.manage', <Suspense fallback={tableFallback}><CandidateManagement /></Suspense>)} />
+      <Route path="tests/*" element={guard('tests.manage', <Suspense fallback={tableFallback}><TestsManagement /></Suspense>)} />
+      <Route path="test-results/*" element={guard('tests.manage', <Suspense fallback={tableFallback}><TestResults /></Suspense>)} />
+      <Route path="interviews/*" element={guard('interviews.manage', <Suspense fallback={tableFallback}><InterviewsManagement /></Suspense>)} />
+      <Route path="interview-feedback/*" element={guard('interviews.manage', <Suspense fallback={tableFallback}><InterviewFeedback /></Suspense>)} />
+      <Route path="users/*" element={guard('panel_members.manage', <Suspense fallback={tableFallback}><UsersManagement /></Suspense>)} />
+      <Route path="*" element={<Navigate to="/sub-admin" replace />} />
+    </Routes>
   );
 };
 

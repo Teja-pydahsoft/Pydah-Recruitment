@@ -367,19 +367,27 @@ const formatDateTime = (date) => {
     minute: '2-digit',
     hour12: true
   });
-};
-
-const DashboardOverview = () => {
+};const DashboardOverview = () => {
   const { user } = useAuth();
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('dashboard_cache_data');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed) return parsed;
+      }
+    } catch (e) {
+      // Ignore cache parse error
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => !dashboardData);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedCampusFilter, setSelectedCampusFilter] = useState('all');
 
   const fetchDashboardData = useCallback(async (withRefresh = false) => {
     if (withRefresh) setRefreshing(true);
-    else setLoading(true);
     setError('');
 
     try {
@@ -426,7 +434,7 @@ const DashboardOverview = () => {
         testsCount: tests.length
       };
 
-      setDashboardData({
+      const payload = {
         stats,
         statusCounts,
         vacancyOverview: { totalVacancies, filledVacancies, remainingVacancies, fillRate },
@@ -434,14 +442,19 @@ const DashboardOverview = () => {
         totalCandidates,
         candidateForms,
         candidates
-      });
+      };
+
+      try {
+        sessionStorage.setItem('dashboard_cache_data', JSON.stringify(payload));
+      } catch (e) {}
+
+      setDashboardData(payload);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Unable to load dashboard data right now.');
-      setDashboardData(null);
     } finally {
       if (withRefresh) setRefreshing(false);
-      else setLoading(false);
+      setLoading(false);
     }
   }, []);
 
@@ -476,8 +489,26 @@ const DashboardOverview = () => {
     );
   }
 
-  const { stats, statusCounts = {}, lastUpdated, totalCandidates, candidateForms, candidates } = dashboardData;
+  const { stats, lastUpdated, totalCandidates, candidateForms, candidates } = dashboardData;
   const selectedPercent = totalCandidates > 0 ? Math.round((stats.selectedCount / totalCandidates) * 100) : 0;
+
+  // Derive stream-filtered candidates & counts for Candidate Outcome Distribution & Task Pipeline Funnel
+  const activeCandidates = (() => {
+    if (!candidates || candidates.length === 0) return [];
+    if (selectedCampusFilter === 'all') return candidates;
+    const target = selectedCampusFilter.toLowerCase();
+    return candidates.filter((c) => {
+      let cCampus = (c.campus || c.applicationData?.campus || '').toLowerCase();
+      if (!cCampus && (c.form || c.formId)) {
+        const fId = String(c.form?._id || c.form || c.formId);
+        const matchF = (candidateForms || []).find((f) => String(f._id || f.id) === fId);
+        if (matchF) cCampus = (matchF.campus || '').toLowerCase();
+      }
+      return cCampus.includes(target) || (target === 'btech' && cCampus.includes('b.tech'));
+    });
+  })();
+
+  const activeTotalCandidates = activeCandidates.length;
 
   const statsCards = [
     { key: 'forms', label: 'Active Forms', value: stats.activeForms, variant: 'primary', icon: <FaFileAlt />, meta: `${stats.totalForms} total forms` },
@@ -485,6 +516,115 @@ const DashboardOverview = () => {
     { key: 'interviews', label: 'Scheduled Interviews', value: stats.upcomingInterviewsCount, variant: 'danger', icon: <FaCalendarCheck />, meta: 'Total scheduled' },
     { key: 'selected', label: 'Selected Candidates', value: stats.selectedCount, variant: 'success', icon: <FaChartLine />, meta: `${selectedPercent}% of candidate pool` }
   ];
+
+  const getStreamCandidates = (streamTarget) => {
+    if (!candidates || candidates.length === 0) return [];
+    if (streamTarget === 'all') return candidates;
+    const target = streamTarget.toLowerCase();
+    return candidates.filter((c) => {
+      let cCampus = (c.campus || c.applicationData?.campus || '').toLowerCase();
+      if (!cCampus && (c.form || c.formId)) {
+        const fId = String(c.form?._id || c.form || c.formId);
+        const matchF = (candidateForms || []).find((f) => String(f._id || f.id) === fId);
+        if (matchF) cCampus = (matchF.campus || '').toLowerCase();
+      }
+      return cCampus.includes(target) || (target === 'btech' && cCampus.includes('b.tech'));
+    });
+  };
+
+  const renderDonutGraph = (streamTitle, streamCandidatesList) => {
+    const total = streamCandidatesList.length;
+
+    const counts = streamCandidatesList.reduce((acc, candidate) => {
+      const status = candidate.status || 'pending';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const statusList = [
+      { label: 'Selected', count: counts.selected || 0, color: '#10b981' },
+      { label: 'Approved', count: counts.approved || 0, color: '#0284c7' },
+      { label: 'Shortlisted', count: counts.shortlisted || 0, color: '#38bdf8' },
+      { label: 'Pending', count: counts.pending || 0, color: '#64748b' },
+      { label: 'On Hold', count: counts.on_hold || 0, color: '#f59e0b' },
+      { label: 'Rejected', count: counts.rejected || 0, color: '#ef4444' }
+    ];
+
+    const activeItems = statusList.filter(item => item.count > 0);
+    const radius = 34;
+    const circumference = 2 * Math.PI * radius;
+    let accumulatedPercent = 0;
+
+    return (
+      <div style={{
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '10px',
+        padding: '0.65rem 0.75rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.4rem',
+        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.02)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h6 style={{ margin: 0, fontWeight: '700', color: '#0f172a', fontSize: '0.82rem' }}>{streamTitle}</h6>
+          <StageBadge $color="#0284c7" style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem' }}>{total} Applicants</StageBadge>
+        </div>
+
+        {total === 0 ? (
+          <EmptyState style={{ padding: '0.75rem 0.25rem', fontSize: '0.75rem' }}>
+            No data for {streamTitle}.
+          </EmptyState>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', paddingTop: '0.1rem' }}>
+            <div style={{ position: 'relative', width: '85px', height: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="85" height="85" viewBox="0 0 85 85">
+                <circle cx="42.5" cy="42.5" r={radius} fill="none" stroke="#e0f2fe" strokeWidth="10" />
+                {activeItems.map((item, idx) => {
+                  const percent = item.count / total;
+                  const strokeDasharray = `${percent * circumference} ${circumference}`;
+                  const strokeDashoffset = -accumulatedPercent * circumference;
+                  accumulatedPercent += percent;
+
+                  return (
+                    <circle
+                      key={idx}
+                      cx="42.5" cy="42.5" r={radius}
+                      fill="none" stroke={item.color} strokeWidth="10"
+                      strokeDasharray={strokeDasharray} strokeDashoffset={strokeDashoffset}
+                      transform="rotate(-90 42.5 42.5)"
+                      style={{ transition: 'all 0.5s ease' }}
+                    />
+                  );
+                })}
+              </svg>
+              <div style={{ position: 'absolute', textAlign: 'center' }}>
+                <div style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a', lineHeight: '1' }}>{total}</div>
+                <div style={{ fontSize: '0.55rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
+                  Total
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1', minWidth: '100px' }}>
+              {statusList.map((item, idx) => {
+                const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                return (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '2px', background: item.color }} />
+                      <span style={{ fontWeight: '500', color: '#334155' }}>{item.label}</span>
+                    </div>
+                    <span style={{ fontWeight: '700', color: item.color }}>{item.count} ({pct}%)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <OverviewContainer>
@@ -529,7 +669,6 @@ const DashboardOverview = () => {
               <SectionTitle style={{ fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <FaBuilding style={{ color: '#0ea5e9' }} /> Campus Reference & Stream Analytics
               </SectionTitle>
-              <SectionSubtitle>Visual analytics categorized by Btech, Degree, Pharmacy, and Diploma streams</SectionSubtitle>
             </div>
             
             {/* Campus Stream Filter Buttons */}
@@ -770,110 +909,68 @@ const DashboardOverview = () => {
           })()}
         </SectionCard>
 
-        {/* ── Graphical Visual Charts Grid ────────────────────── */}
+        {/* ── Side-by-Side Outer Sections (Outcome Distribution & Pipeline Funnel) ── */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))',
           gap: '1.25rem',
+          alignItems: 'start',
           width: '100%'
         }}>
-          {/* Donut Analytics Chart */}
-          <SectionCard style={{ padding: '1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <div>
-                <SectionTitle>Candidate Outcome Distribution</SectionTitle>
-                <SectionSubtitle>Status breakdown of total applicant pool</SectionSubtitle>
-              </div>
-              <StageBadge $color="#0ea5e9">{totalCandidates} Total</StageBadge>
-            </div>
-
-            {totalCandidates === 0 ? (
-              <EmptyState>No candidate data available for analytics.</EmptyState>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flexWrap: 'wrap', gap: '1rem', paddingTop: '0.5rem' }}>
-                {(() => {
-                  const statusList = [
-                    { label: 'Selected', count: statusCounts.selected || 0, color: '#10b981' },
-                    { label: 'Approved', count: statusCounts.approved || 0, color: '#0284c7' },
-                    { label: 'Shortlisted', count: statusCounts.shortlisted || 0, color: '#38bdf8' },
-                    { label: 'Pending', count: statusCounts.pending || 0, color: '#64748b' },
-                    { label: 'On Hold', count: statusCounts.on_hold || 0, color: '#f59e0b' },
-                    { label: 'Rejected', count: statusCounts.rejected || 0, color: '#ef4444' }
-                  ].filter(item => item.count > 0);
-
-                  const radius = 60;
-                  const circumference = 2 * Math.PI * radius;
-                  let accumulatedPercent = 0;
-
-                  return (
-                    <div style={{ position: 'relative', width: '160px', height: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width="160" height="160" viewBox="0 0 160 160">
-                        <circle cx="80" cy="80" r={radius} fill="none" stroke="#e0f2fe" strokeWidth="20" />
-                        {statusList.map((item, idx) => {
-                          const percent = item.count / totalCandidates;
-                          const strokeDasharray = `${percent * circumference} ${circumference}`;
-                          const strokeDashoffset = -accumulatedPercent * circumference;
-                          accumulatedPercent += percent;
-
-                          return (
-                            <circle
-                              key={idx}
-                              cx="80" cy="80" r={radius}
-                              fill="none" stroke={item.color} strokeWidth="20"
-                              strokeDasharray={strokeDasharray} strokeDashoffset={strokeDashoffset}
-                              transform="rotate(-90 80 80)"
-                              style={{ transition: 'all 0.5s ease' }}
-                            />
-                          );
-                        })}
-                      </svg>
-                      <div style={{ position: 'absolute', textAlign: 'center' }}>
-                        <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', lineHeight: '1' }}>{totalCandidates}</div>
-                        <div style={{ fontSize: '0.7rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>Applicants</div>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: '1', minWidth: '150px' }}>
-                  {[
-                    { label: 'Selected', count: statusCounts.selected || 0, color: '#10b981' },
-                    { label: 'Approved', count: statusCounts.approved || 0, color: '#0284c7' },
-                    { label: 'Shortlisted', count: statusCounts.shortlisted || 0, color: '#38bdf8' },
-                    { label: 'Pending', count: statusCounts.pending || 0, color: '#64748b' },
-                    { label: 'On Hold', count: statusCounts.on_hold || 0, color: '#f59e0b' },
-                    { label: 'Rejected', count: statusCounts.rejected || 0, color: '#ef4444' }
-                  ].map((item, idx) => {
-                    const pct = totalCandidates > 0 ? Math.round((item.count / totalCandidates) * 100) : 0;
-                    return (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: item.color }} />
-                          <span style={{ fontWeight: '500', color: '#334155' }}>{item.label}</span>
-                        </div>
-                        <span style={{ fontWeight: '700', color: item.color }}>{item.count} ({pct}%)</span>
-                      </div>
-                    );
-                  })}
+          {/* Candidate Outcome Distribution Card (Left Side) */}
+          {selectedCampusFilter === 'all' ? (
+            <SectionCard style={{ padding: '1.25rem', height: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                <div>
+                  <SectionTitle>Candidate Outcome Distribution</SectionTitle>
+                  <SectionSubtitle>Status breakdown across BTech, Pharmacy, Degree, and Diploma streams</SectionSubtitle>
                 </div>
+                <StageBadge $color="#0ea5e9">{activeTotalCandidates} Total</StageBadge>
               </div>
-            )}
-          </SectionCard>
 
-          {/* Task Pipeline Stage Visualizer */}
-          <SectionCard style={{ padding: '1.25rem' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '0.75rem',
+                width: '100%'
+              }}>
+                {renderDonutGraph('BTech Stream', getStreamCandidates('btech'))}
+                {renderDonutGraph('Pharmacy Stream', getStreamCandidates('pharmacy'))}
+                {renderDonutGraph('Degree Stream', getStreamCandidates('degree'))}
+                {renderDonutGraph('Diploma Stream', getStreamCandidates('diploma'))}
+              </div>
+            </SectionCard>
+          ) : (
+            <SectionCard style={{ padding: '1.25rem', height: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div>
+                  <SectionTitle>Candidate Outcome Distribution ({selectedCampusFilter.toUpperCase()})</SectionTitle>
+                  <SectionSubtitle>Status breakdown for {selectedCampusFilter} stream</SectionSubtitle>
+                </div>
+                <StageBadge $color="#0ea5e9">{activeTotalCandidates} Candidates</StageBadge>
+              </div>
+              {renderDonutGraph(`${selectedCampusFilter.toUpperCase()} Stream`, activeCandidates)}
+            </SectionCard>
+          )}
+
+          {/* Task Pipeline Stage Visualizer (Right Side) */}
+          <SectionCard style={{ padding: '1.25rem', height: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <div>
                 <SectionTitle>Task Pipeline Funnel Analytics</SectionTitle>
-                <SectionSubtitle>Volume breakdown by active workflow stage</SectionSubtitle>
+                <SectionSubtitle>
+                  {selectedCampusFilter === 'all'
+                    ? 'Volume breakdown by active workflow stage'
+                    : `Workflow breakdown for ${selectedCampusFilter} stream`}
+                </SectionSubtitle>
               </div>
               <Chip $variant="info">8 Stages</Chip>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingTop: '0.25rem' }}>
               {Object.entries(STAGE_META).map(([stageKey, meta]) => {
-                const stageCandidatesCount = candidates.filter(c => c.workflow?.stage === stageKey).length;
-                const pct = totalCandidates > 0 ? Math.round((stageCandidatesCount / totalCandidates) * 100) : 0;
+                const stageCandidatesCount = activeCandidates.filter(c => c.workflow?.stage === stageKey).length;
+                const pct = activeTotalCandidates > 0 ? Math.round((stageCandidatesCount / activeTotalCandidates) * 100) : 0;
 
                 return (
                   <div key={stageKey} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>

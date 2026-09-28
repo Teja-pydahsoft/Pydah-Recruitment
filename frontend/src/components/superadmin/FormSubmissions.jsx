@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, FormCheck, Form, InputGroup, Pagination, Table } from 'react-bootstrap';
 import { FaFilePdf, FaFileImage, FaUser, FaCheckCircle, FaTimes, FaSearch, FaDownload, FaClipboardList } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
@@ -10,10 +10,16 @@ import DataValueRenderer from '../DataValueRenderer';
 const PAGE_SIZE = 12;
 
 const FormSubmissions = () => {
-  const [allCandidates, setAllCandidates] = useState([]);
+  const [allCandidates, setAllCandidates] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('submissions_cache_data');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return [];
+  });
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => allCandidates.length === 0);
   const [profileLoading, setProfileLoading] = useState(false);
   const [selectedCandidates, setSelectedCandidates] = useState(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
@@ -28,23 +34,27 @@ const FormSubmissions = () => {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchCandidates();
-  }, []);
-
-  const fetchCandidates = async () => {
+  const fetchCandidates = useCallback(async () => {
+    if (allCandidates.length === 0) setLoading(true);
     try {
       const response = await api.get('/candidates');
       // Get all candidates with their form details
-      const candidatesWithForms = response.data.candidates;
+      const candidatesWithForms = response.data.candidates || [];
       setAllCandidates(candidatesWithForms);
+      try {
+        sessionStorage.setItem('submissions_cache_data', JSON.stringify(candidatesWithForms));
+      } catch (e) {}
     } catch (error) {
       setToast({ type: 'danger', message: 'Failed to fetch form submissions' });
       console.error('Candidates fetch error:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [allCandidates.length]);
+
+  useEffect(() => {
+    fetchCandidates();
+  }, [fetchCandidates]);
 
   const filteredCandidates = useMemo(() => {
     let filtered = allCandidates.filter(c => {
@@ -445,10 +455,6 @@ const FormSubmissions = () => {
   const teachingCount = useMemo(() => allCandidates.filter(c => c.form?.formCategory === 'teaching').length, [allCandidates]);
   const nonTeachingCount = useMemo(() => allCandidates.filter(c => c.form?.formCategory === 'non_teaching').length, [allCandidates]);
 
-  if (loading) {
-    return <SkeletonLoader loading={true} variant="card-grid" count={6} />;
-  }
-
   return (
     <Container fluid className="super-admin-fluid">
       <Row className="mb-3 align-items-center">
@@ -641,7 +647,11 @@ const FormSubmissions = () => {
         </Col>
       </Row>
 
-      {activeCandidatesList.length === 0 ? (
+      {loading ? (
+        <Card className="shadow-sm border-0 mb-4 p-3">
+          <SkeletonLoader loading={true} variant="table" rows={6} columns="0.5fr 1.5fr 1.5fr 1fr 1fr 1fr 1.2fr" />
+        </Card>
+      ) : activeCandidatesList.length === 0 ? (
         <Row className="mb-4">
           <Col>
             <Alert variant="info">

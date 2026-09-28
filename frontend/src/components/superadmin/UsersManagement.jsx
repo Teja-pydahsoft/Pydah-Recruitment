@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 
 const Container = styled.div`
@@ -432,10 +432,6 @@ const UsersManagement = () => {
     setShowModal(true);
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
   return (
     <Container>
       <Header>
@@ -447,7 +443,12 @@ const UsersManagement = () => {
       </Header>
 
       <TableWrapper>
-        <TableScrollArea>
+        {loading ? (
+          <div style={{ padding: '1.25rem' }}>
+            <SkeletonLoader loading={true} variant="table" rows={6} columns="repeat(6, 1fr)" />
+          </div>
+        ) : (
+          <TableScrollArea>
           <Table>
             <thead>
               <tr>
@@ -539,6 +540,7 @@ const UsersManagement = () => {
             </tbody>
           </Table>
         </TableScrollArea>
+        )}
       </TableWrapper>
 
       {showModal && (

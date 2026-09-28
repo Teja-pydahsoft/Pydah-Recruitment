@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Modal, Tabs, Tab, Alert, Spinner, Image, Form, Offcanvas, ProgressBar, InputGroup, Pagination } from 'react-bootstrap';
 import { FaFilePdf, FaFileImage, FaDownload, FaUser, FaSearch, FaKeyboard, FaEye, FaFilter, FaChevronUp, FaChevronDown, FaUsers, FaCheckCircle } from 'react-icons/fa';
 import api from '../../services/api';
-import LoadingSpinner from '../LoadingSpinner';
+import SkeletonLoader from '../SkeletonLoader';
 import { useAuth } from '../../contexts/AuthContext';
 import ToastNotificationContainer from '../ToastNotificationContainer';
 import DataValueRenderer from '../DataValueRenderer';
@@ -157,10 +157,16 @@ const CandidateManagement = () => {
   const { hasWritePermission } = useAuth();
   const canWrite = hasWritePermission('candidates.manage');
 
-  const [candidates, setCandidates] = useState([]);
+  const [candidates, setCandidates] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('candidates_cache_data');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return [];
+  });
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => candidates.length === 0);
   const [profileLoading, setProfileLoading] = useState(false);
   const [toast, setToast] = useState({ type: '', message: '' });
   const [searchTerm, setSearchTerm] = useState(''); // Applied search
@@ -196,9 +202,7 @@ const CandidateManagement = () => {
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [applicationPdfDownloading, setApplicationPdfDownloading] = useState(false);
 
-  useEffect(() => {
-    fetchCandidates();
-  }, []);
+
 
   const resetAllFilters = () => {
     setSearchInput('');
@@ -373,18 +377,26 @@ const CandidateManagement = () => {
       .join(', ');
   };
 
-  const fetchCandidates = async () => {
-    setLoading(true);
+  const fetchCandidates = useCallback(async () => {
+    if (candidates.length === 0) setLoading(true);
     try {
       const response = await api.get('/candidates');
-      setCandidates(response.data.candidates || []);
+      const data = response.data.candidates || [];
+      setCandidates(data);
+      try {
+        sessionStorage.setItem('candidates_cache_data', JSON.stringify(data));
+      } catch (e) {}
     } catch (error) {
       setToast({ type: 'danger', message: 'Failed to fetch candidates' });
       console.error('Candidates fetch error:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [candidates.length]);
+
+  useEffect(() => {
+    fetchCandidates();
+  }, [fetchCandidates]);
 
   const refreshCandidates = async () => {
     try {
@@ -1415,10 +1427,6 @@ const CandidateManagement = () => {
   };
 
 
-  if (loading) {
-    return <LoadingSpinner message="Loading candidates..." />;
-  }
-
   return (
     <Container fluid className="super-admin-fluid">
       <Row className="mb-4">
@@ -1842,7 +1850,9 @@ const CandidateManagement = () => {
               <h5>Candidate Pipeline</h5>
             </Card.Header>
             <Card.Body>
-              {filteredCandidates.length === 0 ? (
+              {loading ? (
+                <SkeletonLoader loading={true} variant="table" rows={8} columns="0.5fr 1.5fr 1.5fr 1fr 1fr 1fr 1.2fr" />
+              ) : filteredCandidates.length === 0 ? (
                 <Alert variant="info">No candidates match the current filters.</Alert>
               ) : (
                 <Table striped bordered hover responsive>

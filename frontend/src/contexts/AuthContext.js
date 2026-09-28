@@ -11,11 +11,42 @@ export const useAuth = () => {
   return context;
 };
 
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return true;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const { exp } = JSON.parse(jsonPayload);
+    if (exp && exp * 1000 < Date.now()) {
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const handleAuthLogout = () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      sessionStorage.removeItem('dashboard_cache_data');
+      setUser(null);
+    };
+
+    window.addEventListener('auth:logout', handleAuthLogout);
+
     // Check if user is logged in on app start
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
@@ -24,17 +55,26 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
 
     if (token && savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser({
-          ...parsedUser,
-          permissions: parsedUser.permissions || []
-        });
-      } catch (error) {
-        console.error('Failed to parse saved user from storage', error);
-        localStorage.removeItem('user');
+      if (isTokenExpired(token)) {
+        console.warn('[AuthContext] Token expired upon launch. Performing automatic logout.');
+        handleAuthLogout();
+      } else {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          setUser({
+            ...parsedUser,
+            permissions: parsedUser.permissions || []
+          });
+        } catch (error) {
+          console.error('Failed to parse saved user from storage', error);
+          handleAuthLogout();
+        }
       }
     }
+
+    return () => {
+      window.removeEventListener('auth:logout', handleAuthLogout);
+    };
   }, []);
 
   const login = async (email, password) => {
