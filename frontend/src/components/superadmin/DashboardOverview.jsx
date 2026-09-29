@@ -6,12 +6,19 @@ import {
   FaBullseye,
   FaChartLine,
   FaSync,
-  FaBuilding
+  FaBuilding,
+  FaCheckCircle,
+  FaCheck,
+  FaStar,
+  FaClock,
+  FaHourglassHalf,
+  FaTimesCircle
 } from 'react-icons/fa';
 import SkeletonLoader from '../SkeletonLoader';
 import PushNotificationInline from '../PushNotificationInline';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
+import './DashboardOverview.css';
 
 const fadeInUp = keyframes`
   from {
@@ -81,6 +88,10 @@ const HeaderRow = styled.div`
     justify-content: space-between;
     align-items: flex-start;
   }
+
+  @media (max-width: 768px) {
+    gap: 0.35rem;
+  }
 `;
 
 const Title = styled.h1`
@@ -88,12 +99,22 @@ const Title = styled.h1`
   font-weight: 700;
   color: #0f172a;
   margin: 0 0 0.25rem 0;
+
+  @media (max-width: 768px) {
+    font-size: 1.15rem;
+    margin: 0.25rem 0 0 0;
+    line-height: 1.3;
+  }
 `;
 
 const Subtitle = styled.p`
   margin: 0;
   font-size: 0.875rem;
   color: #475569;
+
+  @media (max-width: 768px) {
+    display: none !important;
+  }
 `;
 
 const HeaderActions = styled.div`
@@ -101,12 +122,29 @@ const HeaderActions = styled.div`
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    left: auto;
+    z-index: 1099;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+  }
 `;
 
 const Timestamp = styled.span`
   font-size: 0.85rem;
   color: #64748b;
   font-weight: 500;
+
+  @media (max-width: 768px) {
+    display: none !important;
+  }
 `;
 
 const RefreshButton = styled.button`
@@ -134,6 +172,25 @@ const RefreshButton = styled.button`
     cursor: not-allowed;
     box-shadow: none;
   }
+
+  @media (max-width: 768px) {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+
+    .refresh-btn-text {
+      display: none !important;
+    }
+
+    svg {
+      font-size: 1.1rem;
+    }
+  }
 `;
 
 const RefreshIcon = styled.span`
@@ -150,11 +207,103 @@ const RefreshIcon = styled.span`
     `}
 `;
 
+const MobileActiveBar = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.8rem;
+    background: ${props => (props.$active ? '#0f172a' : '#ffffff')};
+    color: ${props => (props.$active ? '#ffffff' : '#64748b')};
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid ${props => (props.$active ? '#1e293b' : '#e2e8f0')};
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    min-height: 32px;
+    text-align: center;
+    width: 100%;
+
+    .active-icon {
+      font-size: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .active-title {
+      font-weight: 700;
+      color: ${props => (props.$active ? '#38bdf8' : '#0f172a')};
+    }
+
+    .active-meta {
+      opacity: 0.85;
+      font-size: 0.72rem;
+      color: ${props => (props.$active ? '#cbd5e1' : '#94a3b8')};
+    }
+  }
+`;
+
+const StatsTooltip = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: block;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    ${props => {
+      if (props.$position === 'left') return 'left: 0;';
+      if (props.$position === 'right') return 'right: 0; left: auto;';
+      return 'left: 50%; transform: translateX(-50%);';
+    }}
+    background: #0f172a;
+    color: #ffffff;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: ${props => (props.$show ? 1 : 0)};
+    visibility: ${props => (props.$show ? 'visible' : 'hidden')};
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 99999;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      ${props => {
+        if (props.$position === 'left') return 'left: 28px;';
+        if (props.$position === 'right') return 'right: 28px; left: auto;';
+        return 'left: 50%; transform: translateX(-50%);';
+      }}
+      border: 5px solid transparent;
+      border-top-color: #0f172a;
+    }
+  }
+`;
+
 const StatsGrid = styled.div`
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 1rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 0.35rem !important;
+  }
+
+  @media (max-width: 480px) {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 0.25rem !important;
+  }
 `;
 
 const StatsCard = styled.div`
@@ -164,11 +313,12 @@ const StatsCard = styled.div`
   box-shadow: 0 4px 16px rgba(14, 165, 233, 0.05);
   border: 1px solid #e0f2fe;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  z-index: ${props => (props.$isHovered ? 50 : 1)};
 
   &::before {
     content: '';
@@ -177,6 +327,7 @@ const StatsCard = styled.div`
     left: 0;
     right: 0;
     height: 3px;
+    border-radius: 12px 12px 0 0;
     background: ${({ $variant }) => {
       switch ($variant) {
         case 'primary':
@@ -196,8 +347,52 @@ const StatsCard = styled.div`
   }
 
   &:hover {
-    transform: translateY(-3px);
+    transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(14, 165, 233, 0.12);
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.5rem 0.2rem;
+    min-width: 0;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+
+    ${props =>
+      props.$isHovered &&
+      `
+      border-color: #0ea5e9 !important;
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.4) !important;
+      transform: translateY(-2px) !important;
+    `}
+
+    &::before {
+      border-radius: 8px 8px 0 0;
+    }
+
+    .stats-name,
+    .stats-meta {
+      display: none !important;
+    }
+
+    &:hover .stats-tooltip-el,
+    &:active .stats-tooltip-el,
+    &:focus .stats-tooltip-el {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.45rem 0.15rem;
+    border-radius: 6px;
+
+    &::before {
+      border-radius: 6px 6px 0 0;
+    }
   }
 `;
 
@@ -206,6 +401,19 @@ const StatsIconContainer = styled.div`
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.25rem;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    margin-bottom: 0;
+    width: 100%;
+  }
+
+  @media (max-width: 480px) {
+    gap: 0.15rem;
+  }
 `;
 
 const StatsIcon = styled.div`
@@ -226,6 +434,18 @@ const StatsIcon = styled.div`
         return '#475569';
     }
   }};
+
+  @media (max-width: 768px) {
+    font-size: 1.15rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1rem;
+  }
 `;
 
 const StatsCountBadge = styled.div`
@@ -251,6 +471,23 @@ const StatsCountBadge = styled.div`
   padding: 0.2rem 0.5rem;
   border-radius: 6px;
   line-height: 1.2;
+
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+    padding: 0.12rem 0.35rem;
+    border-radius: 6px;
+    letter-spacing: -0.02em;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.75rem;
+    padding: 0.1rem 0.2rem;
+    border-radius: 4px;
+  }
 `;
 
 const StatsLabel = styled.span`
@@ -276,6 +513,13 @@ const SectionCard = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0.875rem;
+    gap: 0.75rem;
+  }
 `;
 
 const SectionTitle = styled.h2`
@@ -329,6 +573,7 @@ const Chip = styled.span`
   color: ${({ $variant }) => CHIP_VARIANTS[$variant]?.text || CHIP_VARIANTS.neutral.text};
   background: ${({ $variant }) => CHIP_VARIANTS[$variant]?.bg || CHIP_VARIANTS.neutral.bg};
 `;
+
 
 const EmptyState = styled.div`
   padding: 1.5rem;
@@ -385,6 +630,7 @@ const formatDateTime = (date) => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedCampusFilter, setSelectedCampusFilter] = useState('all');
+  const [hoveredStatCard, setHoveredStatCard] = useState(null);
 
   const fetchDashboardData = useCallback(async (withRefresh = false) => {
     if (withRefresh) setRefreshing(true);
@@ -542,12 +788,12 @@ const formatDateTime = (date) => {
     }, {});
 
     const statusList = [
-      { label: 'Selected', count: counts.selected || 0, color: '#10b981' },
-      { label: 'Approved', count: counts.approved || 0, color: '#0284c7' },
-      { label: 'Shortlisted', count: counts.shortlisted || 0, color: '#38bdf8' },
-      { label: 'Pending', count: counts.pending || 0, color: '#64748b' },
-      { label: 'On Hold', count: counts.on_hold || 0, color: '#f59e0b' },
-      { label: 'Rejected', count: counts.rejected || 0, color: '#ef4444' }
+      { label: 'Selected', count: counts.selected || 0, color: '#10b981', icon: <FaCheckCircle /> },
+      { label: 'Approved', count: counts.approved || 0, color: '#0284c7', icon: <FaCheck /> },
+      { label: 'Shortlisted', count: counts.shortlisted || 0, color: '#38bdf8', icon: <FaStar /> },
+      { label: 'Pending', count: counts.pending || 0, color: '#64748b', icon: <FaClock /> },
+      { label: 'On Hold', count: counts.on_hold || 0, color: '#f59e0b', icon: <FaHourglassHalf /> },
+      { label: 'Rejected', count: counts.rejected || 0, color: '#ef4444', icon: <FaTimesCircle /> }
     ];
 
     const activeItems = statusList.filter(item => item.count > 0);
@@ -559,16 +805,20 @@ const formatDateTime = (date) => {
       <div style={{
         background: '#ffffff',
         border: '1px solid #e2e8f0',
-        borderRadius: '10px',
-        padding: '0.65rem 0.75rem',
+        borderRadius: '12px',
+        padding: '0.85rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.4rem',
-        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.02)'
+        gap: '0.5rem',
+        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.02)',
+        overflow: 'hidden',
+        minWidth: 0,
+        width: '100%',
+        boxSizing: 'border-box'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h6 style={{ margin: 0, fontWeight: '700', color: '#0f172a', fontSize: '0.82rem' }}>{streamTitle}</h6>
-          <StageBadge $color="#0284c7" style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem' }}>{total} Applicants</StageBadge>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
+          <h6 style={{ margin: 0, fontWeight: '700', color: '#0f172a', fontSize: '0.85rem' }}>{streamTitle}</h6>
+          <StageBadge $color="#0284c7" style={{ fontSize: '0.7rem', padding: '0.15rem 0.55rem' }}>{total} Applicants</StageBadge>
         </div>
 
         {total === 0 ? (
@@ -576,8 +826,16 @@ const formatDateTime = (date) => {
             No data for {streamTitle}.
           </EmptyState>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', paddingTop: '0.1rem' }}>
-            <div style={{ position: 'relative', width: '85px', height: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            paddingTop: '0.25rem',
+            width: '100%'
+          }}>
+            <div style={{ position: 'relative', width: '85px', height: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, margin: '0 auto' }}>
               <svg width="85" height="85" viewBox="0 0 85 85">
                 <circle cx="42.5" cy="42.5" r={radius} fill="none" stroke="#e0f2fe" strokeWidth="10" />
                 {activeItems.map((item, idx) => {
@@ -599,23 +857,50 @@ const formatDateTime = (date) => {
                 })}
               </svg>
               <div style={{ position: 'absolute', textAlign: 'center' }}>
-                <div style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a', lineHeight: '1' }}>{total}</div>
+                <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', lineHeight: '1' }}>{total}</div>
                 <div style={{ fontSize: '0.55rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
                   Total
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1', minWidth: '100px' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
+              gap: '0.35rem 0.6rem',
+              flex: '1 1 150px',
+              minWidth: 0,
+              width: '100%'
+            }} className="donut-status-grid">
               {statusList.map((item, idx) => {
                 const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
                 return (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '2px', background: item.color }} />
-                      <span style={{ fontWeight: '500', color: '#334155' }}>{item.label}</span>
+                  <div
+                    key={idx}
+                    title={`${item.label}: ${item.count} (${pct}%)`}
+                    tabIndex={0}
+                    className="donut-status-item"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '0.72rem',
+                      padding: '0.15rem 0',
+                      position: 'relative'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
+                      <span style={{ color: item.color, display: 'inline-flex', alignItems: 'center', fontSize: '0.8rem', flexShrink: 0 }}>
+                        {item.icon}
+                      </span>
+                      <span className="donut-status-text" style={{ fontWeight: '500', color: '#334155', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        {item.label}
+                      </span>
                     </div>
-                    <span style={{ fontWeight: '700', color: item.color }}>{item.count} ({pct}%)</span>
+                    <span style={{ fontWeight: '700', color: item.color, whiteSpace: 'nowrap', marginLeft: '0.35rem' }}>
+                      {item.count} ({pct}%)
+                    </span>
+                    <span className="donut-status-tooltip">{item.label}</span>
                   </div>
                 );
               })}
@@ -639,32 +924,69 @@ const formatDateTime = (date) => {
             {user && (user.role === 'super_admin' || user.role === 'sub_admin' || user.role === 'panel_member') && (
               <PushNotificationInline user={user} />
             )}
-            <RefreshButton onClick={() => fetchDashboardData(true)} disabled={refreshing}>
+            <RefreshButton onClick={() => fetchDashboardData(true)} disabled={refreshing} title={refreshing ? 'Refreshing...' : 'Refresh Dashboard'}>
               <RefreshIcon $spinning={refreshing}><FaSync /></RefreshIcon>
-              {refreshing ? 'Refreshing' : 'Refresh'}
+              <span className="refresh-btn-text">{refreshing ? 'Refreshing' : 'Refresh'}</span>
             </RefreshButton>
           </HeaderActions>
         </HeaderRow>
 
         {error && <ErrorBanner>{error}</ErrorBanner>}
 
+        {/* ── Mobile Active Stat Bar Indicator ────────────────────────── */}
+        {(() => {
+          const activeCard = statsCards.find(c => c.key === hoveredStatCard);
+          return (
+            <MobileActiveBar $active={!!activeCard}>
+              {activeCard ? (
+                <>
+                  <span className="active-icon">{activeCard.icon}</span>
+                  <span className="active-title">{activeCard.label}</span>
+                  <span className="active-meta">• {activeCard.meta}</span>
+                </>
+              ) : (
+                <span>Hover or tap any metric to see details</span>
+              )}
+            </MobileActiveBar>
+          );
+        })()}
+
         {/* ── Key Metrics Analytics Badges ─────────────────────────────── */}
         <StatsGrid>
-          {statsCards.map((card) => (
-            <StatsCard key={card.key} $variant={card.variant}>
-              <StatsIconContainer>
-                <StatsIcon $variant={card.variant}>{card.icon}</StatsIcon>
-                <StatsCountBadge $variant={card.variant}>{formatCount(card.value)}</StatsCountBadge>
-              </StatsIconContainer>
-              <StatsLabel>{card.label}</StatsLabel>
-              <StatsMeta>{card.meta}</StatsMeta>
-            </StatsCard>
-          ))}
+          {statsCards.map((card, idx) => {
+            const pos = idx === 0 ? 'left' : idx === statsCards.length - 1 ? 'right' : 'center';
+            const isHovered = hoveredStatCard === card.key;
+            return (
+              <StatsCard
+                key={card.key}
+                $variant={card.variant}
+                $isHovered={isHovered}
+                tabIndex={0}
+                onMouseEnter={() => setHoveredStatCard(card.key)}
+                onMouseLeave={() => setHoveredStatCard(null)}
+                onTouchStart={() => setHoveredStatCard(prev => (prev === card.key ? null : card.key))}
+              >
+                <StatsIconContainer>
+                  <StatsIcon $variant={card.variant}>{card.icon}</StatsIcon>
+                  <StatsCountBadge $variant={card.variant}>{formatCount(card.value)}</StatsCountBadge>
+                </StatsIconContainer>
+                <StatsLabel className="stats-name">{card.label}</StatsLabel>
+                <StatsMeta className="stats-meta">{card.meta}</StatsMeta>
+                <StatsTooltip
+                  className="stats-tooltip-el"
+                  $position={pos}
+                  $show={isHovered}
+                >
+                  {card.label}
+                </StatsTooltip>
+              </StatsCard>
+            );
+          })}
         </StatsGrid>
 
         {/* ── Campus Management Reference & Stream Analytics ────────────────── */}
         <SectionCard style={{ padding: '1.25rem', width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid #e0f2fe', paddingBottom: '0.875rem' }}>
+          <div className="campus-header-row">
             <div>
               <SectionTitle style={{ fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <FaBuilding style={{ color: '#0ea5e9' }} /> Campus Reference & Stream Analytics
@@ -672,30 +994,26 @@ const formatDateTime = (date) => {
             </div>
             
             {/* Campus Stream Filter Buttons */}
-            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', marginRight: '0.25rem' }}>Stream Filter:</span>
-              {['all', 'Btech', 'Pharmacy', 'Degree', 'Diploma'].map(campusKey => {
+            <div className="stream-filter-bar">
+              <span className="stream-filter-label">Stream Filter:</span>
+              {['all', 'Btech', 'Degree', 'Pharmacy', 'Diploma'].map(campusKey => {
                 const isActive = selectedCampusFilter === campusKey;
-                const label = campusKey === 'all' ? 'All Campuses (Total)' : campusKey;
 
                 return (
                   <button
                     key={campusKey}
+                    type="button"
+                    className={`stream-filter-btn ${isActive ? 'active' : ''}`}
                     onClick={() => setSelectedCampusFilter(campusKey)}
-                    style={{
-                      padding: '0.35rem 0.75rem',
-                      borderRadius: '8px',
-                      fontSize: '0.8rem',
-                      fontWeight: '600',
-                      border: isActive ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
-                      background: isActive ? '#e0f2fe' : '#ffffff',
-                      color: isActive ? '#0284c7' : '#475569',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      boxShadow: isActive ? '0 2px 6px rgba(14, 165, 233, 0.15)' : 'none'
-                    }}
                   >
-                    {label}
+                    {campusKey === 'all' ? (
+                      <>
+                        <span className="desktop-only-txt">All Campuses (Total)</span>
+                        <span className="mobile-only-txt">All</span>
+                      </>
+                    ) : (
+                      campusKey
+                    )}
                   </button>
                 );
               })}
@@ -912,7 +1230,7 @@ const formatDateTime = (date) => {
         {/* ── Side-by-Side Outer Sections (Outcome Distribution & Pipeline Funnel) ── */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(440px, 100%), 1fr))',
           gap: '1.25rem',
           alignItems: 'start',
           width: '100%'
@@ -930,7 +1248,7 @@ const formatDateTime = (date) => {
 
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))',
                 gap: '0.75rem',
                 width: '100%'
               }}>
@@ -955,16 +1273,16 @@ const formatDateTime = (date) => {
 
           {/* Task Pipeline Stage Visualizer (Right Side) */}
           <SectionCard style={{ padding: '1.25rem', height: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <div>
-                <SectionTitle>Task Pipeline Funnel Analytics</SectionTitle>
+            <div className="pipeline-header">
+              <div className="pipeline-title-wrap">
+                <h2 className="pipeline-funnel-title">Task Pipeline Funnel Analytics</h2>
                 <SectionSubtitle>
                   {selectedCampusFilter === 'all'
                     ? 'Volume breakdown by active workflow stage'
                     : `Workflow breakdown for ${selectedCampusFilter} stream`}
                 </SectionSubtitle>
               </div>
-              <Chip $variant="info">8 Stages</Chip>
+              <span className="pipeline-stages-chip">8 Stages</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingTop: '0.25rem' }}>

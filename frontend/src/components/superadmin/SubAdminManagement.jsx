@@ -105,8 +105,8 @@ const Actions = styled.div`
 `;
 
 const ActionButton = styled.button`
-  background: ${({ variant }) => {
-    switch (variant) {
+  background: ${({ $variant, variant }) => {
+    switch ($variant || variant) {
       case 'danger':
         return '#fee2e2';
       case 'secondary':
@@ -115,8 +115,8 @@ const ActionButton = styled.button`
         return '#dcfce7';
     }
   }};
-  color: ${({ variant }) => {
-    switch (variant) {
+  color: ${({ $variant, variant }) => {
+    switch ($variant || variant) {
       case 'danger':
         return '#0891b2';
       case 'secondary':
@@ -125,8 +125,8 @@ const ActionButton = styled.button`
         return '#15803d';
     }
   }};
-  border: 1px solid ${({ variant }) => {
-    switch (variant) {
+  border: 1px solid ${({ $variant, variant }) => {
+    switch ($variant || variant) {
       case 'danger':
         return '#fecaca';
       case 'secondary':
@@ -550,8 +550,8 @@ const StatusPill = styled.span`
   border-radius: 9999px;
   font-weight: 600;
   font-size: 0.85rem;
-  background: ${({ active }) => (active ? 'rgba(16, 185, 129, 0.15)' : 'rgba(248, 113, 113, 0.15)')};
-  color: ${({ active }) => (active ? '#047857' : '#0891b2')};
+  background: ${({ $active, active }) => (($active ?? active) ? 'rgba(16, 185, 129, 0.15)' : 'rgba(248, 113, 113, 0.15)')};
+  color: ${({ $active, active }) => (($active ?? active) ? '#047857' : '#0891b2')};
 `;
 
 const PermissionList = styled.ul`
@@ -839,7 +839,8 @@ const SubAdminManagement = () => {
           <SkeletonLoader loading={true} variant="table" rows={6} columns="1.5fr 1.5fr 1fr 1fr 1.2fr" />
         </div>
       ) : (
-        <Table>
+        <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', borderRadius: '16px', border: '1px solid #e2e8f0', background: 'white', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.08)' }}>
+          <Table style={{ minWidth: '720px', border: 'none', boxShadow: 'none' }}>
         <thead>
           <tr>
             <Th>Name</Th>
@@ -935,14 +936,14 @@ const SubAdminManagement = () => {
                 )}
               </Td>
               <Td>
-                <StatusPill active={subAdmin.isActive}>
+                <StatusPill $active={subAdmin.isActive}>
                   {subAdmin.isActive ? 'Active' : 'Inactive'}
                 </StatusPill>
               </Td>
               <Td>
                 <Actions>
                   <ActionButton 
-                    variant="secondary" 
+                    $variant="secondary" 
                     onClick={() => {
                       setViewingPermissions(subAdmin);
                       setShowPermissionsModal(true);
@@ -952,10 +953,10 @@ const SubAdminManagement = () => {
                     View
                   </ActionButton>
                   <ActionButton onClick={() => openEditModal(subAdmin)}>Edit</ActionButton>
-                  <ActionButton variant="secondary" onClick={() => handleStatusToggle(subAdmin)}>
+                  <ActionButton $variant="secondary" onClick={() => handleStatusToggle(subAdmin)}>
                     {subAdmin.isActive ? 'Deactivate' : 'Activate'}
                   </ActionButton>
-                  <ActionButton variant="danger" onClick={() => handleDelete(subAdmin._id)}>
+                  <ActionButton $variant="danger" onClick={() => handleDelete(subAdmin._id)}>
                     Remove
                   </ActionButton>
                 </Actions>
@@ -963,7 +964,8 @@ const SubAdminManagement = () => {
             </tr>
           ))}
         </tbody>
-      </Table>
+          </Table>
+        </div>
       )}
 
       {showModal && (

@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { initMobileTableCards } from './utils/mobileTableCards';
+
+// Initialize automatic table-to-card mobile view synchronization
+initMobileTableCards();
 
 // Register service worker for push notifications
 if ('serviceWorker' in navigator) {

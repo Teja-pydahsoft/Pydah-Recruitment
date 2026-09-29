@@ -413,25 +413,353 @@ p, span, div { word-wrap: break-word; overflow-wrap: break-word; }
 a { color: #0284c7; transition: color 0.15s; }
 a:hover { color: #0369a1; }
 
-/* ── Responsive ──────────────────────────────────────────────── */
+/* ── Responsive ────────────────────────────────────────────────── */
 @media (max-width: 1200px) { body { font-size: 15px; } }
 
 @media (max-width: 768px) {
   body { font-size: 14px; }
   .container, .container-fluid {
-    padding-left: 15px;
-    padding-right: 15px;
+    padding-left: 12px;
+    padding-right: 12px;
     max-width: 100%;
     overflow-x: hidden;
   }
   .d-mobile-none  { display: none !important; }
   .d-mobile-block { display: block !important; }
+
+  /* Touch-friendly interactive elements */
+  .btn, button, [role="button"] {
+    min-height: 40px;
+  }
+
+  /* ================================================================
+     MOBILE CARD SYSTEM FOR TABLES & TABULAR INFORMATION
+     Converts wide data tables across every section into self-contained,
+     modern cards on mobile screens so no horizontal side-scroll is needed.
+     ================================================================ */
+
+  /* 1. Prevent wrapper clipping & remove horizontal scroll on mobile */
+  .table-responsive,
+  div[class*="TableScrollArea"],
+  div[class*="table-responsive"],
+  div[style*="overflow-x: auto"],
+  div[style*="overflowX: auto"],
+  div[style*="overflow-x:auto"],
+  div[style*="overflowX:auto"] {
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 0 1rem 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    -webkit-overflow-scrolling: auto !important;
+  }
+
+  /* 2. Transform <table> into a vertical block list */
+  table,
+  table.table,
+  .table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    margin-bottom: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+  }
+
+  /* 3. Hide the desktop table header on mobile */
+  table thead,
+  .table thead {
+    display: none !important;
+  }
+
+  /* 4. Display <tbody> as a vertical stack of cards with spacing */
+  table tbody,
+  .table tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1rem !important;
+    width: 100% !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* 5. Transform each <tr> into a modern, native-feeling card */
+  table tbody tr,
+  .table tbody tr {
+    display: flex !important;
+    flex-direction: column !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-left: 4px solid var(--primary, #0ea5e9) !important;
+    border-radius: 14px !important;
+    padding: 1.1rem 1.15rem !important;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+    margin-bottom: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease !important;
+  }
+
+  table tbody tr:active {
+    box-shadow: 0 6px 20px rgba(14, 165, 233, 0.12) !important;
+    border-color: #bae6fd !important;
+  }
+
+  /* 6. Empty state messages (e.g., rows with colspan) */
+  table tbody tr td[colspan],
+  .table tbody tr td[colspan] {
+    display: block !important;
+    text-align: center !important;
+    padding: 2.5rem 1rem !important;
+    border: none !important;
+    color: #64748b !important;
+    background: #ffffff !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+  }
+
+  table tbody tr td[colspan]::before,
+  .table tbody tr td[colspan]::before {
+    display: none !important;
+  }
+
+  /* 7. Individual field cells (<td>) */
+  table tbody tr td,
+  .table tbody tr td {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    padding: 0.55rem 0 !important;
+    border: none !important;
+    border-bottom: 1px dashed #f1f5f9 !important;
+    font-size: 0.88rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    text-align: left !important;
+    color: #1e293b !important;
+  }
+
+  /* 8. Field labels generated from data-label */
+  table tbody tr td::before,
+  .table tbody tr td::before {
+    content: attr(data-label);
+    display: block !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    margin-bottom: 0.25rem !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Hide label if empty or missing */
+  table tbody tr td[data-label=""]::before,
+  .table tbody tr td[data-label=""]::before,
+  table tbody tr td:not([data-label])::before,
+  .table tbody tr td:not([data-label])::before {
+    display: none !important;
+  }
+
+  /* 9. Card Header: First data cell (Title/Name) */
+  table tbody tr td:first-child:not(:has(.form-check)),
+  .table tbody tr td:first-child:not(:has(.form-check)) {
+    padding-top: 0 !important;
+    padding-bottom: 0.75rem !important;
+    border-bottom: 1.5px solid #e2e8f0 !important;
+    margin-bottom: 0.25rem !important;
+  }
+
+  table tbody tr td:first-child:not(:has(.form-check))::before,
+  .table tbody tr td:first-child:not(:has(.form-check))::before {
+    color: #0284c7 !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  /* 10. Checkbox cell (for batch selection) */
+  table tbody tr td:has(.form-check),
+  .table tbody tr td:has(.form-check) {
+    position: absolute !important;
+    top: 1rem !important;
+    right: 1rem !important;
+    width: auto !important;
+    padding: 0 !important;
+    border: none !important;
+    z-index: 2 !important;
+  }
+
+  table tbody tr td:has(.form-check)::before,
+  .table tbody tr td:has(.form-check)::before {
+    display: none !important;
+  }
+
+  /* 11. Action cell (Buttons row at bottom of card) */
+  table tbody tr td:last-child,
+  .table tbody tr td:last-child,
+  table tbody tr td[data-label*="Action"],
+  .table tbody tr td[data-label*="Action"],
+  table tbody tr td[data-label*="action"],
+  .table tbody tr td[data-label*="action"],
+  table tbody tr td.text-end,
+  .table tbody tr td.text-end {
+    border-bottom: none !important;
+    padding-top: 0.85rem !important;
+    padding-bottom: 0 !important;
+    margin-top: 0.25rem !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+  }
+
+  table tbody tr td:last-child::before,
+  .table tbody tr td:last-child::before,
+  table tbody tr td[data-label*="Action"]::before,
+  .table tbody tr td[data-label*="Action"]::before,
+  table tbody tr td[data-label*="action"]::before,
+  .table tbody tr td[data-label*="action"]::before,
+  table tbody tr td.text-end::before,
+  .table tbody tr td.text-end::before {
+    display: none !important;
+  }
+
+  /* Action buttons inside card footer: full-width / touch-friendly */
+  table tbody tr td:last-child button,
+  table tbody tr td:last-child a,
+  table tbody tr td[data-label*="Action"] button,
+  table tbody tr td[data-label*="Action"] a,
+  .table tbody tr td:last-child button,
+  .table tbody tr td:last-child a,
+  .table tbody tr td[data-label*="Action"] button,
+  .table tbody tr td[data-label*="Action"] a {
+    min-height: 40px !important;
+    padding: 0.5rem 0.875rem !important;
+    font-size: 0.875rem !important;
+    border-radius: 8px !important;
+    flex: 1 1 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  /* Ensure button groups fill card footer cleanly */
+  table tbody tr td:last-child .d-flex,
+  .table tbody tr td:last-child .d-flex {
+    width: 100% !important;
+    justify-content: stretch !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  table tbody tr td:last-child .d-flex > *,
+  .table tbody tr td:last-child .d-flex > * {
+    flex: 1 1 auto !important;
+  }
+
+  /* Stack flex rows on mobile */
+  .flex-mobile-column {
+    flex-direction: column !important;
+  }
+
+  /* Full width elements on mobile */
+  .w-mobile-100 { width: 100% !important; }
+
+  /* Reduced gap on mobile for grids */
+  .row { --bs-gutter-x: 0.75rem; }
 }
 
 @media (max-width: 480px) {
   body { font-size: 13px; }
   .container, .container-fluid { padding-left: 10px; padding-right: 10px; }
+
+  /* Even smaller touch targets still remain accessible */
+  .btn { min-height: 38px; }
+
+  /* Very small screens: single column everything */
+  .col, [class*="col-"] { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; }
+
+  /* But keep col-auto working */
+  .col-auto { width: auto !important; flex: 0 0 auto !important; max-width: none !important; }
 }
 
 img, video, iframe { max-width: 100%; height: auto; }
 
+/* ── Mobile Analytics Donut Status Breakdown ─────────────────── */
+.donut-status-tooltip {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .donut-status-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.5rem 0.6rem !important;
+    width: 100% !important;
+  }
+
+  .donut-status-item {
+    cursor: pointer;
+    position: relative;
+    padding: 0.3rem 0.4rem !important;
+    border-radius: 6px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+  }
+
+  .donut-status-item .donut-status-text {
+    display: none !important;
+  }
+
+  .donut-status-tooltip {
+    display: block;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #0f172a;
+    color: #ffffff;
+    padding: 0.3rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 100;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  }
+
+  .donut-status-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: #0f172a;
+  }
+
+  .donut-status-item:hover .donut-status-tooltip,
+  .donut-status-item:active .donut-status-tooltip,
+  .donut-status-item:focus .donut-status-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

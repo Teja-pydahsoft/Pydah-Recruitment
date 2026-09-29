@@ -335,7 +335,7 @@ const StarButton = styled.button`
   background: none;
   border: none;
   font-size: 2rem;
-  color: ${props => props.filled ? '#fbbf24' : '#d1d5db'};
+  color: ${props => props.$filled ? '#fbbf24' : '#d1d5db'};
   cursor: pointer;
   padding: 0;
   transition: transform 0.2s ease;
@@ -963,7 +963,7 @@ const FeedbackEvaluations = () => {
                               <StarButton
                                 key={rating}
                                 type="button"
-                                filled={value >= rating}
+                                $filled={value >= rating}
                                 onClick={() => handleRatingChange(questionId, rating)}
                                 disabled={submitting}
                               >

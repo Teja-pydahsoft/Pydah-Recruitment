@@ -50,8 +50,8 @@ const IconButton = styled.button`
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 0.8rem;
-  background: ${({ variant }) => {
-    switch (variant) {
+  background: ${({ $variant, variant }) => {
+    switch ($variant || variant) {
       case 'primary':
         return '#dbeafe';
       case 'danger':
@@ -60,8 +60,8 @@ const IconButton = styled.button`
         return '#f1f5f9';
     }
   }};
-  color: ${({ variant }) => {
-    switch (variant) {
+  color: ${({ $variant, variant }) => {
+    switch ($variant || variant) {
       case 'primary':
         return '#1e40af';
       case 'danger':
@@ -73,8 +73,8 @@ const IconButton = styled.button`
   
   &:hover {
     transform: scale(1.1);
-    background: ${({ variant }) => {
-      switch (variant) {
+    background: ${({ $variant, variant }) => {
+      switch ($variant || variant) {
         case 'primary':
           return '#bfdbfe';
         case 'danger':
@@ -198,8 +198,8 @@ const Button = styled.button`
   cursor: pointer;
   transition: all 0.2s ease;
   
-  ${({ variant }) => {
-    if (variant === 'primary') {
+  ${({ $variant, variant }) => {
+    if (($variant || variant) === 'primary') {
       return `
         background: linear-gradient(135deg, #3b82f6, #2563eb);
         color: white;
@@ -231,8 +231,8 @@ const Alert = styled.div`
   padding: 0.875rem 1rem;
   border-radius: 8px;
   font-size: 0.875rem;
-  background: ${({ variant }) => {
-    switch (variant) {
+  background: ${({ $variant, variant }) => {
+    switch ($variant || variant) {
       case 'info':
         return '#dbeafe';
       case 'warning':
@@ -241,8 +241,8 @@ const Alert = styled.div`
         return '#f1f5f9';
     }
   }};
-  color: ${({ variant }) => {
-    switch (variant) {
+  color: ${({ $variant, variant }) => {
+    switch ($variant || variant) {
       case 'info':
         return '#1e40af';
       case 'warning':
@@ -551,7 +551,7 @@ const CourseManagement = () => {
                             <span>{course.department}</span>
                             <span className="d-inline-flex gap-1 ms-1">
                               <IconButton
-                                variant="primary"
+                                $variant="primary"
                                 style={{ width: '22px', height: '22px', fontSize: '0.65rem' }}
                                 onClick={() => handleEditDepartment(course)}
                                 title="Edit Department"
@@ -559,7 +559,7 @@ const CourseManagement = () => {
                                 <FaEdit />
                               </IconButton>
                               <IconButton
-                                variant="danger"
+                                $variant="danger"
                                 style={{ width: '22px', height: '22px', fontSize: '0.65rem' }}
                                 onClick={() => handleDeleteDepartment(course._id)}
                                 title="Delete Department"
@@ -638,7 +638,7 @@ const CourseManagement = () => {
                 <Button type="button" onClick={handleCloseModal} disabled={submitting}>
                   Cancel
                 </Button>
-                <Button variant="primary" type="submit" disabled={submitting}>
+                <Button $variant="primary" type="submit" disabled={submitting}>
                   {submitting ? 'Adding...' : 'Add Department'}
                 </Button>
               </ButtonRow>
@@ -679,7 +679,7 @@ const CourseManagement = () => {
                 <Button type="button" onClick={handleCloseModal} disabled={submitting}>
                   Cancel
                 </Button>
-                <Button variant="primary" type="submit" disabled={submitting}>
+                <Button $variant="primary" type="submit" disabled={submitting}>
                   {submitting ? 'Updating...' : 'Update Department'}
                 </Button>
               </ButtonRow>
@@ -697,7 +697,7 @@ const CourseManagement = () => {
               <CloseButton onClick={handleCloseModal}>&times;</CloseButton>
             </ModalHeader>
             <Form onSubmit={handleSaveCampusRename}>
-              <Alert variant="info">
+              <Alert $variant="info">
                 <strong>Note:</strong> Renaming a campus will update all departments under this campus. This action cannot be undone easily.
               </Alert>
               <FormGroup>
@@ -723,7 +723,7 @@ const CourseManagement = () => {
                 <Button type="button" onClick={handleCloseModal} disabled={submitting}>
                   Cancel
                 </Button>
-                <Button variant="primary" type="submit" disabled={submitting}>
+                <Button $variant="primary" type="submit" disabled={submitting}>
                   {submitting ? 'Renaming...' : 'Rename Campus'}
                 </Button>
               </ButtonRow>

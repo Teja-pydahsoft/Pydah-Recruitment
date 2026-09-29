@@ -97,7 +97,7 @@ const Td = styled.td`
 `;
 
 const ActionButton = styled.button`
-  background: ${props => props.danger ? '#ef4444' : '#10b981'};
+  background: ${props => props.$danger ? '#ef4444' : '#10b981'};
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -108,7 +108,7 @@ const ActionButton = styled.button`
   transition: background 0.3s ease;
 
   &:hover {
-    background: ${props => props.danger ? '#dc2626' : '#059669'};
+    background: ${props => props.$danger ? '#dc2626' : '#059669'};
   }
 `;
 
@@ -523,13 +523,13 @@ const UsersManagement = () => {
                       Edit
                     </ActionButton>
                     <ActionButton
-                      danger={true}
+                      $danger={true}
                       onClick={() => handleStatusToggle(member._id, member.isActive)}
                     >
                       {member.isActive ? 'Deactivate' : 'Activate'}
                     </ActionButton>
                     <ActionButton
-                      danger={true}
+                      $danger={true}
                       onClick={() => handleDelete(member._id)}
                     >
                       Delete

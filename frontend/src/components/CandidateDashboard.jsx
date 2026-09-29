@@ -32,12 +32,29 @@ const DashboardContainer = styled.div`
   min-height: 100vh;
   background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%);
   padding: 2rem 0;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0.75rem 0;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.5rem 0;
+  }
 `;
 
 const DashboardWrapper = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 1rem;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0 0.5rem;
+    max-width: 100%;
+  }
 `;
 
 const HeaderSection = styled.div`
@@ -55,6 +72,14 @@ const DashboardTitle = styled.h1`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+
+  @media (max-width: 768px) {
+    font-size: 1.75rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.35rem;
+  }
 `;
 
 const DashboardSubtitle = styled.p`
@@ -63,6 +88,11 @@ const DashboardSubtitle = styled.p`
   max-width: 600px;
   margin: 0 auto;
   line-height: 1.6;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    padding: 0 0.5rem;
+  }
 `;
 
 const WelcomeCard = styled.div`
@@ -73,6 +103,16 @@ const WelcomeCard = styled.div`
   margin-bottom: 2rem;
   box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);
   animation: ${fadeInUp} 0.6s ease-out 0.2s both;
+
+  @media (max-width: 768px) {
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1.25rem;
+    border-radius: 12px;
+  }
 `;
 
 const WelcomeContent = styled.div`
@@ -109,9 +149,19 @@ const WelcomeMessage = styled.p`
 
 const CardsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
 `;
 
 const DashboardCard = styled.div`

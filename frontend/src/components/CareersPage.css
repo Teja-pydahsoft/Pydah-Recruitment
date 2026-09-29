@@ -310,15 +310,28 @@
 
 @media (max-width: 640px) {
   .careers-hero {
-    padding: 2.5rem 1.5rem 3rem;
+    padding: 2.5rem 1rem 3rem;
+    min-height: auto;
   }
 
   .careers-hero-content {
-    border-radius: 20px;
+    border-radius: 16px;
+    padding: 1.5rem;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .careers-hero-content h1 {
+    font-size: 1.75rem;
   }
 
   .careers-body {
-    padding: 0 1.5rem 3rem;
+    padding: 0 1rem 3rem;
+  }
+
+  .careers-openings {
+    padding: 1.5rem 1.25rem;
+    border-radius: 18px;
   }
 
   .careers-tabs {
@@ -357,11 +370,20 @@
     width: 100%;
     justify-content: flex-start;
     margin-top: 1rem;
+    min-width: auto;
   }
   
   .careers-apply-button {
     width: 100%;
     justify-content: center;
   }
-}
 
+  .careers-hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .careers-primary-button {
+    text-align: center;
+  }
+}

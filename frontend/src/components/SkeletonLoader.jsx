@@ -61,7 +61,7 @@ export const SkeletonTable = styled.div`
 
 const TableHeader = styled.div`
   display: grid;
-  grid-template-columns: ${props => props.columns || 'repeat(5, 1fr)'};
+  grid-template-columns: ${props => props.$columns || 'repeat(5, 1fr)'};
   gap: 1rem;
   padding: 1rem 1.5rem;
   background: #f8fafc;
@@ -70,7 +70,7 @@ const TableHeader = styled.div`
 
 const TableRow = styled.div`
   display: grid;
-  grid-template-columns: ${props => props.columns || 'repeat(5, 1fr)'};
+  grid-template-columns: ${props => props.$columns || 'repeat(5, 1fr)'};
   gap: 1rem;
   padding: 1rem 1.5rem;
   border-bottom: 1px solid #e2e8f0;
@@ -173,13 +173,13 @@ export const DashboardSkeleton = () => (
 // Table Skeleton
 export const TableSkeleton = ({ rows = 5, columns = 'repeat(5, 1fr)' }) => (
   <SkeletonTable>
-    <TableHeader columns={columns}>
+    <TableHeader $columns={columns}>
       {columns.split(' ').map((_, i) => (
         <SkeletonBox key={i} height="20px" />
       ))}
     </TableHeader>
     {Array.from({ length: rows }).map((_, rowIndex) => (
-      <TableRow key={rowIndex} columns={columns}>
+      <TableRow key={rowIndex} $columns={columns}>
         {columns.split(' ').map((_, colIndex) => (
           <SkeletonBox key={colIndex} height="16px" />
         ))}
