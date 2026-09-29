@@ -201,6 +201,63 @@ router.get('/panel-member/stats', authenticateToken, requirePanelMember, async (
   }
 });
 
+// Get notification counts for panel member sidebar
+router.get('/panel-member/notifications', authenticateToken, requirePanelMember, async (req, res) => {
+  try {
+    const panelMemberId = req.user._id.toString();
+    const isSuperAdmin = req.user.role === 'super_admin';
+
+    const interviews = await Interview.find({
+      $or: [
+        { 'panelMembers.panelMember': req.user._id },
+        { 'candidates.panelMembers.panelMember': req.user._id }
+      ]
+    }).populate('candidates.candidate');
+
+    let upcomingCount = 0;
+    let pendingFeedbackCount = 0;
+
+    for (const iv of interviews) {
+      for (const entry of (iv.candidates || [])) {
+        let isAssigned = isSuperAdmin;
+        if (!isSuperAdmin) {
+          const candMatch = (entry.panelMembers || []).some(pm => {
+            const pmId = pm.panelMember?._id || pm.panelMember;
+            return pmId && pmId.toString() === panelMemberId;
+          });
+          const ivMatch = (iv.panelMembers || []).some(pm => {
+            const pmId = pm.panelMember?._id || pm.panelMember;
+            return pmId && pmId.toString() === panelMemberId;
+          });
+          isAssigned = candMatch || ivMatch;
+        }
+
+        if (isAssigned) {
+          if (entry.status !== 'completed' && entry.status !== 'cancelled') {
+            upcomingCount++;
+          }
+          const candidate = entry.candidate;
+          const hasFeedback = candidate?.interviewFeedback?.some(fb => 
+            fb.interview?.toString() === iv._id.toString() &&
+            fb.panelMember?.toString() === panelMemberId
+          );
+          if (!hasFeedback && entry.status !== 'cancelled') {
+            pendingFeedbackCount++;
+          }
+        }
+      }
+    }
+
+    res.json({
+      interviews: upcomingCount,
+      feedback: pendingFeedbackCount
+    });
+  } catch (error) {
+    console.error('❌ [PANEL MEMBER NOTIFICATIONS] Error:', error);
+    res.json({ interviews: 0, feedback: 0 });
+  }
+});
+
 // Get upcoming interviews for panel member
 router.get('/panel-member/upcoming', authenticateToken, requirePanelMember, async (req, res) => {
   try {

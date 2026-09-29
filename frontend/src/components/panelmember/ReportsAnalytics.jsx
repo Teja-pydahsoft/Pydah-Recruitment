@@ -127,6 +127,82 @@ const RetryButton = styled.button`
   }
 `;
 
+const MobileActiveBar = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.8rem;
+    background: ${props => (props.$active ? '#0f172a' : '#ffffff')};
+    color: ${props => (props.$active ? '#ffffff' : '#64748b')};
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid ${props => (props.$active ? '#1e293b' : '#e2e8f0')};
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    min-height: 32px;
+    text-align: center;
+    width: 100%;
+
+    .active-title {
+      font-weight: 700;
+      color: ${props => (props.$active ? '#38bdf8' : '#0f172a')};
+    }
+
+    .active-meta {
+      opacity: 0.85;
+      font-size: 0.72rem;
+      color: ${props => (props.$active ? '#cbd5e1' : '#94a3b8')};
+    }
+  }
+`;
+
+const StatsTooltip = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: block;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    ${props => {
+      if (props.$position === 'left') return 'left: 0;';
+      if (props.$position === 'right') return 'right: 0; left: auto;';
+      return 'left: 50%; transform: translateX(-50%);';
+    }}
+    background: #0f172a;
+    color: #ffffff;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: ${props => (props.$show ? 1 : 0)};
+    visibility: ${props => (props.$show ? 'visible' : 'hidden')};
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 99999;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      ${props => {
+        if (props.$position === 'left') return 'left: 28px;';
+        if (props.$position === 'right') return 'right: 28px; left: auto;';
+        return 'left: 50%; transform: translateX(-50%);';
+      }}
+      border: 5px solid transparent;
+      border-top-color: #0f172a;
+    }
+  }
+`;
+
 const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -134,15 +210,14 @@ const StatsGrid = styled.div`
   margin-top: 2rem;
 
   @media (max-width: 768px) {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-top: 1.5rem;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 0.35rem !important;
+    margin-top: 1.25rem;
   }
 
   @media (max-width: 480px) {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    margin-top: 1rem;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 0.25rem !important;
   }
 `;
 
@@ -154,7 +229,8 @@ const StatsCard = styled.div`
   border: 1px solid #e2e8f0;
   transition: all 0.3s ease;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  z-index: ${props => (props.$isHovered ? 50 : 1)};
 
   &::before {
     content: '';
@@ -163,6 +239,8 @@ const StatsCard = styled.div`
     left: 0;
     right: 0;
     height: 4px;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
     background: ${props => {
       switch (props.$variant) {
         case 'primary': return 'linear-gradient(90deg, #3b82f6, #2563eb)';
@@ -180,13 +258,46 @@ const StatsCard = styled.div`
   }
 
   @media (max-width: 768px) {
-    padding: 1.5rem;
-    border-radius: 12px;
+    padding: 0.5rem 0.2rem;
+    min-width: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+
+    ${props =>
+      props.$isHovered &&
+      `
+      border-color: #0ea5e9 !important;
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.4) !important;
+      transform: translateY(-2px) !important;
+    `}
+
+    &::before {
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+    }
+
+    .stats-label, .stats-change {
+      display: none !important;
+    }
+
+    &:hover .stats-tooltip-el,
+    &:active .stats-tooltip-el,
+    &:focus .stats-tooltip-el {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
   }
 
   @media (max-width: 480px) {
-    padding: 1rem;
-    border-radius: 8px;
+    padding: 0.45rem 0.15rem;
+    border-radius: 6px;
+
+    &::before {
+      border-top-left-radius: 6px;
+      border-top-right-radius: 6px;
+    }
   }
 `;
 
@@ -205,13 +316,15 @@ const StatsIcon = styled.div`
   opacity: 0.8;
 
   @media (max-width: 768px) {
-    font-size: 2rem;
-    margin-bottom: 0.75rem;
+    font-size: 1.15rem;
+    margin-bottom: 0.15rem;
+    display: flex;
+    justify-content: center;
   }
 
   @media (max-width: 480px) {
-    font-size: 1.75rem;
-    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    margin-bottom: 0.1rem;
   }
 `;
 
@@ -241,19 +354,19 @@ const StatsValue = styled.div`
   margin-bottom: 0.5rem;
 
   @media (max-width: 768px) {
-    font-size: 2rem;
-    margin-bottom: 0.25rem;
+    font-size: 1.15rem;
+    margin-bottom: 0;
   }
 
   @media (max-width: 480px) {
-    font-size: 1.5rem;
-    margin-bottom: 0.25rem;
+    font-size: 1rem;
+    margin-bottom: 0;
   }
 `;
 
 const StatsChange = styled.div`
   font-size: 0.875rem;
-  color: ${props => props.positive ? '#10b981' : '#ef4444'};
+  color: ${props => props.$positive ? '#10b981' : '#ef4444'};
   font-weight: 600;
 `;
 
@@ -284,6 +397,7 @@ const EmptyText = styled.p`
 
 const ReportsAnalytics = () => {
   const [stats, setStats] = useState(null);
+  const [hoveredCard, setHoveredCard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -350,45 +464,126 @@ const ReportsAnalytics = () => {
             <EmptyText>No analytics data available at the moment.</EmptyText>
           </EmptyState>
         ) : (
-          <StatsGrid>
-            <StatsCard $variant="primary">
+          <>
+            {/* ── Mobile Active Stat Bar Indicator ────────────────────────── */}
+            {(() => {
+              const statsMap = {
+                total: { label: 'Total Interviews', value: `${stats.totalInterviews || 0} all time` },
+                week: { label: 'Interviews This Week', value: `${stats.interviewsThisWeek || 0} active period` },
+                feedback: { label: 'Feedback Given', value: `${stats.feedbackGiven || 0} completed` },
+                rate: { label: 'Completion Rate', value: `${stats.completionRate || 0}% rate` }
+              };
+              const activeItem = hoveredCard ? statsMap[hoveredCard] : null;
+              return (
+                <MobileActiveBar $active={!!activeItem}>
+                  {activeItem ? (
+                    <>
+                      <span className="active-title">{activeItem.label}</span>
+                      <span className="active-meta">• {activeItem.value}</span>
+                    </>
+                  ) : (
+                    <span>Hover or tap any metric to see details</span>
+                  )}
+                </MobileActiveBar>
+              );
+            })()}
+
+            <StatsGrid>
+            <StatsCard
+              $variant="primary"
+              $isHovered={hoveredCard === 'total'}
+              tabIndex={0}
+              onMouseEnter={() => setHoveredCard('total')}
+              onMouseLeave={() => setHoveredCard(null)}
+              onTouchStart={() => setHoveredCard(prev => (prev === 'total' ? null : 'total'))}
+            >
+              <StatsTooltip
+                className="stats-tooltip-el"
+                $position="left"
+                $show={hoveredCard === 'total'}
+              >
+                Total Interviews
+              </StatsTooltip>
               <StatsIcon $variant="primary">
                 <FaChartBar />
               </StatsIcon>
-              <StatsLabel>Total Interviews</StatsLabel>
+              <StatsLabel className="stats-label">Total Interviews</StatsLabel>
               <StatsValue>{stats.totalInterviews || 0}</StatsValue>
-              <StatsChange positive>All time</StatsChange>
+              <StatsChange className="stats-change" $positive>All time</StatsChange>
             </StatsCard>
 
-            <StatsCard $variant="info">
+            <StatsCard
+              $variant="info"
+              $isHovered={hoveredCard === 'week'}
+              tabIndex={0}
+              onMouseEnter={() => setHoveredCard('week')}
+              onMouseLeave={() => setHoveredCard(null)}
+              onTouchStart={() => setHoveredCard(prev => (prev === 'week' ? null : 'week'))}
+            >
+              <StatsTooltip
+                className="stats-tooltip-el"
+                $position="center"
+                $show={hoveredCard === 'week'}
+              >
+                This Week
+              </StatsTooltip>
               <StatsIcon $variant="info">
                 <FaChartLine />
               </StatsIcon>
-              <StatsLabel>This Week</StatsLabel>
+              <StatsLabel className="stats-label">This Week</StatsLabel>
               <StatsValue>{stats.interviewsThisWeek || 0}</StatsValue>
-              <StatsChange positive>Active period</StatsChange>
+              <StatsChange className="stats-change" $positive>Active period</StatsChange>
             </StatsCard>
 
-            <StatsCard $variant="success">
+            <StatsCard
+              $variant="success"
+              $isHovered={hoveredCard === 'feedback'}
+              tabIndex={0}
+              onMouseEnter={() => setHoveredCard('feedback')}
+              onMouseLeave={() => setHoveredCard(null)}
+              onTouchStart={() => setHoveredCard(prev => (prev === 'feedback' ? null : 'feedback'))}
+            >
+              <StatsTooltip
+                className="stats-tooltip-el"
+                $position="center"
+                $show={hoveredCard === 'feedback'}
+              >
+                Feedback Given
+              </StatsTooltip>
               <StatsIcon $variant="success">
                 <FaChartPie />
               </StatsIcon>
-              <StatsLabel>Feedback Given</StatsLabel>
+              <StatsLabel className="stats-label">Feedback Given</StatsLabel>
               <StatsValue>{stats.feedbackGiven || 0}</StatsValue>
-              <StatsChange positive>Completed</StatsChange>
+              <StatsChange className="stats-change" $positive>Completed</StatsChange>
             </StatsCard>
 
-            <StatsCard $variant="warning">
+            <StatsCard
+              $variant="warning"
+              $isHovered={hoveredCard === 'rate'}
+              tabIndex={0}
+              onMouseEnter={() => setHoveredCard('rate')}
+              onMouseLeave={() => setHoveredCard(null)}
+              onTouchStart={() => setHoveredCard(prev => (prev === 'rate' ? null : 'rate'))}
+            >
+              <StatsTooltip
+                className="stats-tooltip-el"
+                $position="right"
+                $show={hoveredCard === 'rate'}
+              >
+                Completion Rate
+              </StatsTooltip>
               <StatsIcon $variant="warning">
                 <FaChartBar />
               </StatsIcon>
-              <StatsLabel>Completion Rate</StatsLabel>
+              <StatsLabel className="stats-label">Completion Rate</StatsLabel>
               <StatsValue>{stats.completionRate || 0}%</StatsValue>
-              <StatsChange positive={stats.completionRate >= 80}>
+              <StatsChange className="stats-change" $positive={stats.completionRate >= 80}>
                 {stats.completionRate >= 80 ? 'Excellent' : 'Good'}
               </StatsChange>
             </StatsCard>
           </StatsGrid>
+          </>
         )}
       </Wrapper>
     </Container>

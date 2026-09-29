@@ -215,6 +215,11 @@
   .dashboard-content { padding: 1rem 0.875rem; margin-top: 0.75rem; }
 }
 
+@media (max-width: 380px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .dashboard-title { font-size: 1.2rem; }
+}
+
 .dashboard-container, .dashboard-header, .stats-grid, .dashboard-content {
   max-width: 100%;
   box-sizing: border-box;

@@ -1404,8 +1404,8 @@ const CandidateManagement = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {candidate.assignments.interviews.map(assignment => (
-                    <tr key={assignment.interviewId}>
+                  {candidate.assignments.interviews.map((assignment, aIdx) => (
+                    <tr key={assignment.interviewId ? `${assignment.interviewId}_${aIdx}` : `assign_${aIdx}`}>
                       <td>{assignment.title}</td>
                       <td>{assignment.round}</td>
                       <td>{assignment.type}</td>

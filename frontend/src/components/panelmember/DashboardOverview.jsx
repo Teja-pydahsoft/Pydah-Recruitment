@@ -127,6 +127,82 @@ const DashboardSubtitle = styled.p`
   }
 `;
 
+const MobileActiveBar = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.8rem;
+    background: ${props => (props.$active ? '#0f172a' : '#ffffff')};
+    color: ${props => (props.$active ? '#ffffff' : '#64748b')};
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid ${props => (props.$active ? '#1e293b' : '#e2e8f0')};
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    min-height: 32px;
+    text-align: center;
+    width: 100%;
+
+    .active-title {
+      font-weight: 700;
+      color: ${props => (props.$active ? '#38bdf8' : '#0f172a')};
+    }
+
+    .active-meta {
+      opacity: 0.85;
+      font-size: 0.72rem;
+      color: ${props => (props.$active ? '#cbd5e1' : '#94a3b8')};
+    }
+  }
+`;
+
+const StatTooltip = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: block;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    ${props => {
+      if (props.$position === 'left') return 'left: 0;';
+      if (props.$position === 'right') return 'right: 0; left: auto;';
+      return 'left: 50%; transform: translateX(-50%);';
+    }}
+    background: #0f172a;
+    color: #ffffff;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: ${props => (props.$show ? 1 : 0)};
+    visibility: ${props => (props.$show ? 'visible' : 'hidden')};
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 99999;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      ${props => {
+        if (props.$position === 'left') return 'left: 28px;';
+        if (props.$position === 'right') return 'right: 28px; left: auto;';
+        return 'left: 50%; transform: translateX(-50%);';
+      }}
+      border: 5px solid transparent;
+      border-top-color: #0f172a;
+    }
+  }
+`;
+
 const StatsOverview = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -134,15 +210,14 @@ const StatsOverview = styled.div`
   margin-bottom: 3rem;
 
   @media (max-width: 768px) {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 2rem;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.35rem !important;
+    margin-bottom: 1.5rem;
   }
 
   @media (max-width: 480px) {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.25rem !important;
   }
 `;
 
@@ -155,7 +230,8 @@ const StatCard = styled.div`
   text-align: center;
   transition: all 0.3s ease;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  z-index: ${props => (props.$isHovered ? 50 : 1)};
 
   &:hover {
     transform: translateY(-2px);
@@ -164,26 +240,77 @@ const StatCard = styled.div`
 
   animation: ${slideInLeft} 0.6s ease-out both;
 
-  ${props => props.error && `
+  ${props =>
+    props.$error &&
+    `
     border-color: #fecaca;
     background: #fef2f2;
   `}
+
+  @media (max-width: 768px) {
+    padding: 0.5rem 0.2rem;
+    min-width: 0;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+
+    ${props =>
+      props.$isHovered &&
+      `
+      border-color: #0ea5e9 !important;
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.4) !important;
+      transform: translateY(-2px) !important;
+    `}
+
+    .stat-label-text {
+      display: none !important;
+    }
+
+    &:hover .stat-tooltip-el,
+    &:active .stat-tooltip-el,
+    &:focus .stat-tooltip-el {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.45rem 0.15rem;
+    border-radius: 6px;
+  }
+`;
+
+const StatIconWrapper = styled.div`
+  font-size: 1.4rem;
+  margin-bottom: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  @media (max-width: 768px) {
+    font-size: 1.15rem;
+    margin-bottom: 0.15rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1rem;
+    margin-bottom: 0.1rem;
+  }
 `;
 
 const StatNumber = styled.div`
   font-size: 2rem;
   font-weight: 800;
-  color: ${props => props.error ? '#dc2626' : '#06b6d4'};
-  margin-bottom: 0.5rem;
+  color: ${props => (props.$error ? '#dc2626' : '#06b6d4')};
+  margin-bottom: 0.25rem;
 
   @media (max-width: 768px) {
-    font-size: 1.5rem;
-    margin-bottom: 0.25rem;
+    font-size: 1.15rem;
+    margin-bottom: 0;
   }
 
   @media (max-width: 480px) {
-    font-size: 1.25rem;
-    margin-bottom: 0.25rem;
+    font-size: 1rem;
   }
 `;
 
@@ -196,12 +323,6 @@ const StatLabel = styled.div`
 
   @media (max-width: 768px) {
     font-size: 0.75rem;
-    letter-spacing: 0.3px;
-  }
-
-  @media (max-width: 480px) {
-    font-size: 0.7rem;
-    letter-spacing: 0.25px;
   }
 `;
 
@@ -438,13 +559,13 @@ const InterviewItem = styled.div`
   padding: 1.25rem 0;
   border-bottom: 1px solid #e2e8f0;
   transition: background-color 0.2s ease;
+  gap: 1rem;
+  flex-wrap: wrap;
 
   &:hover {
     background-color: #f8fafc;
-    margin: 0 -2rem;
-    padding-left: 2rem;
-    padding-right: 2rem;
     border-radius: 8px;
+    padding: 1.25rem 0.75rem;
   }
 
   &:last-child {
@@ -454,7 +575,17 @@ const InterviewItem = styled.div`
   @media (max-width: 768px) {
     flex-direction: column;
     align-items: flex-start;
-    gap: 1rem;
+    gap: 0.75rem;
+    padding: 1rem 0;
+
+    &:hover {
+      padding: 1rem 0.5rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.875rem 0;
+    gap: 0.5rem;
   }
 `;
 
@@ -492,7 +623,7 @@ const InterviewDetails = styled.p`
 `;
 
 const InterviewTime = styled.div`
-  color: ${props => props.completed ? '#10b981' : '#06b6d4'};
+  color: ${props => props.$completed ? '#10b981' : '#06b6d4'};
   font-weight: 600;
   font-size: 0.9rem;
 `;
@@ -549,6 +680,7 @@ const DashboardOverview = () => {
     loading: true,
     error: null
   });
+  const [hoveredStatCard, setHoveredStatCard] = useState(null);
 
   const fetchDashboardData = async () => {
     setDashboardData(prev => ({ ...prev, loading: true, error: null }));
@@ -560,9 +692,20 @@ const DashboardOverview = () => {
       // Fetch upcoming interviews
       const interviewsResponse = await api.get('/interviews/panel-member/upcoming');
       
+      // Deduplicate interviews by unique interview ID + candidate ID to prevent duplicate records
+      const rawInterviews = interviewsResponse.data.interviews || [];
+      const seen = new Set();
+      const uniqueInterviews = rawInterviews.filter((iv, idx) => {
+        const candidateKey = iv.candidate?._id || iv.candidate?.candidateNumber || iv.candidateId || idx;
+        const key = `${iv._id || 'iv'}_${candidateKey}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
       setDashboardData({
         stats: statsResponse.data,
-        upcomingInterviews: interviewsResponse.data.interviews || [],
+        upcomingInterviews: uniqueInterviews,
         loading: false,
         error: null
       });
@@ -745,24 +888,100 @@ const DashboardOverview = () => {
           </ErrorState>
         )}
 
+        {/* ── Mobile Active Stat Bar Indicator ────────────────────────── */}
+        {(() => {
+          const statsMap = {
+            total: { label: 'Total Interviews', value: `${dashboardData.stats?.totalInterviews || 0} scheduled` },
+            week: { label: 'Interviews This Week', value: `${dashboardData.stats?.interviewsThisWeek || 0} active` },
+            rate: { label: 'Completion Rate', value: `${dashboardData.stats?.completionRate || 0}% completed` }
+          };
+          const activeItem = hoveredStatCard ? statsMap[hoveredStatCard] : null;
+          return (
+            <MobileActiveBar $active={!!activeItem}>
+              {activeItem ? (
+                <>
+                  <span className="active-title">{activeItem.label}</span>
+                  <span className="active-meta">• {activeItem.value}</span>
+                </>
+              ) : (
+                <span>Hover or tap any metric to see details</span>
+              )}
+            </MobileActiveBar>
+          );
+        })()}
+
         <StatsOverview>
-          <StatCard style={{ animationDelay: '0.1s' }} error={!!dashboardData.error}>
-            <StatNumber error={!!dashboardData.error}>
+          <StatCard
+            style={{ animationDelay: '0.1s' }}
+            $error={!!dashboardData.error}
+            $isHovered={hoveredStatCard === 'total'}
+            tabIndex={0}
+            onMouseEnter={() => setHoveredStatCard('total')}
+            onMouseLeave={() => setHoveredStatCard(null)}
+            onTouchStart={() => setHoveredStatCard(prev => (prev === 'total' ? null : 'total'))}
+          >
+            <StatIconWrapper style={{ color: '#0ea5e9' }}>
+              <FaCalendarAlt />
+            </StatIconWrapper>
+            <StatNumber $error={!!dashboardData.error}>
               {dashboardData.stats?.totalInterviews || 0}
             </StatNumber>
-            <StatLabel>Total Interviews</StatLabel>
+            <StatLabel className="stat-label-text">Total Interviews</StatLabel>
+            <StatTooltip
+              className="stat-tooltip-el"
+              $position="left"
+              $show={hoveredStatCard === 'total'}
+            >
+              Total Interviews
+            </StatTooltip>
           </StatCard>
-          <StatCard style={{ animationDelay: '0.2s' }} error={!!dashboardData.error}>
-            <StatNumber error={!!dashboardData.error}>
+          <StatCard
+            style={{ animationDelay: '0.2s' }}
+            $error={!!dashboardData.error}
+            $isHovered={hoveredStatCard === 'week'}
+            tabIndex={0}
+            onMouseEnter={() => setHoveredStatCard('week')}
+            onMouseLeave={() => setHoveredStatCard(null)}
+            onTouchStart={() => setHoveredStatCard(prev => (prev === 'week' ? null : 'week'))}
+          >
+            <StatIconWrapper style={{ color: '#0284c7' }}>
+              <FaClock />
+            </StatIconWrapper>
+            <StatNumber $error={!!dashboardData.error}>
               {dashboardData.stats?.interviewsThisWeek || 0}
             </StatNumber>
-            <StatLabel>This Week</StatLabel>
+            <StatLabel className="stat-label-text">This Week</StatLabel>
+            <StatTooltip
+              className="stat-tooltip-el"
+              $position="center"
+              $show={hoveredStatCard === 'week'}
+            >
+              Interviews This Week
+            </StatTooltip>
           </StatCard>
-          <StatCard style={{ animationDelay: '0.3s' }} error={!!dashboardData.error}>
-            <StatNumber error={!!dashboardData.error}>
+          <StatCard
+            style={{ animationDelay: '0.3s' }}
+            $error={!!dashboardData.error}
+            $isHovered={hoveredStatCard === 'rate'}
+            tabIndex={0}
+            onMouseEnter={() => setHoveredStatCard('rate')}
+            onMouseLeave={() => setHoveredStatCard(null)}
+            onTouchStart={() => setHoveredStatCard(prev => (prev === 'rate' ? null : 'rate'))}
+          >
+            <StatIconWrapper style={{ color: '#10b981' }}>
+              <FaCheckCircle />
+            </StatIconWrapper>
+            <StatNumber $error={!!dashboardData.error}>
               {dashboardData.stats?.completionRate || 0}%
             </StatNumber>
-            <StatLabel>Completion Rate</StatLabel>
+            <StatLabel className="stat-label-text">Completion Rate</StatLabel>
+            <StatTooltip
+              className="stat-tooltip-el"
+              $position="right"
+              $show={hoveredStatCard === 'rate'}
+            >
+              Completion Rate
+            </StatTooltip>
           </StatCard>
         </StatsOverview>
 
@@ -809,14 +1028,14 @@ const DashboardOverview = () => {
             </EmptyState>
           ) : (
             dashboardData.upcomingInterviews.map((interview, index) => (
-              <InterviewItem key={interview._id} style={{ animationDelay: `${0.8 + index * 0.1}s` }}>
+              <InterviewItem key={`dash_iv_${interview._id || 'iv'}_${interview.candidate?._id || interview.candidateId || index}_${index}`} style={{ animationDelay: `${0.8 + index * 0.1}s` }}>
                 <InterviewInfo>
                   <InterviewTitle>{interview.title}</InterviewTitle>
                   <InterviewDetails>
                     Candidate: {interview.candidate?.name || 'Unknown'} • Position: {interview.form?.title || 'N/A'}
                   </InterviewDetails>
                 </InterviewInfo>
-                <InterviewTime completed={interview.status === 'completed'}>
+                <InterviewTime $completed={interview.status === 'completed'}>
                   {interview.status === 'completed' 
                     ? 'Completed' 
                     : interview.scheduledDate && interview.scheduledTime

@@ -212,8 +212,8 @@ const TabButton = styled.button`
   padding: 0.75rem 1.5rem;
   font-size: 0.95rem;
   font-weight: 600;
-  color: ${props => props.active ? '#3b82f6' : '#6b7280'};
-  border-bottom: 3px solid ${props => props.active ? '#3b82f6' : 'transparent'};
+  color: ${props => props.$active ? '#3b82f6' : '#6b7280'};
+  border-bottom: 3px solid ${props => props.$active ? '#3b82f6' : 'transparent'};
   cursor: pointer;
   transition: all 0.2s ease;
   margin-bottom: -2px;
@@ -241,7 +241,7 @@ const Title = styled.h2`
 
 
 const AssignButton = styled.button`
-  background: ${props => props.assigned ? '#059669' : '#10b981'};
+  background: ${props => ((props.$assigned ?? props.assigned)) ? '#059669' : '#10b981'};
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -254,15 +254,15 @@ const AssignButton = styled.button`
   gap: 0.5rem;
 
   &:hover {
-    background: ${props => props.assigned ? '#047857' : '#059669'};
+    background: ${props => ((props.$assigned ?? props.assigned)) ? '#047857' : '#059669'};
   }
 `;
 
 const StyledButton = styled.button`
   background: ${props => 
-    props.danger ? '#ef4444' : 
-    props.configured ? '#059669' :
-    props.variant === 'info' ? '#3b82f6' : '#6b7280'};
+    ((props.$danger ?? props.danger)) ? '#ef4444' : 
+    ((props.$configured ?? props.configured)) ? '#059669' :
+    ((props.$variant || props.variant) === 'info') ? '#3b82f6' : '#6b7280'};
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -276,9 +276,9 @@ const StyledButton = styled.button`
 
   &:hover {
     background: ${props => 
-      props.danger ? '#dc2626' : 
-      props.configured ? '#047857' :
-      props.variant === 'info' ? '#2563eb' : '#4b5563'};
+      ((props.$danger ?? props.danger)) ? '#dc2626' : 
+      ((props.$configured ?? props.configured)) ? '#047857' :
+      ((props.$variant || props.variant) === 'info') ? '#2563eb' : '#4b5563'};
   }
 `;
 
@@ -333,12 +333,12 @@ const PanelMemberGrid = styled.div`
 `;
 
 const PanelMemberCard = styled.div`
-  border: 2px solid ${props => props.selected ? '#3b82f6' : '#e5e7eb'};
+  border: 2px solid ${props => ((props.$selected ?? props.selected)) ? '#3b82f6' : '#e5e7eb'};
   border-radius: 8px;
   padding: 1rem;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: ${props => props.selected ? '#eff6ff' : 'white'};
+  background: ${props => ((props.$selected ?? props.selected)) ? '#eff6ff' : 'white'};
 
   &:hover {
     border-color: #3b82f6;
@@ -788,7 +788,7 @@ const InterviewsManagement = () => {
         <TabButtons style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             <TabButton
-              active={activeTab === 'teaching'}
+              $active={activeTab === 'teaching'}
               onClick={() => {
                 setActiveTab('teaching');
                 setSelectedJobRole('all');
@@ -797,7 +797,7 @@ const InterviewsManagement = () => {
               Teaching Positions
             </TabButton>
             <TabButton
-              active={activeTab === 'non_teaching'}
+              $active={activeTab === 'non_teaching'}
               onClick={() => {
                 setActiveTab('non_teaching');
                 setSelectedJobRole('all');
@@ -806,7 +806,7 @@ const InterviewsManagement = () => {
               Non-Teaching Positions
             </TabButton>
             <TabButton
-              active={activeTab === 'all'}
+              $active={activeTab === 'all'}
               onClick={() => {
                 setActiveTab('all');
                 setSelectedJobRole('all');
@@ -895,8 +895,8 @@ const InterviewsManagement = () => {
                         <td className="px-3 text-end">
                           <div className="d-flex flex-wrap gap-2 justify-content-end">
                             <StyledButton
-                              variant="info"
-                              configured={interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0}
+                              $variant="info"
+                              $configured={interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0}
                               style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
                               onClick={() => {
                                 setSelectedInterview(interview);
@@ -906,7 +906,7 @@ const InterviewsManagement = () => {
                               Config Form
                             </StyledButton>
                             <StyledButton 
-                              danger 
+                              $danger={true} 
                               style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
                               onClick={() => handleDeleteInterview(interview._id)}
                             >
@@ -959,7 +959,7 @@ const InterviewsManagement = () => {
                         </td>
                         <td className="px-3">
                           <AssignButton
-                            assigned={candidateEntry.panelMembers && Array.isArray(candidateEntry.panelMembers) && candidateEntry.panelMembers.length > 0}
+                            $assigned={candidateEntry.panelMembers && Array.isArray(candidateEntry.panelMembers) && candidateEntry.panelMembers.length > 0}
                             style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
                             onClick={() => handleAssignPanelMembers(interview, candidateEntry)}
                           >
@@ -988,7 +988,7 @@ const InterviewsManagement = () => {
                         <td className="px-3 text-end">
                           <div className="d-flex flex-wrap gap-1 justify-content-end">
                             <StyledButton
-                              variant="info"
+                              $variant="info"
                               style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
                               onClick={() => {
                                 setSelectedInterview(interview);
@@ -1015,7 +1015,7 @@ const InterviewsManagement = () => {
                               Edit
                             </StyledButton>
                             <StyledButton
-                              variant="info"
+                              $variant="info"
                               style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
                               onClick={async () => {
                                 try {
@@ -1033,8 +1033,8 @@ const InterviewsManagement = () => {
                               Feedback
                             </StyledButton>
                             <StyledButton
-                              variant="info"
-                              configured={interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0}
+                              $variant="info"
+                              $configured={interview.feedbackForm && interview.feedbackForm.questions && Array.isArray(interview.feedbackForm.questions) && interview.feedbackForm.questions.length > 0}
                               style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
                               onClick={() => {
                                 setSelectedInterview(interview);
@@ -1044,7 +1044,7 @@ const InterviewsManagement = () => {
                               Config Form
                             </StyledButton>
                             <StyledButton
-                              danger
+                              $danger={true}
                               style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
                               onClick={async () => {
                                 if (window.confirm(`Are you sure you want to remove ${candidate.user?.name || 'this candidate'} from this interview?`)) {
@@ -1086,7 +1086,7 @@ const InterviewsManagement = () => {
               {panelMembers.map(member => (
                 <PanelMemberCard
                   key={member._id}
-                  selected={selectedPanelMembers.includes(member._id)}
+                  $selected={selectedPanelMembers.includes(member._id)}
                   onClick={() => handlePanelMemberToggle(member._id)}
                 >
                   <Checkbox
@@ -1261,9 +1261,9 @@ const InterviewsManagement = () => {
                         }}>×</CloseButton>
                       </ModalHeader>
 
-                      <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                      <div style={{ maxHeight: '70vh', overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                         {selectedInterview.candidates && selectedInterview.candidates.length > 0 ? (
-                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
                                 <th style={{ padding: '0.75rem', textAlign: 'left' }}>Candidate Number</th>
@@ -1311,7 +1311,7 @@ const InterviewsManagement = () => {
                                     </td>
                                     <td style={{ padding: '0.75rem' }}>
                                       <StyledButton
-                                        variant="info"
+                                        $variant="info"
                                         style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
                                         onClick={() => {
                                           setSelectedInterview(selectedInterview);
@@ -1598,7 +1598,7 @@ const InterviewsManagement = () => {
                             Configure the feedback form questions for offline interviews. Panel members will use this form to provide feedback.
                           </p>
                           <StyledButton
-                            variant="info"
+                            $variant="info"
                             onClick={handleAddFeedbackQuestion}
                             style={{ marginBottom: '1rem' }}
                           >
@@ -1622,7 +1622,7 @@ const InterviewsManagement = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                                   <strong style={{ color: '#1e293b' }}>Question {index + 1}</strong>
                                   <StyledButton
-                                    danger
+                                    $danger={true}
                                     onClick={() => handleRemoveFeedbackQuestion(index)}
                                     style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
                                   >

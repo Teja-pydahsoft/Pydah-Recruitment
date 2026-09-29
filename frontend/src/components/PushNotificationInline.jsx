@@ -36,10 +36,22 @@ const NotificationStatus = styled.div`
   }
   
   @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
-    padding: 0.35rem 0.75rem;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
+
+    .status-content-wrap {
+      display: none !important;
+    }
+
+    svg {
+      font-size: 1.1rem;
+    }
   }
 `;
 
@@ -59,6 +71,10 @@ const StatusTitle = styled.span`
   }};
   white-space: nowrap;
   line-height: 1.2;
+
+  @media (max-width: 768px) {
+    font-size: 0.72rem;
+  }
 `;
 
 const StatusSubtitle = styled.span`
@@ -66,6 +82,10 @@ const StatusSubtitle = styled.span`
   color: #64748b;
   white-space: nowrap;
   line-height: 1.2;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const NotificationButton = styled.button`
@@ -90,6 +110,25 @@ const NotificationButton = styled.button`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  @media (max-width: 768px) {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+
+    .notif-btn-text {
+      display: none !important;
+    }
+
+    svg {
+      font-size: 1.1rem;
+    }
   }
 `;
 
@@ -168,8 +207,8 @@ const PushNotificationInline = ({ user, onSubscriptionChange }) => {
   if (permission === 'denied') {
     return (
       <NotificationStatus $status="disabled" title="Notifications disabled in browser settings">
-        <FaBellSlash size={14} color="#b45309" />
-        <StatusContent>
+        <FaBellSlash size={16} color="#b45309" />
+        <StatusContent className="status-content-wrap">
           <StatusTitle $status="disabled">Notifications Disabled</StatusTitle>
           <StatusSubtitle>Update browser settings to enable</StatusSubtitle>
         </StatusContent>
@@ -184,10 +223,10 @@ const PushNotificationInline = ({ user, onSubscriptionChange }) => {
         $status="enabled" 
         $clickable
         onClick={handleUnsubscribe}
-        title="Click to disable push notifications"
+        title="Notifications active (click to disable)"
       >
-        <FaCheckCircle size={14} color="#047857" />
-        <StatusContent>
+        <FaCheckCircle size={16} color="#047857" />
+        <StatusContent className="status-content-wrap">
           <StatusTitle $status="enabled">Push Notifications Enabled</StatusTitle>
           <StatusSubtitle>You will receive notifications about new applications and updates.</StatusSubtitle>
         </StatusContent>
@@ -200,10 +239,12 @@ const PushNotificationInline = ({ user, onSubscriptionChange }) => {
     <NotificationButton
       onClick={handleSubscribe}
       disabled={subscribing || permission === 'denied'}
-      title="Enable push notifications for new applications"
+      title="Enable Push Notifications"
     >
-      <FaBell size={14} />
-      {subscribing ? 'Enabling...' : 'Enable Notifications'}
+      <FaBell size={16} />
+      <span className="notif-btn-text">
+        {subscribing ? 'Enabling...' : 'Enable Notifications'}
+      </span>
     </NotificationButton>
   );
 };

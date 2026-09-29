@@ -158,8 +158,8 @@ const EmptyText = styled.p`
 
 const ActionButton = styled.button`
   background: ${props => {
-    if (props.submitted) return '#10b981';
-    return props.variant === 'primary' ? '#06b6d4' : '#3b82f6';
+    if (props.$submitted) return '#10b981';
+    return props.$variant === 'primary' ? '#06b6d4' : '#3b82f6';
   }};
   color: white;
   border: none;
@@ -178,8 +178,8 @@ const ActionButton = styled.button`
 
   &:hover {
     background: ${props => {
-      if (props.submitted) return '#059669';
-      return props.variant === 'primary' ? '#dc2626' : '#2563eb';
+      if (props.$submitted) return '#059669';
+      return props.$variant === 'primary' ? '#dc2626' : '#2563eb';
     }};
     transform: translateY(-2px);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -233,7 +233,17 @@ const MyInterviews = () => {
     
     try {
       const response = await api.get('/interviews/panel-member/upcoming');
-      setInterviews(response.data.interviews || []);
+      const rawInterviews = response.data.interviews || [];
+      // Deduplicate interviews by unique ID + candidate ID to prevent duplicate records
+      const seen = new Set();
+      const uniqueInterviews = rawInterviews.filter((iv, idx) => {
+        const candidateKey = iv.candidate?._id || iv.candidate?.candidateNumber || iv.candidateId || idx;
+        const key = `${iv._id || 'iv'}_${candidateKey}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setInterviews(uniqueInterviews);
     } catch (err) {
       console.error('Error fetching interviews:', err);
       setError(err.response?.data?.message || 'Failed to load interviews');
@@ -421,7 +431,7 @@ const MyInterviews = () => {
                 </tr>
               </thead>
               <tbody>
-                {interviews.map((interview) => {
+                {interviews.map((interview, index) => {
                   const status = getStatus(interview);
                   const candidateName = interview.candidate?.user?.name || interview.candidate?.name || 'Unknown';
                   const candidateNo = interview.candidate?.candidateNumber;
@@ -433,20 +443,23 @@ const MyInterviews = () => {
                       ? formatDate(interview.scheduledAt)
                       : 'Not scheduled';
 
+                  const candidateKey = interview.candidate?._id || interview.candidateId || interview.candidate?.candidateNumber || index;
+                  const rowKey = `interview_${interview._id || 'item'}_${candidateKey}_${index}`;
+
                   return (
-                    <tr key={interview._id}>
-                      <td className="px-3">
+                    <tr key={rowKey}>
+                      <td className="px-3" data-label="Candidate">
                         <div className="fw-semibold text-dark">{candidateName}</div>
                         {candidateNo && <Badge bg="secondary" className="small mt-1">{candidateNo}</Badge>}
                       </td>
-                      <td className="px-3">
+                      <td className="px-3" data-label="Job Role & Dept">
                         <div className="fw-medium text-dark">{position}</div>
                         <div className="text-muted small">{department}</div>
                       </td>
-                      <td className="px-3">
+                      <td className="px-3" data-label="Interview Title">
                         <div className="fw-medium text-dark">{interview.title}</div>
                       </td>
-                      <td className="px-3">
+                      <td className="px-3" data-label="Scheduled (IST)">
                         <div className="small fw-semibold">{scheduledText}</div>
                         {interview.duration && <div className="text-muted small">Duration: {interview.duration} mins</div>}
                         {interview.meetingLink && (
@@ -457,15 +470,15 @@ const MyInterviews = () => {
                           </div>
                         )}
                       </td>
-                      <td className="px-3">
+                      <td className="px-3" data-label="Status">
                         <Badge bg={status === 'completed' ? 'success' : status === 'pending' ? 'warning' : 'info'}>
                           {status === 'completed' ? 'Completed' : status === 'pending' ? 'Pending' : 'Upcoming'}
                         </Badge>
                       </td>
-                      <td className="px-3 text-end">
+                      <td className="px-3 text-end" data-label="Action">
                         {interview.submittedFeedback ? (
                           <ActionButton
-                            submitted
+                            $submitted={true}
                             onClick={() => {
                               navigate('/panel-member/feedback', {
                                 state: {
@@ -481,7 +494,7 @@ const MyInterviews = () => {
                           </ActionButton>
                         ) : (
                           <ActionButton
-                            variant="primary"
+                            $variant="primary"
                             onClick={() => {
                               navigate('/panel-member/feedback', {
                                 state: {

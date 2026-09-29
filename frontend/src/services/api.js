@@ -52,8 +52,89 @@ const api = axios.create({
   },
 });
 
+// In-memory cache for fast section transitions & request deduplication
+const apiCache = new Map();
+const CACHE_TTL = 30000; // 30 seconds fresh cache
+
+export const clearApiCache = () => {
+  apiCache.clear();
+};
+
+const invalidateCache = () => {
+  apiCache.clear();
+};
+
+const originalPost = api.post;
+const originalPut = api.put;
+const originalDelete = api.delete;
+const originalPatch = api.patch;
+
+api.post = function (...args) {
+  invalidateCache();
+  return originalPost.apply(this, args);
+};
+api.put = function (...args) {
+  invalidateCache();
+  return originalPut.apply(this, args);
+};
+api.delete = function (...args) {
+  invalidateCache();
+  return originalDelete.apply(this, args);
+};
+api.patch = function (...args) {
+  invalidateCache();
+  return originalPatch.apply(this, args);
+};
+
+const originalGet = api.get;
+api.get = function (url, config = {}) {
+  // Option to explicitly bypass cache (e.g., manual refresh buttons)
+  if (config.skipCache || config.headers?.['x-skip-cache']) {
+    return originalGet.call(this, url, config);
+  }
+
+  const cacheKey = `${url}_${JSON.stringify(config.params || {})}`;
+  const now = Date.now();
+  const cached = apiCache.get(cacheKey);
+
+  // Return cached result if within TTL
+  if (cached && cached.response && (now - cached.timestamp < CACHE_TTL)) {
+    return Promise.resolve({
+      ...cached.response,
+      data: cached.response.data
+    });
+  }
+
+  // Deduplicate concurrent in-flight requests for the exact same endpoint
+  if (cached && cached.inFlight) {
+    return cached.inFlight;
+  }
+
+  const requestPromise = originalGet.call(this, url, config)
+    .then((response) => {
+      apiCache.set(cacheKey, {
+        timestamp: Date.now(),
+        response,
+        inFlight: null
+      });
+      return response;
+    })
+    .catch((error) => {
+      apiCache.delete(cacheKey);
+      throw error;
+    });
+
+  apiCache.set(cacheKey, {
+    timestamp: now,
+    inFlight: requestPromise
+  });
+
+  return requestPromise;
+};
+
 // Helper function to create an upload request with progress tracking
 export const uploadWithProgress = (url, formData, onUploadProgress) => {
+  invalidateCache();
   return api.post(url, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (progressEvent) => {

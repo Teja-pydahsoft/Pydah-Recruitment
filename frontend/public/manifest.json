@@ -3,13 +3,23 @@
   "name": "Pydah Staff Recruitment Portal",
   "icons": [
     {
-      "src": "pydah-logo.png",
-      "sizes": "192x192 256x256 384x384 512x512",
+      "src": "favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo512.png",
+      "sizes": "512x512",
       "type": "image/png"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#0ea5e9",
   "background_color": "#ffffff"
 }

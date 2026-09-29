@@ -28,7 +28,7 @@ const SidebarContainer = styled.div`
   background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 60%, #f0f9ff 100%);
   color: #0f172a;
   border-right: 1px solid #bae6fd;
-  transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
+  transition: width 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1);
   z-index: 1000;
   box-shadow: 4px 0 24px rgba(14, 165, 233, 0.12);
   overflow: hidden;
@@ -36,11 +36,9 @@ const SidebarContainer = styled.div`
   overflow-y: auto;
 
   @media (max-width: 768px) {
-    width: ${props => props.$isOpen ? '260px' : '56px'};
-  }
-
-  @media (max-width: 480px) {
-    width: ${props => props.$isOpen ? '100%' : '56px'};
+    width: ${props => props.$isOpen ? '280px' : '0px'};
+    transform: ${props => props.$isOpen ? 'translateX(0)' : 'translateX(-100%)'};
+    box-shadow: ${props => props.$isOpen ? '4px 0 24px rgba(14, 165, 233, 0.25)' : 'none'};
   }
 
   &::-webkit-scrollbar { width: 4px; }
@@ -469,7 +467,7 @@ const Overlay = styled.div`
   }
 `;
 
-const Sidebar = ({ isOpen, toggleSidebar }) => {
+const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, hasPermission } = useAuth();
@@ -487,27 +485,32 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       fetchNotifications();
     } else if (user?.role === 'super_admin' || user?.role === 'sub_admin') {
       fetchDashboardCounts();
-      // Refresh counts every 30 seconds
-      const interval = setInterval(fetchDashboardCounts, 30000);
+      // Periodically refresh counts every 60 seconds without re-hammering the server on each section click
+      const interval = setInterval(fetchDashboardCounts, 60000);
       return () => clearInterval(interval);
     }
-    
-    // Also fetch notifications for super_admin or sub_admin with panel access when viewing panel member pages
+  }, [user]);
+
+  // Fetch notifications when super_admin or sub_admin switches into panel member area
+  useEffect(() => {
     if ((user?.role === 'super_admin' || (user?.role === 'sub_admin' && user?.hasPanelMemberAccess)) && location.pathname.startsWith('/panel-member')) {
       fetchNotifications();
     }
-  }, [user, location.pathname]);
+  }, [location.pathname, user]);
 
   const fetchNotifications = async () => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     try {
       const response = await api.get('/interviews/panel-member/notifications');
       setNotifications(response.data);
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      console.warn('Could not fetch notifications:', error?.message || error);
     }
   };
 
   const fetchDashboardCounts = async () => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     try {
       const [formsRes, candidatesRes, interviewsRes] = await Promise.allSettled([
         api.get('/forms'),
@@ -545,11 +548,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         activeForms
       });
     } catch (error) {
-      console.error('Error fetching dashboard counts:', error);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      console.warn('Could not fetch dashboard counts:', error?.message || error);
     }
   };
 
   const handleLogout = () => {
+    if (isMobile && isOpen) {
+      toggleSidebar();
+    }
     logout();
     navigate('/login');
   };
@@ -636,6 +643,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                         to={item.path}
                         className={location.pathname === item.path || (item.path === '/panel-member/feedback' && location.pathname.startsWith('/panel-member')) ? 'active' : ''}
                         $isOpen={isOpen}
+                        onClick={() => {
+                          if (isMobile && isOpen) {
+                            toggleSidebar();
+                          }
+                        }}
                         onMouseEnter={(e) => {
                           if (!isOpen) {
                             const rect = e.currentTarget.getBoundingClientRect();

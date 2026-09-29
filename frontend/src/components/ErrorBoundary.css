@@ -1,0 +1,104 @@
+/* ==========================================================================
+   ErrorBoundary.css
+   Styles for the global ErrorBoundary component
+   ========================================================================== */
+
+.error-boundary-wrapper {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.error-boundary-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(14, 165, 233, 0.12);
+  border: 1px solid #e0f2fe;
+}
+
+.error-boundary-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.25rem;
+  font-size: 1.75rem;
+}
+
+.error-boundary-icon.chunk-error {
+  background: #eff6ff;
+  color: #0ea5e9;
+}
+
+.error-boundary-icon.general-error {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.error-boundary-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.error-boundary-message {
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.error-boundary-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.error-boundary-retry-btn {
+  background: #0ea5e9;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.error-boundary-retry-btn:hover {
+  background: #0284c7;
+  transform: translateY(-1px);
+}
+
+.error-boundary-home-btn {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.error-boundary-home-btn:hover {
+  background: #e2e8f0;
+}
