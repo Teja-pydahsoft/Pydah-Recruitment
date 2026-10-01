@@ -76,7 +76,7 @@ const float = keyframes`
 // Styled Components
 const Container = styled.div`
   min-height: 100vh;
-  background: linear-gradient(135deg, ${colors.background} 0%, ${colors.surfaceLight} 100%);
+  background: linear-gradient(135deg, rgba(255, 247, 237, 0.75) 0%, rgba(255, 228, 230, 0.75) 100%);
   display: flex;
   align-items: center;
   justify-content: center;

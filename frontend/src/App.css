@@ -2,11 +2,37 @@
    APP.CSS — Glassmorphism Layout & Component Styles
    ================================================================ */
 
-/* ── App Root ─────────────────────────────────────────────────── */
+/* ── App Root & Global Watermark ──────────────────────────────── */
 .App {
   min-height: 100vh;
   overflow-x: hidden;
   max-width: 100vw;
+  position: relative;
+}
+
+.app-page-watermark {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('./pydah-bg-watermark.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: var(--watermark-size, min(780px, 82vw));
+  mix-blend-mode: multiply;
+  opacity: var(--watermark-opacity, 0.095);
+  pointer-events: none;
+  z-index: 95;
+}
+
+@media (min-width: 769px) {
+  .app-page-watermark {
+    left: 132px;
+    width: calc(100vw - 132px);
+  }
 }
 
 .super-admin-fluid {
