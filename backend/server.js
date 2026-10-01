@@ -9,28 +9,6 @@ const { initializePushNotifications } = require('./config/pushNotifications');
 // Load environment variables
 dotenv.config();
 
-// Connect to database and ensure default users
-connectDB()
-  .then(() => ensureSuperAdmin())
-  .then(() => repairEmptyFormFields())
-  .then((repairResult) => {
-    if (repairResult?.repaired > 0) {
-      console.log(`✅ Repaired ${repairResult.repaired} recruitment form(s) missing field definitions`);
-    }
-  })
-  .then(() => {
-    // Initialize Web Push Notifications
-    try {
-      initializePushNotifications();
-    } catch (pushError) {
-      console.warn('⚠️ Web Push Notifications failed to initialize (non-critical):', pushError.message);
-    }
-  })
-  .catch((error) => {
-    console.error('❌ Failed to initialize application:', error);
-    process.exit(1);
-  });
-
 const app = express();
 
 // CORS Configuration
@@ -171,9 +149,30 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+    await ensureSuperAdmin();
+    const repairResult = await repairEmptyFormFields();
+    if (repairResult?.repaired > 0) {
+      console.log(`✅ Repaired ${repairResult.repaired} recruitment form(s) missing field definitions`);
+    }
+    try {
+      initializePushNotifications();
+    } catch (pushError) {
+      console.warn('⚠️ Web Push Notifications failed to initialize (non-critical):', pushError.message);
+    }
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to initialize application:', error.message || error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 module.exports = app;
