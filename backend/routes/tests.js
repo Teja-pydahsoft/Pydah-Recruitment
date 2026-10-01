@@ -161,123 +161,322 @@ async function candidateTestResultPdfHandler(req, res) {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
-    const doc = new PDFDocument({ margin: 48, size: 'A4' });
+    const path = require('path');
+    const fs = require('fs');
+
+    const THEME = {
+      primary: '#0284c7',       // Sky Blue (Website Accent)
+      primaryDark: '#0369a1',   // Deep Blue
+      primaryLight: '#e0f2fe',  // Very soft sky tint
+      textDark: '#0f172a',      // Slate 900
+      textMuted: '#64748b',     // Slate 500
+      labelBg: '#f8fafc',       // Slate 50 for table header / label cells
+      borderColor: '#cbd5e1',   // Slate 300
+      tableBorder: '#e2e8f0',   // Slate 200
+      rowAlt: '#f8fafc',        // Slate 50
+      success: '#059669',       // Emerald
+      successBg: '#ecfdf5',
+      danger: '#dc2626',        // Red
+      dangerBg: '#fef2f2',
+      infoBg: '#eff6ff',
+      white: '#ffffff',
+    };
+
+    // Asset paths for watermark and header emblem
+    const watermarkPath = path.join(__dirname, '..', 'assets', 'pydah-bg-watermark.png');
+    const emblemPath = path.join(__dirname, '..', 'assets', 'pydah-emblem-icon.png');
+
+    const doc = new PDFDocument({
+      margins: { top: 38, bottom: 0, left: 38, right: 38 },
+      size: 'A4',
+      bufferPages: true,
+      autoFirstPage: true
+    });
     doc.pipe(res);
 
-    doc.fontSize(16).fillColor('#333333').text('Test Result Report', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(10).fillColor('#666666').text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
-    doc.moveDown(1.2);
-
-    doc.fillColor('#000000').fontSize(12).font('Helvetica-Bold').text('Test', { continued: true });
-    doc.font('Helvetica').text(`  ${test.title}`);
-    doc.font('Helvetica-Bold').text('Candidate', { continued: true });
-    doc.font('Helvetica').text(`  ${candidate.user?.name || '—'}`);
-    doc.font('Helvetica-Bold').text('Email', { continued: true });
-    doc.font('Helvetica').text(`  ${candidate.user?.email || '—'}`);
-    if (candidate.form) {
-      const pos = [candidate.form.position, candidate.form.department].filter(Boolean).join(' • ');
-      if (pos) {
-        doc.font('Helvetica-Bold').text('Position / Department', { continued: true });
-        doc.font('Helvetica').text(`  ${pos}`);
+    const drawWatermark = () => {
+      if (fs.existsSync(watermarkPath)) {
+        doc.save();
+        doc.opacity(0.075);
+        const wmWidth = 380;
+        const wmX = (doc.page.width - wmWidth) / 2;
+        const wmY = (doc.page.height - 230) / 2;
+        doc.image(watermarkPath, wmX, wmY, { width: wmWidth });
+        doc.restore();
       }
+    };
+
+    // Initial watermark
+    drawWatermark();
+    doc.on('pageAdded', () => {
+      drawWatermark();
+    });
+
+    const pageWidth = doc.page.width;
+    const pageHeight = doc.page.height;
+    const margin = 38;
+    const contentWidth = pageWidth - (margin * 2); // 519.28
+    const pageBottomY = pageHeight - 38;
+
+    // ── Header Banner ──────────────────────────────────────────
+    // Accent top bar
+    doc.rect(margin, 22, contentWidth, 3).fill(THEME.primary);
+
+    // Header logo and text
+    let headerY = 32;
+    if (fs.existsSync(emblemPath)) {
+      doc.image(emblemPath, margin, headerY, { width: 44 });
     }
-    doc.moveDown(0.8);
 
-    doc.fontSize(11).font('Helvetica-Bold').text('Score and outcome');
-    doc.font('Helvetica').fontSize(10);
-    doc.text(`Score: ${testResult.score ?? 0} / ${testResult.totalScore ?? test.totalMarks ?? '—'}`);
+    doc.font('Helvetica-Bold').fontSize(12).fillColor(THEME.primaryDark)
+      .text('PYDAH GROUP OF EDUCATIONAL INSTITUTIONS', margin + 50, headerY + 3);
+    doc.font('Helvetica').fontSize(8.5).fillColor(THEME.textMuted)
+      .text('Staff Recruitment & Candidate Assessment Portal', margin + 50, headerY + 18);
+
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(THEME.textDark)
+      .text('TEST RESULT REPORT', margin + 220, headerY + 3, { width: contentWidth - 220, align: 'right' });
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8')
+      .text(`Generated: ${new Date().toLocaleString()}`, margin + 220, headerY + 18, { width: contentWidth - 220, align: 'right' });
+
+    doc.moveTo(margin, 72).lineTo(margin + contentWidth, 72).strokeColor(THEME.tableBorder).lineWidth(1).stroke();
+
+    let curY = 82;
+
+    // Helper to allow PDFKit to soft-wrap URLs or long technical terms without inserting visible spaces
+    const sanitizeCellText = (text) => {
+      if (!text) return '';
+      // Insert zero-width space (\u200B) only after natural punctuation marks so PDFKit can wrap if necessary
+      return String(text).replace(/([\/_\-\.@])(?=[^\s])/g, '$1\u200B');
+    };
+
+    // Helper to draw section header title
+    const drawSectionHeader = (title) => {
+      doc.rect(margin, curY, contentWidth, 20).fill(THEME.primaryLight);
+      doc.rect(margin, curY, 4, 20).fill(THEME.primary);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(THEME.primaryDark).text(title, margin + 10, curY + 6);
+      curY += 24;
+    };
+
+    // Helper to draw key-value grid table (4 columns: label1, val1, label2, val2)
+    // Label cols: 95pt, Value cols: 164pt & 165pt (Total = 519pt). Gives ample room for emails & titles without weird breaks.
+    const drawKeyValueTable = (rows) => {
+      const colW = [95, 164, 95, 165]; // Total = 519
+      const cellPad = 4;
+
+      rows.forEach((row) => {
+        let x = margin;
+        const [lbl1, val1, lbl2, val2, customColor2, customBg2] = row;
+        const textVal1 = String(val1 || '—');
+        const textVal2 = String(val2 || '—');
+
+        // Measure label heights
+        doc.font('Helvetica-Bold').fontSize(8);
+        const hLbl1 = doc.heightOfString(lbl1, { width: colW[0] - (cellPad * 2) });
+        const hLbl2 = doc.heightOfString(lbl2, { width: colW[2] - (cellPad * 2) });
+
+        // Auto-scale font for single unbroken values (e.g. emails) if needed so text stays on 1 line with NO artificial spaces
+        doc.font('Helvetica').fontSize(8.5);
+        const val1AvailW = colW[1] - (cellPad * 2);
+        const val1W = doc.widthOfString(textVal1);
+        const font1 = (!textVal1.includes(' ') && val1W > val1AvailW)
+          ? Math.max(6.5, (val1AvailW / val1W) * 8.5)
+          : 8.5;
+        doc.fontSize(font1);
+        const hVal1 = doc.heightOfString(textVal1, { width: val1AvailW });
+
+        doc.font(customColor2 ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5);
+        const val2AvailW = colW[3] - (cellPad * 2);
+        const val2W = doc.widthOfString(textVal2);
+        const font2 = (!textVal2.includes(' ') && val2W > val2AvailW)
+          ? Math.max(6.5, (val2AvailW / val2W) * 8.5)
+          : 8.5;
+        doc.fontSize(font2);
+        const hVal2 = doc.heightOfString(textVal2, { width: val2AvailW });
+
+        const rowH = Math.max(20, Math.ceil(Math.max(hLbl1, hVal1, hLbl2, hVal2)) + (cellPad * 2) + 2);
+
+        // Col 1: Label
+        doc.rect(x, curY, colW[0], rowH).fillAndStroke(THEME.labelBg, THEME.tableBorder);
+        doc.save();
+        doc.rect(x, curY, colW[0], rowH).clip();
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(THEME.textMuted)
+          .text(lbl1, x + cellPad, curY + cellPad + 1, { width: colW[0] - (cellPad * 2), lineBreak: true });
+        doc.restore();
+        x += colW[0];
+
+        // Col 2: Value
+        doc.rect(x, curY, colW[1], rowH).fillAndStroke(THEME.white, THEME.tableBorder);
+        doc.save();
+        doc.rect(x, curY, colW[1], rowH).clip();
+        doc.font('Helvetica').fontSize(font1).fillColor(THEME.textDark)
+          .text(textVal1, x + cellPad, curY + cellPad + 1, { width: val1AvailW, lineBreak: true });
+        doc.restore();
+        x += colW[1];
+
+        // Col 3: Label
+        doc.rect(x, curY, colW[2], rowH).fillAndStroke(THEME.labelBg, THEME.tableBorder);
+        doc.save();
+        doc.rect(x, curY, colW[2], rowH).clip();
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(THEME.textMuted)
+          .text(lbl2, x + cellPad, curY + cellPad + 1, { width: colW[2] - (cellPad * 2), lineBreak: true });
+        doc.restore();
+        x += colW[2];
+
+        // Col 4: Value (supports badge background/color)
+        const cellBg = customBg2 || THEME.white;
+        doc.rect(x, curY, colW[3], rowH).fillAndStroke(cellBg, THEME.tableBorder);
+        doc.save();
+        doc.rect(x, curY, colW[3], rowH).clip();
+        doc.font(customColor2 ? 'Helvetica-Bold' : 'Helvetica').fontSize(font2).fillColor(customColor2 || THEME.textDark)
+          .text(textVal2, x + cellPad, curY + cellPad + 1, { width: val2AvailW, lineBreak: true });
+        doc.restore();
+
+        curY += rowH;
+      });
+      curY += 10;
+    };
+
+    // ── SECTION 1: CANDIDATE & ASSESSMENT DETAILS ──────────────
+    drawSectionHeader('CANDIDATE & ASSESSMENT DETAILS');
+
+    const candidateName = candidate.user?.name || candidate.personalDetails?.name || '—';
+    const candidateEmail = candidate.user?.email || '—';
+    const position = candidate.form?.position || '—';
+    const department = candidate.form?.department || '—';
+    const posDept = [position, department].filter(p => p !== '—').join(' • ') || '—';
+    const appId = candidate.applicationNumber || `#${candidate._id.toString().slice(-8).toUpperCase()}`;
+
+    drawKeyValueTable([
+      ['Candidate Name', candidateName, 'Application ID', appId],
+      ['Email Address', candidateEmail, 'Position / Dept', posDept],
+      ['Assessment Title', test.title, 'Duration Allowed', test.duration ? `${test.duration} Minutes` : 'Untimed']
+    ]);
+
+    // ── SECTION 2: SCORE & PERFORMANCE SUMMARY ────────────────
+    drawSectionHeader('SCORE & PERFORMANCE SUMMARY');
+
     const percentageValue = Number(testResult.percentage || 0).toFixed(1);
-    const statusLabel = testResult.status || '—';
-    const statusColor = statusLabel === 'passed' ? '#047857' : statusLabel === 'failed' ? '#b91c1c' : '#1d4ed8';
-    const percentageColor = Number(testResult.percentage || 0) >= Number(test.passingPercentage || 50) ? '#047857' : '#b91c1c';
-    doc.fillColor('#111827').text('Percentage: ', { continued: true });
-    doc.fillColor(percentageColor).font('Helvetica-Bold').text(`${percentageValue}%`);
-    doc.font('Helvetica').fillColor('#111827').text('Status: ', { continued: true });
-    doc.fillColor(statusColor).font('Helvetica-Bold').text(statusLabel.toUpperCase());
-    doc.font('Helvetica').fillColor('#111827');
-    if (testResult.startedAt) doc.text(`Started: ${new Date(testResult.startedAt).toLocaleString()}`);
-    if (testResult.submittedAt) doc.text(`Submitted: ${new Date(testResult.submittedAt).toLocaleString()}`);
-    doc.moveDown(1);
+    const passingPercentage = Number(test.passingPercentage || 50);
+    const isPassed = Number(testResult.percentage || 0) >= passingPercentage;
+    const statusLabel = (testResult.status || (isPassed ? 'passed' : 'failed')).toUpperCase();
+    const statusColor = isPassed ? THEME.success : THEME.danger;
+    const statusBg = isPassed ? THEME.successBg : THEME.dangerBg;
 
-    doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000').text('Question breakdown');
-    doc.moveDown(0.3);
+    const startedTime = testResult.startedAt ? new Date(testResult.startedAt).toLocaleString() : '—';
+    const submittedTime = testResult.submittedAt ? new Date(testResult.submittedAt).toLocaleString() : '—';
+
+    drawKeyValueTable([
+      ['Total Score', `${testResult.score ?? 0} / ${testResult.totalScore ?? test.totalMarks ?? '—'} Marks`, 'Percentage Scored', `${percentageValue}%`, statusColor],
+      ['Passing Cutoff', `${passingPercentage}%`, 'Final Outcome', statusLabel, statusColor, statusBg],
+      ['Attempt Started', startedTime, 'Attempt Submitted', submittedTime]
+    ]);
+
+    // ── SECTION 3: QUESTION BREAKDOWN ─────────────────────────
+    drawSectionHeader('QUESTION BREAKDOWN & EVALUATION');
 
     if (!detailedAnswers.length) {
-      doc.font('Helvetica').fontSize(10).fillColor('#555555').text('No answer records on file for this attempt.');
+      doc.font('Helvetica').fontSize(9).fillColor(THEME.textMuted).text('No answer records on file for this attempt.', margin + 10, curY);
     } else {
-      const table = {
-        x: 48,
-        width: 499,
+      const qTable = {
+        x: margin,
         columns: [
-          { key: 'index', label: '#', width: 24, align: 'center' },
-          { key: 'questionText', label: 'Question', width: 140, align: 'left' },
-          { key: 'candidateLine', label: 'Your Answer', width: 110, align: 'left' },
-          { key: 'correctLine', label: 'Correct Answer', width: 110, align: 'left' },
-          { key: 'resultLabel', label: 'Result', width: 70, align: 'center' },
-          { key: 'marks', label: 'Marks', width: 45, align: 'center' }
+          { key: 'index', label: '#', width: 24, align: 'center', bold: true },
+          { key: 'questionText', label: 'Question Description', width: 168, align: 'left', wrapBreak: true },
+          { key: 'candidateLine', label: 'Candidate Answer', width: 124, align: 'left', wrapBreak: true },
+          { key: 'correctLine', label: 'Correct Answer', width: 124, align: 'left', wrapBreak: true },
+          { key: 'resultLabel', label: 'Result', width: 48, align: 'center', bold: true },
+          { key: 'marks', label: 'Marks', width: 31, align: 'center', bold: true }
         ]
       };
 
-      const pageBottomY = doc.page.height - 48;
       const cellPadding = 4;
-      const borderColor = '#d1d5db';
 
-      const drawCellText = (text, x, y, width, height, align = 'left', isHeader = false, key = '') => {
-        const value = String(text ?? '');
-        let textColor = isHeader ? '#374151' : '#111827';
-        if (!isHeader && key === 'resultLabel') {
-          textColor = value === 'Correct' ? '#047857' : value === 'Incorrect' ? '#b91c1c' : '#1d4ed8';
-        }
-        if (!isHeader && key === 'marks') {
-          textColor = Number(value) > 0 ? '#047857' : '#b91c1c';
-        }
-        doc
-          .font(isHeader ? 'Helvetica-Bold' : 'Helvetica')
-          .fontSize(isHeader ? 8.5 : 8)
-          .fillColor(textColor)
-          .text(value, x + cellPadding, y + cellPadding, {
-            width: width - (cellPadding * 2),
-            height: height - (cellPadding * 2),
-            align
+      const drawHeaderRow = (y) => {
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(THEME.white);
+        let x = qTable.x;
+        const rowHeight = 20;
+
+        qTable.columns.forEach(col => {
+          doc.rect(x, y, col.width, rowHeight).fillAndStroke(THEME.primaryDark, THEME.primaryDark);
+          doc.fillColor(THEME.white).text(col.label, x + cellPadding, y + cellPadding + 1, {
+            width: col.width - (cellPadding * 2),
+            align: col.align
           });
+          x += col.width;
+        });
+
+        return rowHeight;
       };
 
-      const drawRow = (cells, y, isHeader = false) => {
-        doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(isHeader ? 8.5 : 8);
-        const heights = table.columns.map((col, index) => {
-          const content = String(cells[index] ?? '');
-          return doc.heightOfString(content, {
+      const calcRowDataAndHeight = (cells) => {
+        const rowData = cells.map((cell, idx) => {
+          const col = qTable.columns[idx];
+          const raw = String(cell ?? '');
+          const text = col.wrapBreak ? sanitizeCellText(raw) : raw;
+          return { col, raw, text };
+        });
+
+        const heights = rowData.map(({ col, text }) => {
+          doc.font(col.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5);
+          return doc.heightOfString(text, {
             width: col.width - (cellPadding * 2),
-            align: col.align || 'left'
+            align: col.align
           });
         });
-        const rowHeight = Math.max(isHeader ? 24 : 20, ...heights.map(h => h + (cellPadding * 2)));
 
-        let x = table.x;
-        for (let i = 0; i < table.columns.length; i += 1) {
-          const col = table.columns[i];
-          if (isHeader) {
-            doc.rect(x, y, col.width, rowHeight).fillAndStroke('#f3f4f6', borderColor);
-          } else {
-            if (col.key === 'resultLabel') {
-              const resultValue = String(cells[i] ?? '');
-              const bg = resultValue === 'Correct' ? '#ecfdf5' : resultValue === 'Incorrect' ? '#fef2f2' : '#eff6ff';
-              doc.rect(x, y, col.width, rowHeight).fillAndStroke(bg, borderColor);
+        const rowHeight = Math.max(18, Math.ceil(Math.max(...heights)) + (cellPadding * 2) + 2);
+        return { rowData, rowHeight };
+      };
+
+      const drawDataRow = (rowData, rowHeight, y, isAlt) => {
+        let x = qTable.x;
+        for (let i = 0; i < rowData.length; i++) {
+          const { col, raw, text } = rowData[i];
+          let bg = isAlt ? THEME.rowAlt : THEME.white;
+          let textColor = THEME.textDark;
+
+          if (col.key === 'resultLabel') {
+            if (raw === 'Correct') {
+              bg = THEME.successBg;
+              textColor = THEME.success;
+            } else if (raw === 'Incorrect') {
+              bg = THEME.dangerBg;
+              textColor = THEME.danger;
             } else {
-              doc.rect(x, y, col.width, rowHeight).stroke(borderColor);
+              bg = THEME.infoBg;
+              textColor = THEME.primary;
             }
           }
-          drawCellText(cells[i], x, y, col.width, rowHeight, col.align || 'left', isHeader, col.key);
+
+          if (col.key === 'marks') {
+            textColor = Number(raw) > 0 ? THEME.success : THEME.textMuted;
+          }
+
+          // Draw cell background & border
+          doc.rect(x, y, col.width, rowHeight).fillAndStroke(bg, THEME.tableBorder);
+
+          // Strictly clip text inside cell boundary so nothing can overflow
+          doc.save();
+          doc.rect(x, y, col.width, rowHeight).clip();
+
+          doc.font(col.bold ? 'Helvetica-Bold' : 'Helvetica')
+            .fontSize(7.5)
+            .fillColor(textColor)
+            .text(text, x + cellPadding, y + cellPadding + 1, {
+              width: col.width - (cellPadding * 2),
+              align: col.align,
+              lineBreak: true
+            });
+
+          doc.restore();
           x += col.width;
         }
 
         return rowHeight;
       };
 
-      const headerCells = table.columns.map(col => col.label);
-      let tableY = doc.y;
-      tableY += drawRow(headerCells, tableY, true);
+      let tableY = curY;
+      tableY += drawHeaderRow(tableY);
 
       detailedAnswers.forEach((row, idx) => {
         const rowCells = [
@@ -289,21 +488,37 @@ async function candidateTestResultPdfHandler(req, res) {
           row.marks
         ];
 
-        doc.font('Helvetica').fontSize(8);
-        const estimatedHeights = table.columns.map((col, cellIndex) => doc.heightOfString(String(rowCells[cellIndex] ?? ''), {
-          width: col.width - (cellPadding * 2),
-          align: col.align || 'left'
-        }));
-        const estimatedRowHeight = Math.max(20, ...estimatedHeights.map(h => h + (cellPadding * 2)));
+        const { rowData, rowHeight } = calcRowDataAndHeight(rowCells);
 
-        if (tableY + estimatedRowHeight > pageBottomY) {
+        if (tableY + rowHeight > pageBottomY) {
           doc.addPage();
-          tableY = 48;
-          tableY += drawRow(headerCells, tableY, true);
+          tableY = 38;
+          tableY += drawHeaderRow(tableY);
         }
 
-        tableY += drawRow(rowCells, tableY, false);
+        tableY += drawDataRow(rowData, rowHeight, tableY, idx % 2 === 1);
       });
+    }
+
+    // ── FOOTER ON ALL BUFFERED PAGES (NO EXTRA PAGE CREATION) ─
+    const range = doc.bufferedPageRange();
+    const totalPages = range.count;
+    for (let i = range.start; i < range.start + totalPages; i++) {
+      doc.switchToPage(i);
+      const footerY = pageHeight - 24;
+      doc.moveTo(margin, footerY - 5).lineTo(margin + contentWidth, footerY - 5).strokeColor(THEME.tableBorder).lineWidth(0.5).stroke();
+      doc.font('Helvetica').fontSize(7.5).fillColor(THEME.textMuted)
+        .text('Pydah Staff Recruitment Portal • Official Candidate Assessment Document', margin, footerY, {
+          width: contentWidth / 2,
+          align: 'left',
+          lineBreak: false
+        });
+      doc.font('Helvetica').fontSize(7.5).fillColor(THEME.textMuted)
+        .text(`Page ${i + 1} of ${totalPages}`, margin + (contentWidth / 2), footerY, {
+          width: contentWidth / 2,
+          align: 'right',
+          lineBreak: false
+        });
     }
 
     doc.end();

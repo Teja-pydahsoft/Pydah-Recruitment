@@ -18,6 +18,7 @@ import {
 } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import pydahLogoIcon from '../pydah-emblem-icon.png';
 
 const SidebarContainer = styled.div`
   position: fixed;
@@ -48,7 +49,7 @@ const SidebarContainer = styled.div`
 `;
 
 const SidebarHeader = styled.div`
-  padding: ${props => props.$isOpen ? '1.25rem 1.25rem' : '0.875rem 0'};
+  padding: ${props => props.$isOpen ? '1.1rem 1.25rem' : '0.875rem 0'};
   border-bottom: 1px solid #bae6fd;
   display: flex;
   align-items: center;
@@ -73,35 +74,39 @@ const Logo = styled.div`
   align-items: center;
   justify-content: ${props => props.$isOpen ? 'flex-start' : 'center'};
   gap: ${props => props.$isOpen ? '0.75rem' : '0'};
-  width: ${props => props.$isOpen ? 'auto' : '0'};
+  width: ${props => props.$isOpen ? 'auto' : '100%'};
   max-width: 100%;
   transition: all 0.3s ease;
   flex-shrink: 0;
   overflow: hidden;
-  opacity: ${props => props.$isOpen ? 1 : 0};
-  pointer-events: ${props => props.$isOpen ? 'auto' : 'none'};
+  opacity: 1;
+  pointer-events: auto;
+  cursor: ${props => props.$isOpen ? 'default' : 'pointer'};
 
   &:hover {
-    transform: scale(1.03);
+    transform: scale(1.02);
   }
 
   @media (max-width: 768px) {
-    display: ${props => props.$isOpen ? 'flex' : 'none'};
-  }
-
-  @media (max-width: 480px) {
-    display: ${props => props.$isOpen ? 'flex' : 'none'};
+    display: flex;
   }
 `;
 
-const LogoIcon = styled(FaUserTie)`
-  font-size: 1.4rem;
-  color: #0284c7;
+const LogoImg = styled.img`
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
   flex-shrink: 0;
+  filter: drop-shadow(0 2px 5px rgba(2, 132, 199, 0.25));
+  transition: transform 0.25s ease;
+
+  &:hover {
+    transform: scale(1.08);
+  }
 `;
 
 const LogoText = styled.span`
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 800;
   white-space: nowrap;
   opacity: ${props => props.$isOpen ? 1 : 0};
@@ -621,13 +626,15 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
       <Overlay $isOpen={isOpen} $showOnMobile={true} onClick={toggleSidebar} />
       <SidebarContainer $isOpen={isOpen}>
         <SidebarHeader $isOpen={isOpen}>
-          <Logo $isOpen={isOpen}>
-            <LogoIcon />
+          <Logo $isOpen={isOpen} onClick={!isOpen ? toggleSidebar : undefined} title={!isOpen ? "Expand sidebar" : "Pydah Staff Recruitment"}>
+            <LogoImg src={pydahLogoIcon} alt="Pydah Logo" />
             <LogoText $isOpen={isOpen}>SRS</LogoText>
           </Logo>
-          <ToggleButton onClick={toggleSidebar} $isOpen={isOpen}>
-            <FaBars />
-          </ToggleButton>
+          {isOpen && (
+            <ToggleButton onClick={toggleSidebar} $isOpen={isOpen} title="Collapse sidebar">
+              <FaBars />
+            </ToggleButton>
+          )}
         </SidebarHeader>
 
         <SidebarContent>

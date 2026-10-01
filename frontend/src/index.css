@@ -60,6 +60,10 @@
   /* --- Transitions -------------------------------------------- */
   --transition:      all 0.2s ease;
   --transition-fast: all 0.15s ease;
+
+  /* --- Brand Watermark Background ----------------------------- */
+  --watermark-opacity: 0.085;
+  --watermark-size: min(780px, 82vw);
 }
 
 /* ── Reset ──────────────────────────────────────────────────── */
@@ -83,6 +87,26 @@ body {
   line-height: 1.6;
   min-height: 100vh;
   overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('./pydah-bg-watermark.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: var(--watermark-size);
+  mix-blend-mode: multiply;
+  opacity: var(--watermark-opacity);
+  pointer-events: none;
+  z-index: 0;
 }
 
 code {
@@ -175,11 +199,40 @@ p, span, div { word-wrap: break-word; overflow-wrap: break-word; }
 
 /* ── Bootstrap Overrides (White & Sky Blue) ─────────────────── */
 .card {
-  background: #ffffff !important;
+  background: rgba(255, 255, 255, 0.90) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid #e0f2fe !important;
   border-radius: var(--border-radius-lg) !important;
   box-shadow: 0 4px 16px rgba(14, 165, 233, 0.05) !important;
   color: var(--text-primary) !important;
+}
+
+.card-header {
+  background-color: rgba(240, 249, 255, 0.75) !important;
+  border-bottom: 1px solid #e0f2fe !important;
+}
+
+.list-group-item {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-color: #e0f2fe !important;
+}
+
+.table {
+  --bs-table-bg: transparent !important;
+  background-color: transparent !important;
+}
+
+.table > :not(caption) > * > * {
+  background-color: transparent;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: rgba(240, 249, 255, 0.4) !important;
+}
+
+.table-hover > tbody > tr:hover > * {
+  background-color: rgba(224, 242, 254, 0.6) !important;
 }
 
 .card-body { padding: 1.5rem; }

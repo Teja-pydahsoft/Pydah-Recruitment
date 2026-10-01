@@ -80,6 +80,7 @@ const AppLayout = ({ children, showSidebar = true }) => {
   if (!isAuthenticated || !showSidebar) {
     return (
       <div className="App">
+        <div className="app-page-watermark" aria-hidden="true" />
         {children}
       </div>
     );
@@ -164,6 +165,7 @@ const AppLayout = ({ children, showSidebar = true }) => {
           {children}
         </div>
       </main>
+      <div className="app-page-watermark" aria-hidden="true" />
     </div>
   );
 };
